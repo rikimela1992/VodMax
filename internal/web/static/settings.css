@@ -1,4 +1,4 @@
-.settings { max-width: 70rem; }
+.settings { max-width: 62rem; padding: 0; }
 
 .settings h2 { color: var(--text); font-size: 1.3rem; margin-top: 1.5rem; }
 .settings p.note { color: var(--soft); margin: 0.3rem 0 1rem; }
@@ -61,9 +61,6 @@
 .cats .why { color: var(--soft); font-size: 0.85rem; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin: 1rem 0; }
 
-/* Settings menu: all entries visible, wrapping on narrow screens. */
-#tabs.settings-nav { flex-wrap: wrap; overflow: visible; }
-@media (max-width: 700px) { #tabs.settings-nav { flex-wrap: wrap; } #tabs.settings-nav .tab { padding: 0.45em 0.75em; } }
 .form > * { min-width: 0; }
 .form input, .form select, .form textarea { width: 100%; }
 .settings button.small { border-radius: 999px; padding: 0.5em 1.1em; }
@@ -86,3 +83,59 @@
   .countries { grid-template-columns: 1fr; }
   .toolbar .pick { flex: 1 1 100%; }
 }
+
+/* ---- Layout: sections on the left, the open one on the right; on a
+   phone the list first, then the section with its own Back. ---- */
+.shell { display: grid; grid-template-columns: minmax(17rem, 22rem) 1fr; gap: 2.5rem; padding: 1.5rem var(--safe) 4rem; }
+.side { position: sticky; top: 1.5rem; align-self: start; max-height: calc(100vh - 3rem); overflow-y: auto; }
+.side h1 { margin: 0.9rem 0 1.2rem; font-size: 1.7rem; font-weight: 700; }
+.side-back { display: inline-flex; align-items: center; gap: 0.45em; padding: 0.4em 0.9em 0.4em 0.6em; margin-left: -0.6em; color: var(--soft); text-decoration: none; border-radius: 999px; }
+.side-back:hover { color: var(--text); }
+.side-back:focus { color: #0b0c10; background: var(--focus); outline: none; }
+
+.group { margin-bottom: 1.3rem; }
+.group-title { margin: 0 0 0.45rem 0.9rem; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); }
+.group-list { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.item {
+  display: flex; align-items: center; gap: 0.85rem; width: 100%;
+  padding: 0.7rem 0.9rem; font: inherit; color: var(--text); text-align: left;
+  background: none; border: 0; cursor: pointer; transition: background 0.15s;
+}
+.item + .item { border-top: 1px solid var(--line); }
+.item-icon { display: grid; place-items: center; width: 2.1rem; height: 2.1rem; flex: none; color: var(--text); background: var(--raised); border-radius: 10px; }
+.item-icon .icon { width: 1.15rem; height: 1.15rem; }
+.item-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.item-title { font-weight: 600; }
+.item-sub { font-size: 0.82rem; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-go { color: var(--faint); display: flex; }
+.item:hover { background: rgba(255, 255, 255, 0.05); }
+.item.active { background: var(--raised); }
+.item.active .item-icon { color: #0b0c10; background: var(--accent); }
+.item:focus { outline: none; background: var(--focus); color: #0b0c10; }
+.item:focus .item-sub, .item:focus .item-go { color: #3a3d46; }
+.item:focus .item-icon { background: #0b0c10; color: var(--text); }
+
+.pane { min-width: 0; }
+.pane-head { display: none; }
+.pane .settings > h2:first-child { margin-top: 0.4rem; font-size: 1.6rem; }
+
+@media (max-width: 800px) {
+  .shell { display: block; padding: 0.6rem 16px 3rem; }
+  .side { position: static; max-height: none; overflow: visible; }
+  body:not(.at-list) .side { display: none; }
+  body.at-list .pane { display: none; }
+  .item { padding: 0.8rem 0.9rem; }
+  .pane-head {
+    position: sticky; top: 0; z-index: 4; display: flex; align-items: center; gap: 0.6rem;
+    margin: -0.6rem -16px 0.4rem; padding: 0.6rem 16px;
+    background: rgba(11, 12, 16, 0.94); border-bottom: 1px solid var(--line);
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  }
+  #pane-title { font-size: 1.15rem; font-weight: 700; }
+  .pane-back { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; padding: 0; color: var(--text); background: var(--raised); border: 0; border-radius: 999px; }
+  .pane-back:focus { color: #0b0c10; background: var(--focus); outline: none; }
+  /* The bar already shows the section name. */
+  .pane .settings > h2:first-child { display: none; }
+}
+.form > button { justify-self: start; width: auto; min-width: 9rem; }
+@media (max-width: 800px) { .form > button { justify-self: stretch; } }

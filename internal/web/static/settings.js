@@ -28,11 +28,74 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     return d.toLocaleDateString("it-IT", { day: "numeric", month: "short" }) + " " + hhmm(d.getTime() / 1000);
   };
 
+  // The sections, in groups like a system settings app.
+  const SECTIONS = [
+    ["Contenuti", [
+      ["subscriptions", "layers", "Abbonamenti", "Playlist Xtream e M3U"],
+      ["vpn", "lock", "VPN", "Come si raggiunge il provider"],
+      ["rules", "check", "Selezione", "Paesi, anni, cosa entra nel catalogo"],
+      ["categories", "list", "Categorie", "Includi o escludi una per una"],
+      ["guide", "calendar-days", "Guida TV", "Fonti XMLTV"],
+    ]],
+    ["Casa", [
+      ["profiles", "user", "Profili", "Chi guarda, profili bambini"],
+      ["devices", "tv", "Dispositivi", "TV, telefoni e PC abbinati"],
+    ]],
+    ["Server", [
+      ["system", "settings", "Sistema", "Stato, aggiornamenti, diretta, backup"],
+    ]],
+  ];
+  const TITLES = {};
+  for (const [, items] of SECTIONS) for (const [v, , t] of items) TITLES[v] = t;
+  const phone = window.matchMedia("(max-width: 800px)");
+
   const asked = new URLSearchParams(location.search).get("view");
-  const state = { view: asked || store.get("settingsView", "subscriptions"), sub: store.get("settingsSub", 0), kind: "live" };
+  // On a phone the page opens on the list of sections.
+  const state = { view: asked || (phone.matches ? null : store.get("settingsView", "subscriptions")), sub: store.get("settingsSub", 0), kind: "live" };
+
+  function buildSections() {
+    const icon = window.VodMaxIcons.icon;
+    const groups = SECTIONS.map(([name, items]) => el("div", { className: "group" },
+      el("div", { className: "group-title" }, name),
+      el("div", { className: "group-list" }, ...items.map(([view, ic, title, sub]) => {
+        const b = el("button", { className: "item focusable", type: "button" },
+          el("span", { className: "item-icon" }, icon(ic)),
+          el("span", { className: "item-text" }, el("span", { className: "item-title" }, title), el("span", { className: "item-sub" }, sub)),
+          el("span", { className: "item-go" }, icon("chevron-right")));
+        b.dataset.view = view;
+        b.onclick = () => open(view);
+        return b;
+      }))));
+    $("sections").replaceChildren(...groups);
+    $("pane-back").replaceChildren(icon("arrow-left"));
+    $("pane-back").onclick = back;
+  }
+
+  function open(view) {
+    state.view = view;
+    history.replaceState(null, "", "?view=" + view);
+    render().then(() => { if (phone.matches) window.scrollTo(0, 0); });
+  }
+
+  // Phone: from a section back to the list; otherwise back to the menu.
+  function back() {
+    if (phone.matches && state.view) {
+      const was = state.view;
+      state.view = null;
+      history.replaceState(null, "", location.pathname);
+      render();
+      const item = document.querySelector('.item[data-view="' + was + '"]');
+      if (item) item.focus();
+      return;
+    }
+    location.href = "/";
+  }
 
   async function render() {
-    for (const t of document.querySelectorAll(".tab[data-view]")) t.classList.toggle("active", t.dataset.view === state.view);
+    document.body.classList.toggle("at-list", !state.view);
+    for (const t of document.querySelectorAll(".item[data-view]")) t.classList.toggle("active", t.dataset.view === state.view);
+    if (!state.view) return;
+    $("pane-title").textContent = TITLES[state.view] || "";
     store.set("settingsView", state.view);
     const main = $("content");
     main.replaceChildren(el("p", { className: "note" }, "Caricamento…"));
@@ -96,7 +159,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       try { await api("DELETE", "/api/v1/subscriptions/" + s.id); flash("Abbonamento eliminato"); } catch (e) { flash(e.message); }
       render();
     }, "danger");
-    const select = button("Selezione del catalogo", () => { state.sub = s.id; store.set("settingsSub", s.id); state.view = "rules"; render(); });
+    const select = button("Selezione del catalogo", () => { state.sub = s.id; store.set("settingsSub", s.id); open("rules"); });
     box.append(el("div", { className: "buttons" }, syncButton, select, edit, del));
     return box;
   }
@@ -678,7 +741,14 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       el("p", { className: "note" }, "Profili: " + Object.values(profileName).join(", ")));
   }
 
-  for (const t of document.querySelectorAll(".tab[data-view]")) t.onclick = () => { state.view = t.dataset.view; render(); };
+  buildSections();
+  phone.addEventListener("change", () => { if (!phone.matches && !state.view) open(store.get("settingsView", "subscriptions")); });
+  document.addEventListener("keydown", (e) => {
+    if ((e.key === "Escape" || e.key === "Backspace" || e.keyCode === 461) && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) {
+      e.preventDefault();
+      back();
+    }
+  });
   window.VodMax.withToken(async () => {
     const who = await window.VodMax.me().catch(() => null);
     if (!who) return;
@@ -686,11 +756,12 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       $("content").replaceChildren(el("h2", {}, "Impostazioni"),
         el("p", { className: "note" }, "Le impostazioni sono riservate ai profili amministratore."),
         button("Cambia profilo", () => { store.set("profile", ""); window.VodMax.showProfiles(); }, "primary"));
-      for (const t of document.querySelectorAll(".tab[data-view]")) t.hidden = true;
+      $("sections").hidden = true;
+      document.body.classList.remove("at-list");
       return;
     }
     render();
   });
 
-  window.VodMaxNativeBack = () => { location.href = "/"; return true; };
+  window.VodMaxNativeBack = () => { back(); return true; };
 })();
