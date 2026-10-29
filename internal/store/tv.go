@@ -82,8 +82,8 @@ type TVChannel struct {
 	Now          *Programme `json:"now,omitempty"`
 	Next         *Programme `json:"next,omitempty"`
 
-	groupKey string
-	guide    string
+	GroupKey string `json:"-"`
+	GuideID  string `json:"-"`
 }
 
 // FirstFreeNumber is where channels without an official number start.
@@ -117,7 +117,7 @@ func (s *Store) TVChannels(ctx context.Context, profileID int64, noAdult bool, s
 		var c TVChannel
 		var pos int
 		if err := rows.Scan(&c.ID, &c.Number, &c.Name, &c.Image, &c.Section, &c.Quality, &c.VariantCount, &c.CatchupDays,
-			&c.groupKey, &c.Favorite, &pos, &c.guide); err != nil {
+			&c.GroupKey, &c.Favorite, &pos, &c.GuideID); err != nil {
 			return nil, err
 		}
 		// Two variants groups can match the same official number (e.g.
@@ -164,8 +164,8 @@ func sortByPosition(list []TVChannel, pos map[int64]int) {
 func (s *Store) attachNowNext(ctx context.Context, list []TVChannel, now time.Time) error {
 	byGuide := map[string][]int{}
 	for i, c := range list {
-		if c.guide != "" {
-			byGuide[c.guide] = append(byGuide[c.guide], i)
+		if c.GuideID != "" {
+			byGuide[c.GuideID] = append(byGuide[c.GuideID], i)
 		}
 	}
 	if len(byGuide) == 0 {
@@ -314,4 +314,42 @@ func (s *Store) ItemImage(ctx context.Context, itemID int64) (string, int64, err
 		return "", 0, ErrNotFound
 	}
 	return url, sub, err
+}
+
+// GuideWindow returns the programmes of the given guide channels that
+// overlap [from, to), by guide channel.
+func (s *Store) GuideWindow(ctx context.Context, guides []string, from, to time.Time) (map[string][]Programme, error) {
+	out := map[string][]Programme{}
+	if len(guides) == 0 {
+		return out, nil
+	}
+	// One query per batch: SQLite limits bound parameters.
+	for len(guides) > 0 {
+		n := min(len(guides), 400)
+		batch := guides[:n]
+		guides = guides[n:]
+		args := []any{from.Unix(), to.Unix()}
+		for _, g := range batch {
+			args = append(args, g)
+		}
+		rows, err := s.r.QueryContext(ctx, `SELECT channel, start, stop, title, subtitle, description, category FROM epg_programme
+			WHERE stop > ? AND start < ? AND channel IN (?`+strings.Repeat(", ?", n-1)+`) ORDER BY channel, start`, args...)
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			var ch string
+			var p Programme
+			if err := rows.Scan(&ch, &p.Start, &p.Stop, &p.Title, &p.Subtitle, &p.Description, &p.Category); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			out[ch] = append(out[ch], p)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
 }

@@ -78,6 +78,7 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	route("GET /api/v1/categories/{kind}", levelViewer, a.categories)
 	route("GET /api/v1/tv/channels", levelViewer, a.tvChannels)
 	route("GET /api/v1/tv/channels/{id}/guide", levelViewer, a.channelGuide)
+	route("GET /api/v1/guide", levelViewer, a.guide)
 	route("PUT /api/v1/tv/favorites/{id}", levelViewer, a.putFavorite)
 	route("POST /api/v1/subscriptions/{id}/guide/sync", levelAdmin, a.syncGuide)
 	route("POST /api/v1/live/{id}/ticket", levelViewer, a.liveTicket)
@@ -1204,4 +1205,19 @@ func (a *api) putMetadataSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, a.svc.MetadataSettings(r.Context()))
+}
+
+func (a *api) guide(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	from := time.Now()
+	if v, err := strconv.ParseInt(q.Get("from"), 10, 64); err == nil && v > 0 {
+		from = time.Unix(v, 0)
+	}
+	hours, _ := strconv.Atoi(q.Get("hours"))
+	rows, err := a.svc.Guide(r.Context(), from, hours, q.Get("section"), q.Get("list") == "favorites")
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, rows)
 }

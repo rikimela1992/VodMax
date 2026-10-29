@@ -9,6 +9,7 @@
 // Info / I        show the banner and the on-screen controls
 // Space, ◀ ▶      pause, 10 s back, 30 s forward (within the buffer)
 // Green / G       menu (films, series, recordings)
+// Guide / E       programme guide
 // Blue / R        record the programme on air
 // Back            close / cancel; with nothing open, back to the menu
 "use strict";
@@ -353,12 +354,12 @@
   // ---- Keys: browser, LG webOS and Android TV ----
   function keyOf(e) {
     const byCode = { 33: "ChannelUp", 34: "ChannelDown", 403: "Red", 404: "Green", 405: "Yellow", 406: "Blue",
-      457: "Info", 461: "Back", 427: "ChannelUp", 428: "ChannelDown" };
+      457: "Info", 458: "Guide", 461: "Back", 427: "ChannelUp", 428: "ChannelDown" };
     if (byCode[e.keyCode]) return byCode[e.keyCode];
     const byKey = { PageUp: "ChannelUp", PageDown: "ChannelDown", "+": "ChannelUp", "-": "ChannelDown",
       ColorF0Red: "Red", ColorF1Green: "Green", ColorF2Yellow: "Yellow", ColorF3Blue: "Blue",
       Escape: "Back", Backspace: "Back", BrowserBack: "Back", GoBack: "Back", Enter: "OK",
-      f: "Yellow", F: "Yellow", p: "Red", P: "Red", i: "Info", I: "Info", g: "Green", G: "Green", r: "Blue", R: "Blue" };
+      f: "Yellow", F: "Yellow", p: "Red", P: "Red", i: "Info", I: "Info", g: "Green", G: "Green", r: "Blue", R: "Blue", e: "Guide", E: "Guide" };
     return byKey[e.key] || e.key;
   }
 
@@ -429,6 +430,7 @@
         case "Yellow": toggleFavorite(state.browse !== null ? state.channels[state.browse] : state.current); break;
         case "Red": toggleFavoritesOnly(); break;
         case "Green": stopPlayer(); location.href = "/"; break;
+        case "Guide": stopPlayer(); location.href = "/guide.html"; break;
         case "Blue": record(state.browse !== null ? state.channels[state.browse] : state.current); break;
         case "Info": showBanner(state.current, false); showControls(); break;
         case " ": case "PlayPause": case "Play": case "Pause": actions.toggle(); break;
@@ -449,7 +451,9 @@
   async function start() {
     try { await refreshChannels(); } catch (e) { if (!e.handled) flash(e.message); return; }
     if (state.channels.length === 0) { flash("Nessun canale: sincronizza un abbonamento"); return; }
-    const last = store.get("last", null);
+    // From the guide: /tv.html?channel=ID.
+    const asked = Number(new URLSearchParams(location.search).get("channel"));
+    const last = asked || store.get("last", null);
     tune(state.channels.find((c) => c.id === last) || state.channels[0]);
   }
 

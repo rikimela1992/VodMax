@@ -252,6 +252,9 @@ type RecordingRequest struct {
 	Start     int64  `json:"start,omitempty"`
 	Stop      int64  `json:"stop,omitempty"`
 	Title     string `json:"title,omitempty"`
+	// FromGuide: start and stop are a guide programme's, so the margins
+	// apply as for the programme on air.
+	FromGuide bool `json:"from_guide,omitempty"`
 }
 
 func (s *Service) ScheduleRecording(ctx context.Context, req RecordingRequest) (store.Recording, error) {
@@ -287,7 +290,7 @@ func (s *Service) ScheduleRecording(ctx context.Context, req RecordingRequest) (
 			return store.Recording{}, invalid("nessun programma in guida per questo canale: indica inizio e fine")
 		}
 	} else {
-		margins = false
+		margins = req.FromGuide
 	}
 	if margins {
 		// Guide times are approximate: record a little before and after.
@@ -309,6 +312,11 @@ func (s *Service) ScheduleRecording(ctx context.Context, req RecordingRequest) (
 		return store.Recording{}, err
 	} else if other != nil {
 		return store.Recording{}, invalid("c'è già una registrazione di questo canale in quell'orario: %s", other.Title)
+	}
+	if why, err := s.recordingConflict(ctx, it.SubscriptionID, group, start, stop); err != nil {
+		return store.Recording{}, err
+	} else if why != "" {
+		return store.Recording{}, invalid("non registrabile: %s", why)
 	}
 	rec := store.Recording{ItemID: it.ID, GroupKey: group, Channel: it.Title, Title: title, Start: start, Stop: stop}
 	id, err := s.st.AddRecording(ctx, rec)

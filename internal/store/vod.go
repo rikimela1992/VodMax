@@ -321,3 +321,27 @@ func (s *Store) GroupKeyOf(ctx context.Context, itemID int64) (string, error) {
 	}
 	return g, err
 }
+
+// ActiveRecordingsBetween lists scheduled or running recordings that
+// overlap [start, stop), with the subscription of their channel.
+func (s *Store) ActiveRecordingsBetween(ctx context.Context, start, stop int64) ([]Recording, []int64, error) {
+	rows, err := s.r.QueryContext(ctx, `SELECT `+recordingColumns+`, coalesce((SELECT i.subscription_id FROM item i WHERE i.id = recording.item_id), 0)
+		FROM recording WHERE status IN ('scheduled', 'recording') AND start < ? AND stop > ? ORDER BY start`, stop, start)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	var list []Recording
+	var subs []int64
+	for rows.Next() {
+		var r Recording
+		var sub int64
+		if err := rows.Scan(&r.ID, &r.ItemID, &r.GroupKey, &r.Channel, &r.Title, &r.Start, &r.Stop, &r.Status, &r.File,
+			&r.Bytes, &r.Error, &r.CreatedAt, &sub); err != nil {
+			return nil, nil, err
+		}
+		list = append(list, r)
+		subs = append(subs, sub)
+	}
+	return list, subs, rows.Err()
+}
