@@ -7,7 +7,9 @@
 // Red / P         zap through favourites only
 // digits          go to channel number
 // Info / I        show the banner
-// Back            close / cancel
+// Green / G       menu (films, series, recordings)
+// Blue / R        record the programme on air
+// Back            close / cancel; with nothing open, back to the menu
 "use strict";
 
 (() => {
@@ -420,11 +422,13 @@
           else openList(state.favoritesOnly ? 1 : state.listIndex);
           break;
         case "Back":
-          if (state.browse !== null || !$("banner").hidden) endBrowse(); else handled = false;
+          // Closes the banner first; with nothing open, back to the menu.
+          if (state.browse !== null || !$("banner").hidden) endBrowse();
+          else { stopPlayer(); location.href = "/"; }
           break;
         case "Yellow": toggleFavorite(state.browse !== null ? state.channels[state.browse] : state.current); break;
         case "Red": toggleFavoritesOnly(); break;
-        case "Green": stopPlayer(); location.href = "/vod.html"; break;
+        case "Green": stopPlayer(); location.href = "/"; break;
         case "Blue": record(state.browse !== null ? state.channels[state.browse] : state.current); break;
         case "Info": showBanner(state.current, false); break;
         default: handled = false;

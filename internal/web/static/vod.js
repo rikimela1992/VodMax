@@ -1,5 +1,5 @@
-// VodMax Film e Serie: browsing with a remote control, playback with
-// resume and "continue watching", recordings.
+// VodMax home: films, series, recordings and the way to TV, browsed with a
+// remote control; playback with resume and "continue watching".
 "use strict";
 
 (() => {
@@ -10,7 +10,6 @@
     e.append(...children.filter((c) => c !== null && c !== undefined));
     return e;
   };
-  if (!window.VodMax.token()) { location.href = "/"; return; }
 
   const state = { view: store.get("vodView", "home"), query: "", detail: null, play: null };
   let statusTimer;
@@ -408,7 +407,9 @@
       if (handled) { handled(); e.preventDefault(); }
       return;
     }
-    const typing = document.activeElement === $("search");
+    const active = document.activeElement;
+    if (active && active.tagName === "INPUT" && active !== $("search")) return; // e.g. the token form
+    const typing = active === $("search");
     if (typing && !["ArrowDown", "Back", "OK"].includes(key)) return;
     if (key.startsWith("Arrow")) { moveFocus(key); e.preventDefault(); return; }
     if (key === "OK" && typing) { $("search").blur(); focusFirst($("content")); e.preventDefault(); return; }
@@ -418,7 +419,7 @@
       e.preventDefault();
       return;
     }
-    if (key === "Green" || key === "g") { location.href = "/"; return; }
+    if (key === "Green" || key === "g") { location.href = "/tv.html"; return; }
     if ((key === "Red" || key === "Delete") && document.activeElement && document.activeElement.dataset.recording) {
       deleteRecording(document.activeElement.dataset.recording);
       e.preventDefault();
@@ -437,5 +438,5 @@
   });
 
   addEventListener("pagehide", () => saveProgress());
-  render();
+  window.VodMax.withToken(render);
 })();

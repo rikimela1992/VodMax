@@ -306,7 +306,7 @@ func TestLiveRelaySingleConnection(t *testing.T) {
 
 func TestWebInterfaceServedWithStrictCSP(t *testing.T) {
 	e := setup(t, true)
-	for _, path := range []string{"/", "/tv.js", "/tv.css", "/vendor/mpegts-1.8.2.min.js"} {
+	for _, path := range []string{"/", "/tv.html", "/tv.js", "/tv.css", "/vod.js", "/vod.css", "/common.js", "/vendor/mpegts-1.8.2.min.js"} {
 		resp, err := http.Get(e.srv.URL + path)
 		if err != nil {
 			t.Fatal(err)

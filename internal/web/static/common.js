@@ -1,5 +1,5 @@
-// Shared by the VodMax pages: settings in localStorage, the admin token,
-// the player id and API calls.
+// Shared by the VodMax pages: settings in localStorage, the admin token
+// (from a link or asked on screen), the player id and API calls.
 "use strict";
 
 window.VodMax = (() => {
@@ -17,7 +17,47 @@ window.VodMax = (() => {
     return id;
   })();
 
+  // A link may carry the token once: "/#token=…". It is saved and removed
+  // from the address bar.
+  function tokenFromLink() {
+    const t = new URLSearchParams(location.hash.slice(1)).get("token");
+    if (t) {
+      store.set("token", t);
+      history.replaceState(null, "", location.pathname + location.search);
+    }
+    return Boolean(t);
+  }
+  tokenFromLink();
+  // Pasting a new link in the same tab only changes the hash: no reload.
+  addEventListener("hashchange", () => { if (tokenFromLink()) location.reload(); });
+
   function token() { return store.get("token", ""); }
+
+  // Asks for the admin token when it is missing or refused, on any page.
+  function askToken(message) {
+    if (document.getElementById("token-setup")) return;
+    const input = Object.assign(document.createElement("input"), { type: "password", autocomplete: "off", spellcheck: false });
+    input.setAttribute("aria-label", "Token di amministrazione");
+    const form = document.createElement("form");
+    const button = Object.assign(document.createElement("button"), { type: "submit", textContent: "Continua" });
+    form.append(input, button);
+    const box = Object.assign(document.createElement("section"), { id: "token-setup", className: "panel setup-panel" });
+    const title = Object.assign(document.createElement("h1"), { textContent: "VodMax" });
+    const text = Object.assign(document.createElement("p"), { textContent: message || "Inserisci il token di amministrazione del server (file admin.token)." });
+    box.append(title, text, form);
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      store.set("token", input.value.trim());
+      location.reload();
+    });
+    document.body.append(box);
+    input.focus();
+  }
+
+  // Runs start() when a token is available, otherwise asks for it.
+  function withToken(start) {
+    if (token()) start(); else askToken();
+  }
 
   async function api(method, path, body) {
     const res = await fetch(path, {
@@ -26,7 +66,7 @@ window.VodMax = (() => {
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     if (res.status === 401) {
-      location.href = "/"; // the TV page asks for the token
+      askToken("Il token salvato non è valido (forse è di un'altra installazione): inseriscilo di nuovo.");
       throw new Error("token non valido");
     }
     const data = res.status === 204 ? null : await res.json().catch(() => null);
@@ -53,5 +93,5 @@ window.VodMax = (() => {
   }
   function hhmm(unix) { const d = new Date(unix * 1000); return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
 
-  return { store, viewer, token, api, keyOf, clock, hhmm };
+  return { store, viewer, token, withToken, askToken, api, keyOf, clock, hhmm };
 })();

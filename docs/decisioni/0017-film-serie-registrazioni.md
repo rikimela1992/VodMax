@@ -46,7 +46,7 @@ Il provider accetta le richieste a intervalli (206) e risponde in 0,5–10 s.
    - a fine registrazione il file MPEG-TS viene riconfezionato in MP4 senza
      ricodifica, così nel browser si può saltare; se non riesce resta TS;
    - un riavvio del server a metà segna la registrazione come interrotta.
-6. **Interfaccia Film e Serie** (`/vod.html`, tasto verde dalla TV):
+6. **Interfaccia Film e Serie** (`/`, il menu principale; tasto verde dalla TV):
    Home con "Continua a guardare", nuovi film, nuove serie; schede Film, Serie,
    Registrazioni; ricerca; scheda con Riprendi/Dall'inizio/Altre versioni;
    serie con stagioni, episodi e avanzamento; player con OK pausa, ◀ −10 s,

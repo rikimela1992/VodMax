@@ -230,3 +230,35 @@ h2 { font-size: 1.15rem; margin: 1.6rem 0 0.7rem; color: var(--soft); font-weigh
   border: 1px solid var(--line);
   border-radius: 10px;
 }
+
+/* Token request, shared with the TV page. */
+.setup-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 10;
+  transform: translate(-50%, -50%);
+  width: min(90vw, 34rem);
+  padding: 2rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.setup-panel input {
+  width: 100%;
+  padding: 0.75rem;
+  margin: 0.5rem 0 1rem;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.setup-panel button {
+  padding: 0.7rem 1.4rem;
+  font: inherit;
+  color: var(--bg);
+  background: var(--text);
+  border: 0;
+  border-radius: 8px;
+}

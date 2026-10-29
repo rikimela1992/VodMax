@@ -5,6 +5,7 @@ import (
 	"embed"
 	"io/fs"
 	"net/http"
+	"strings"
 )
 
 //go:embed static
@@ -25,7 +26,7 @@ func Handler() http.Handler {
 			"script-src 'self'; style-src 'self'; connect-src 'self'; worker-src 'self' blob:; frame-ancestors 'none'")
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "no-referrer")
-		if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+		if r.URL.Path == "/" || strings.HasSuffix(r.URL.Path, ".html") {
 			h.Set("Cache-Control", "no-store")
 		}
 		files.ServeHTTP(w, r)
