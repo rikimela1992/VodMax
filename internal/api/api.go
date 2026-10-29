@@ -79,6 +79,11 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	route("GET /api/v1/tv/channels", levelViewer, a.tvChannels)
 	route("GET /api/v1/tv/channels/{id}/guide", levelViewer, a.channelGuide)
 	route("GET /api/v1/guide", levelViewer, a.guide)
+	route("GET /api/v1/guide/sources", levelAdmin, a.guideSources)
+	route("POST /api/v1/guide/sources", levelAdmin, a.addGuideSource)
+	route("PATCH /api/v1/guide/sources/{id}", levelAdmin, a.patchGuideSource)
+	route("DELETE /api/v1/guide/sources/{id}", levelAdmin, a.deleteGuideSource)
+	route("POST /api/v1/guide/sources/{id}/sync", levelAdmin, a.syncGuideSource)
 	route("PUT /api/v1/tv/favorites/{id}", levelViewer, a.putFavorite)
 	route("POST /api/v1/subscriptions/{id}/guide/sync", levelAdmin, a.syncGuide)
 	route("POST /api/v1/live/{id}/ticket", levelViewer, a.liveTicket)
@@ -553,7 +558,7 @@ func (a *api) syncGuide(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 15*time.Minute)
 	defer cancel()
-	res, err := a.svc.SyncGuide(ctx, id)
+	res, err := a.svc.SyncProviderGuide(ctx, id)
 	if err != nil {
 		a.fail(w, r, err)
 		return
@@ -1220,4 +1225,72 @@ func (a *api) guide(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, rows)
+}
+
+func (a *api) guideSources(w http.ResponseWriter, r *http.Request) {
+	list, err := a.svc.GuideSources(r.Context())
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+func (a *api) addGuideSource(w http.ResponseWriter, r *http.Request) {
+	var in struct{ Name, URL string }
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	id, err := a.svc.AddGuideSource(r.Context(), in.Name, in.URL)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]int64{"id": id})
+}
+
+func (a *api) patchGuideSource(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	var in service.GuideSourcePatch
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if err := a.svc.UpdateGuideSource(r.Context(), id, in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) deleteGuideSource(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if err := a.svc.DeleteGuideSource(r.Context(), id); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) syncGuideSource(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	res, err := a.svc.SyncGuideSource(r.Context(), id)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
 }

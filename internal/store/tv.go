@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -23,32 +24,39 @@ type GuideProgramme struct {
 	Category    string
 }
 
-// ReplaceGuide makes channels and programmes the guide of a subscription.
-// Programmes of the given channels are replaced as a whole.
-func (s *Store) ReplaceGuide(ctx context.Context, subID int64, channels []GuideChannel, programmes []GuideProgramme) error {
+// guideIDExpr resolves the guide channel of item i: by XMLTV id or by
+// name, preferring a channel that has programmes (an external source can
+// fill in for a provider channel without guide).
+const guideIDExpr = `coalesce((SELECT c.id FROM epg_channel c
+	WHERE c.id = lower(i.epg_id) OR (c.name_key = i.name_key AND i.name_key <> '')
+	ORDER BY EXISTS (SELECT 1 FROM epg_programme p WHERE p.channel = c.id) DESC, c.id = lower(i.epg_id) DESC
+	LIMIT 1), '')`
+
+// ReplaceGuide makes channels and programmes the guide of a source
+// ("sub:<id>" or "ext:<id>"). Programmes of its channels are replaced as a
+// whole.
+func (s *Store) ReplaceGuide(ctx context.Context, source string, channels []GuideChannel, programmes []GuideProgramme) error {
 	tx, err := s.w.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, `DELETE FROM epg_programme WHERE channel IN (SELECT id FROM epg_channel WHERE subscription_id = ?)`, subID); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM epg_channel WHERE subscription_id = ?`, subID); err != nil {
+	if err := deleteGuide(ctx, tx, source); err != nil {
 		return err
 	}
 	for _, c := range channels {
-		if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO epg_channel VALUES (?, ?, ?)`, subID, c.ID, c.NameKey); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO epg_channel (source, id, name_key) VALUES (?, ?, ?)`, source, c.ID, c.NameKey); err != nil {
 			return err
 		}
 	}
-	stmt, err := tx.PrepareContext(ctx, `INSERT OR REPLACE INTO epg_programme VALUES (?, ?, ?, ?, ?, ?, ?)`)
+	stmt, err := tx.PrepareContext(ctx, `INSERT OR REPLACE INTO epg_programme (channel, start, stop, title, subtitle, description, category, source)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 	for _, p := range programmes {
-		if _, err := stmt.ExecContext(ctx, p.Channel, p.Start, p.Stop, p.Title, p.Subtitle, p.Description, p.Category); err != nil {
+		if _, err := stmt.ExecContext(ctx, p.Channel, p.Start, p.Stop, p.Title, p.Subtitle, p.Description, p.Category, source); err != nil {
 			return err
 		}
 	}
@@ -97,8 +105,7 @@ func (s *Store) TVChannels(ctx context.Context, profileID int64, noAdult bool, s
 	rows, err := s.r.QueryContext(ctx, `
 		SELECT i.id, coalesce(i.lcn, 0), i.display_title, i.image, i.section, i.quality, i.variant_count, i.catchup_days,
 			i.group_key, f.position IS NOT NULL, coalesce(f.position, 0),
-			coalesce((SELECT c.id FROM epg_channel c WHERE c.id = lower(i.epg_id) LIMIT 1),
-			         (SELECT c.id FROM epg_channel c WHERE c.name_key = i.name_key AND i.name_key <> '' LIMIT 1), '')
+			`+guideIDExpr+`
 		FROM item i
 		LEFT JOIN favorite f ON f.profile_id = ? AND f.kind = 'live' AND f.group_key = i.group_key
 		WHERE i.kind = 'live' AND i.available = 1 AND i.visible = 1 AND i.primary_variant = 1 AND (? = 0 OR i.adult = 0)
@@ -208,8 +215,7 @@ func (s *Store) attachNowNext(ctx context.Context, list []TVChannel, now time.Ti
 func (s *Store) ChannelGuide(ctx context.Context, itemID int64, from, to time.Time) ([]Programme, error) {
 	var guide string
 	err := s.r.QueryRowContext(ctx, `SELECT
-			coalesce((SELECT c.id FROM epg_channel c WHERE c.id = lower(i.epg_id) LIMIT 1),
-			         (SELECT c.id FROM epg_channel c WHERE c.name_key = i.name_key AND i.name_key <> '' LIMIT 1), '')
+			`+guideIDExpr+`
 		FROM item i WHERE i.id = ? AND i.kind = 'live'`, itemID).Scan(&guide)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -352,4 +358,172 @@ func (s *Store) GuideWindow(ctx context.Context, guides []string, from, to time.
 		}
 	}
 	return out, nil
+}
+
+// deleteGuide removes a source's channels and programmes: the programmes
+// it added (also to other sources' channels) and those of its channels,
+// unless another source has a channel with the same id.
+func deleteGuide(ctx context.Context, tx *sql.Tx, source string) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM epg_programme WHERE source = ?
+		OR (channel IN (SELECT id FROM epg_channel WHERE source = ?) AND channel NOT IN (SELECT id FROM epg_channel WHERE source <> ?))`,
+		source, source, source); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `DELETE FROM epg_channel WHERE source = ?`, source)
+	return err
+}
+
+// DeleteGuide removes the guide of a source.
+func (s *Store) DeleteGuide(ctx context.Context, source string) error {
+	tx, err := s.w.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := deleteGuide(ctx, tx, source); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// GuideCover is what the guide has for a visible channel: its guide
+// channel (if any) and the end of its last programme (0 if none ahead).
+type GuideCover struct {
+	EPGID, NameKey, Guide string
+	LastStop              int64
+}
+
+// GuideCoverage describes every visible channel, and lists the guide
+// channel ids that sources other than except use.
+func (s *Store) GuideCoverage(ctx context.Context, except string, now time.Time) ([]GuideCover, map[string]bool, error) {
+	rows, err := s.r.QueryContext(ctx, `SELECT lower(i.epg_id), i.name_key, `+guideIDExpr+` AS g
+		FROM item i WHERE i.kind = 'live' AND i.available = 1 AND i.visible = 1 AND i.primary_variant = 1`)
+	if err != nil {
+		return nil, nil, err
+	}
+	var list []GuideCover
+	for rows.Next() {
+		var c GuideCover
+		if err := rows.Scan(&c.EPGID, &c.NameKey, &c.Guide); err != nil {
+			rows.Close()
+			return nil, nil, err
+		}
+		list = append(list, c)
+	}
+	rows.Close()
+	for i := range list {
+		if list[i].Guide == "" {
+			continue
+		}
+		// Only programmes of other sources count: this source's own
+		// extensions are replaced.
+		if err := s.r.QueryRowContext(ctx, `SELECT coalesce(max(stop), 0) FROM epg_programme WHERE channel = ? AND stop > ? AND source <> ?`,
+			list[i].Guide, now.Unix(), except).Scan(&list[i].LastStop); err != nil {
+			return nil, nil, err
+		}
+	}
+	taken := map[string]bool{}
+	rows, err = s.r.QueryContext(ctx, `SELECT DISTINCT id FROM epg_channel WHERE source <> ?`, except)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, nil, err
+		}
+		taken[id] = true
+	}
+	return list, taken, rows.Err()
+}
+
+// GuideSource is an external XMLTV guide.
+type GuideSource struct {
+	ID         int64  `json:"id"`
+	Name       string `json:"name"`
+	URL        string `json:"url"`
+	Enabled    bool   `json:"enabled"`
+	SyncedAt   *int64 `json:"synced_at,omitempty"`
+	Status     string `json:"status"`
+	Error      string `json:"error,omitempty"`
+	Channels   int    `json:"channels"`
+	Programmes int    `json:"programmes"`
+}
+
+const guideSourceColumns = `id, name, url, enabled, synced_at, status, error, channels, programmes`
+
+func scanGuideSource(row interface{ Scan(...any) error }) (GuideSource, error) {
+	var g GuideSource
+	var synced sql.NullInt64
+	err := row.Scan(&g.ID, &g.Name, &g.URL, &g.Enabled, &synced, &g.Status, &g.Error, &g.Channels, &g.Programmes)
+	if synced.Valid {
+		g.SyncedAt = &synced.Int64
+	}
+	return g, err
+}
+
+func (s *Store) GuideSources(ctx context.Context) ([]GuideSource, error) {
+	rows, err := s.r.QueryContext(ctx, `SELECT `+guideSourceColumns+` FROM guide_source ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []GuideSource{}
+	for rows.Next() {
+		g, err := scanGuideSource(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) GuideSource(ctx context.Context, id int64) (GuideSource, error) {
+	g, err := scanGuideSource(s.r.QueryRowContext(ctx, `SELECT `+guideSourceColumns+` FROM guide_source WHERE id = ?`, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return g, ErrNotFound
+	}
+	return g, err
+}
+
+func (s *Store) AddGuideSource(ctx context.Context, name, url string) (int64, error) {
+	res, err := s.w.ExecContext(ctx, `INSERT INTO guide_source (name, url, created_at) VALUES (?, ?, ?)`, name, url, time.Now().Unix())
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+func (s *Store) UpdateGuideSource(ctx context.Context, g GuideSource) error {
+	res, err := s.w.ExecContext(ctx, `UPDATE guide_source SET name = ?, url = ?, enabled = ? WHERE id = ?`, g.Name, g.URL, g.Enabled, g.ID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) SetGuideSourceResult(ctx context.Context, id int64, status, errText string, channels, programmes int) error {
+	_, err := s.w.ExecContext(ctx, `UPDATE guide_source SET synced_at = ?, status = ?, error = ?,
+		channels = CASE WHEN ? = 'ok' THEN ? ELSE channels END, programmes = CASE WHEN ? = 'ok' THEN ? ELSE programmes END WHERE id = ?`,
+		time.Now().Unix(), status, errText, status, channels, status, programmes, id)
+	return err
+}
+
+func (s *Store) DeleteGuideSource(ctx context.Context, id int64) error {
+	if err := s.DeleteGuide(ctx, fmt.Sprintf("ext:%d", id)); err != nil {
+		return err
+	}
+	res, err := s.w.ExecContext(ctx, `DELETE FROM guide_source WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

@@ -94,7 +94,7 @@ func (s *Service) SyncGuide(ctx context.Context, subID int64) (GuideResult, erro
 		programmes = append(programmes, store.GuideProgramme{Channel: p.Channel, Start: p.Start.Unix(), Stop: p.Stop.Unix(),
 			Title: p.Title, Subtitle: p.Subtitle, Description: p.Description, Category: p.Category})
 	}
-	if err := s.st.ReplaceGuide(ctx, subID, channels, programmes); err != nil {
+	if err := s.st.ReplaceGuide(ctx, fmt.Sprintf("sub:%d", subID), channels, programmes); err != nil {
 		return GuideResult{}, err
 	}
 	return GuideResult{Channels: len(wanted), Programmes: len(programmes), Duration: time.Since(started) / time.Millisecond}, nil

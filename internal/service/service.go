@@ -473,6 +473,7 @@ func (s *Service) Sync(ctx context.Context, id int64, allowDrop bool) (SyncResul
 			result.GuideError = err.Error()
 		} else {
 			result.Guide = &g
+			s.syncExternalGuides(ctx)
 		}
 	}
 	result.Duration = time.Since(started) / time.Millisecond

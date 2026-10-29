@@ -199,6 +199,7 @@ func (s *Service) runScheduled(ctx context.Context, log *slog.Logger, now time.T
 	if err != nil {
 		return
 	}
+	providerGuide := false
 	for _, sub := range subs {
 		if ctx.Err() != nil {
 			return
@@ -227,6 +228,35 @@ func (s *Service) runScheduled(ctx context.Context, log *slog.Logger, now time.T
 		s.guideDone(ctx, sub.ID, err)
 		if err != nil {
 			log.Warn("aggiornamento della guida fallito", "abbonamento", sub.ID, "err", err)
+		} else {
+			providerGuide = true
+		}
+	}
+	if providerGuide {
+		s.syncExternalGuides(ctx) // they extend the channels it replaced
+		return
+	}
+	// External guides after the providers', which they complete.
+	if sc.GuideHours == 0 {
+		return
+	}
+	sources, err := s.st.GuideSources(ctx)
+	if err != nil {
+		return
+	}
+	for _, g := range sources {
+		if !g.Enabled || ctx.Err() != nil {
+			continue
+		}
+		every := time.Duration(sc.GuideHours) * time.Hour
+		if g.Status == "error" {
+			every = time.Hour
+		}
+		if g.SyncedAt != nil && now.Sub(time.Unix(*g.SyncedAt, 0)) < every {
+			continue
+		}
+		if _, err := s.SyncGuideSource(ctx, g.ID); err != nil {
+			log.Warn("guida esterna non aggiornata", "guida", g.Name, "err", err)
 		}
 	}
 }
@@ -336,6 +366,14 @@ func (s *Service) Status(ctx context.Context) (SystemStatus, error) {
 			if kids && p.Kind != "kids" && !p.HasPIN {
 				out.Problems = append(out.Problems, Problem{Level: "warning", Area: "profile",
 					Text: fmt.Sprintf("Il profilo “%s” non ha un PIN: dai dispositivi dei bambini si può sceglierlo", p.Name)})
+			}
+		}
+	}
+	if sources, err := s.st.GuideSources(ctx); err == nil {
+		for _, g := range sources {
+			if g.Enabled && g.Status == "error" {
+				out.Problems = append(out.Problems, Problem{Level: "warning", Area: "guide",
+					Text: fmt.Sprintf("Guida esterna “%s” non aggiornata: %s", g.Name, g.Error)})
 			}
 		}
 	}

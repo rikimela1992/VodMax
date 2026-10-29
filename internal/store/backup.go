@@ -25,7 +25,8 @@ type Backup struct {
 	RecordingKeys map[int64]string    `json:"recording_groups"` // recording id → channel group
 	Settings      map[string]string   `json:"settings"`
 	Secrets       map[string]string   `json:"secrets,omitempty"` // sealed settings, in clear inside the backup
-	Extra         map[string][]string `json:"extra,omitempty"`   // reserved for later tables
+	GuideSources  []GuideSource       `json:"guide_sources,omitempty"`
+	Extra         map[string][]string `json:"extra,omitempty"` // reserved for later tables
 }
 
 const BackupVersion = 1
@@ -219,6 +220,17 @@ func (s *Store) ExportBackup(ctx context.Context, openVPN, openSub func(id int64
 	if err != nil {
 		return nil, err
 	}
+	err = eachRow(ctx, tx, `SELECT name, url, enabled FROM guide_source ORDER BY id`, func(rows *sql.Rows) error {
+		var g GuideSource
+		if err := rows.Scan(&g.Name, &g.URL, &g.Enabled); err != nil {
+			return err
+		}
+		b.GuideSources = append(b.GuideSources, g)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
 	err = eachRow(ctx, tx, `SELECT key, value FROM setting`, func(rows *sql.Rows) error {
 		var k, v string
 		if err := rows.Scan(&k, &v); err != nil {
@@ -270,6 +282,7 @@ func (s *Store) ImportBackup(ctx context.Context, b *Backup, sealVPN, sealSub fu
 	defer tx.Rollback()
 	for _, q := range []string{
 		`DELETE FROM progress`, `DELETE FROM favorite`, `DELETE FROM recording`, `DELETE FROM setting`,
+		`DELETE FROM epg_programme`, `DELETE FROM epg_channel`, `DELETE FROM guide_source`,
 		`DELETE FROM subscription`, `DELETE FROM vpn`, // cascades to the catalog
 	} {
 		if _, err := tx.ExecContext(ctx, q); err != nil {
@@ -314,6 +327,12 @@ func (s *Store) ImportBackup(ctx context.Context, b *Backup, sealVPN, sealSub fu
 		if _, err := tx.ExecContext(ctx, `INSERT INTO recording (id, item_id, group_key, channel, title, start, stop, status, file, bytes, error, created_at)
 			VALUES (?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, r.ID, b.RecordingKeys[r.ID], r.Channel, r.Title, r.Start, r.Stop,
 			status, r.File, r.Bytes, r.Error, r.CreatedAt); err != nil {
+			return err
+		}
+	}
+	for _, g := range b.GuideSources {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO guide_source (name, url, enabled, created_at) VALUES (?, ?, ?, ?)`,
+			g.Name, g.URL, g.Enabled, now); err != nil {
 			return err
 		}
 	}

@@ -261,6 +261,33 @@ var migrations = []string{
 		data       TEXT NOT NULL,      -- JSON; '' when the source had nothing
 		fetched_at INTEGER NOT NULL
 	);`,
+	// 9: guide channels by source ("sub:<id>" provider, "ext:<id>" external
+	// XMLTV), external guide sources.
+	`CREATE TABLE epg_channel_new (
+		source   TEXT NOT NULL,
+		id       TEXT NOT NULL,               -- XMLTV channel id, lower case
+		name_key TEXT NOT NULL,
+		PRIMARY KEY (source, id)
+	);
+	INSERT INTO epg_channel_new SELECT 'sub:' || subscription_id, id, name_key FROM epg_channel;
+	DROP TABLE epg_channel;
+	ALTER TABLE epg_channel_new RENAME TO epg_channel;
+	CREATE INDEX epg_channel_by_name ON epg_channel (name_key);
+	CREATE INDEX epg_channel_by_id ON epg_channel (id);
+	ALTER TABLE epg_programme ADD COLUMN source TEXT NOT NULL DEFAULT ''; -- '' for rows of older versions
+	CREATE INDEX epg_programme_by_source ON epg_programme (source);
+	CREATE TABLE guide_source (
+		id         INTEGER PRIMARY KEY,
+		name       TEXT NOT NULL,
+		url        TEXT NOT NULL,
+		enabled    INTEGER NOT NULL DEFAULT 1,
+		synced_at  INTEGER,
+		status     TEXT NOT NULL DEFAULT 'never',
+		error      TEXT NOT NULL DEFAULT '',
+		channels   INTEGER NOT NULL DEFAULT 0,
+		programmes INTEGER NOT NULL DEFAULT 0,
+		created_at INTEGER NOT NULL
+	);`,
 }
 
 func (s *Store) migrate(ctx context.Context) error {

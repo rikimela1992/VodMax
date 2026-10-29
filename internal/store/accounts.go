@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -170,6 +171,9 @@ func (s *Store) Subscription(ctx context.Context, id int64) (Subscription, error
 }
 
 func (s *Store) DeleteSubscription(ctx context.Context, id int64) error {
+	if err := s.DeleteGuide(ctx, fmt.Sprintf("sub:%d", id)); err != nil {
+		return err
+	}
 	res, err := s.w.ExecContext(ctx, `DELETE FROM subscription WHERE id = ?`, id)
 	if err != nil {
 		return err

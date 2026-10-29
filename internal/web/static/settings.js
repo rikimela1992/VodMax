@@ -35,7 +35,7 @@
     const main = $("content");
     main.replaceChildren(el("p", { className: "note" }, "Caricamento…"));
     try {
-      await ({ subscriptions: renderSubscriptions, vpn: renderVPN, rules: renderRules, categories: renderCategories, system: renderSystem, profiles: renderProfiles, devices: renderDevices })[state.view](main);
+      await ({ subscriptions: renderSubscriptions, vpn: renderVPN, rules: renderRules, categories: renderCategories, system: renderSystem, profiles: renderProfiles, devices: renderDevices, guide: renderGuideSources })[state.view](main);
     } catch (e) {
       main.replaceChildren(el("p", { className: "note bad" }, e.message));
     }
@@ -463,6 +463,59 @@
         : el("p", { className: "note" }, "Nessuna copia ancora."),
       el("div", { className: "buttons" }, now),
     ];
+  }
+
+  // ---- External guides ----
+  async function renderGuideSources(main) {
+    const list = await api("GET", "/api/v1/guide/sources");
+    const parts = [el("h2", {}, "Guide TV esterne"),
+      el("p", { className: "note" }, "La guida arriva dal provider. Una guida XMLTV esterna (un sito di EPG, il Tvheadend di casa, anche .xml.gz) " +
+        "completa i canali che ne sono senza e i giorni che mancano; non sostituisce mai i programmi che il provider ha già. " +
+        "Viene scaricata direttamente, senza VPN (non è il provider), e si aggiorna con la guida.")];
+    for (const g of list) {
+      const box = el("section", { className: "box" }, el("h3", {}, g.name), el("div", { className: "facts" },
+        el("span", {}, "Stato ", el("b", { className: g.status === "error" ? "bad" : g.status === "ok" ? "ok" : "" },
+          !g.enabled ? "disattivata" : g.status === "ok" ? "aggiornata" : g.status === "error" ? "errore" : "mai scaricata")),
+        g.synced_at ? el("span", {}, "Ultimo aggiornamento ", el("b", {}, when(g.synced_at))) : null,
+        el("span", {}, "Canali completati ", el("b", {}, g.channels)), el("span", {}, "Programmi ", el("b", {}, g.programmes.toLocaleString("it-IT")))),
+        el("p", { className: "note" }, g.url), g.error ? el("p", { className: "note bad" }, g.error) : null);
+      const sync = button("Aggiorna ora", async () => {
+        sync.disabled = true;
+        sync.textContent = "Scaricamento…";
+        try { const r = await api("POST", "/api/v1/guide/sources/" + g.id + "/sync"); flash(r.channels + " canali completati, " + r.programmes + " programmi"); }
+        catch (e) { flash(e.message); }
+        render();
+      }, "primary");
+      sync.disabled = !g.enabled;
+      const toggle = button(g.enabled ? "Disattiva" : "Attiva", async () => {
+        try { await api("PATCH", "/api/v1/guide/sources/" + g.id, { enabled: !g.enabled }); } catch (e) { flash(e.message); }
+        render();
+      });
+      const del = button("Elimina", async () => {
+        if (!confirm("Eliminare la guida “" + g.name + "” e i suoi programmi?")) return;
+        try { await api("DELETE", "/api/v1/guide/sources/" + g.id); } catch (e) { flash(e.message); }
+        render();
+      }, "danger");
+      box.append(el("div", { className: "buttons" }, sync, toggle, del));
+      parts.push(box);
+    }
+    const name = input({ placeholder: "es. EPG Italia" });
+    const url = input({ placeholder: "https://…/guida.xml.gz", spellcheck: false });
+    const add = el("button", { className: "small primary focusable full", type: "submit" }, "Aggiungi e scarica");
+    const form = el("form", { className: "form" }, ...field("Nome", name), ...field("Indirizzo XMLTV", url), add);
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      add.disabled = true;
+      add.textContent = "Scaricamento…";
+      try {
+        const r = await api("POST", "/api/v1/guide/sources", { name: name.value, url: url.value });
+        const res = await api("POST", "/api/v1/guide/sources/" + r.id + "/sync").catch((err) => { flash(err.message); return null; });
+        if (res) flash("Guida aggiunta: " + res.channels + " canali completati");
+        render();
+      } catch (err) { flash(err.message); add.disabled = false; add.textContent = "Aggiungi e scarica"; }
+    };
+    parts.push(el("h2", {}, "Aggiungi una guida"), form);
+    main.replaceChildren(...parts);
   }
 
   // ---- Profiles ----
