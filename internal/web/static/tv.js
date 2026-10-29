@@ -146,7 +146,7 @@
     player.on(mpegts.Events.MEDIA_INFO, () => { delete state.retries[channel.id]; });
     player.load();
     const started = player.play();
-    if (started && started.catch) started.catch(() => flash("Premi OK per avviare l'audio"));
+    if (started && started.catch) started.catch(() => flash("Premi un tasto o clicca per avviare la riproduzione"));
     state.player = player;
   }
 
@@ -350,8 +350,17 @@
     return byKey[e.key] || e.key;
   }
 
+  // Browsers block autoplay with sound until the user interacts: any key
+  // or click resumes a paused channel.
+  function resumeIfBlocked() {
+    const video = $("video");
+    if (state.player && video.paused) video.play().catch(() => {});
+  }
+  document.addEventListener("click", resumeIfBlocked);
+
   document.addEventListener("keydown", (e) => {
     if (!$("setup").hidden) return;
+    resumeIfBlocked();
     const key = keyOf(e);
     let handled = true;
 
