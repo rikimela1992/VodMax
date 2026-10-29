@@ -6,7 +6,8 @@
 // Yellow / F      add or remove favourite
 // Red / P         zap through favourites only
 // digits          go to channel number
-// Info / I        show the banner
+// Info / I        show the banner and the on-screen controls
+// Space, ◀ ▶      pause, 10 s back, 30 s forward (within the buffer)
 // Green / G       menu (films, series, recordings)
 // Blue / R        record the programme on air
 // Back            close / cancel; with nothing open, back to the menu
@@ -114,48 +115,40 @@
       flash("Questo dispositivo non supporta la riproduzione MPEG-TS nel browser");
       return;
     }
-    const player = mpegts.createPlayer({ type: "mpegts", isLive: true, url: url + (force ? "?force=1" : "") }, {
-      enableWorker: false,
-      enableStashBuffer: false,
-      liveBufferLatencyChasing: true,
-      liveBufferLatencyMaxLatency: 3.0,
-      liveBufferLatencyMinRemain: 0.8,
-      lazyLoad: false,
+    const player = window.VodMax.tsPlayer($("video"), url + (force ? "?force=1" : ""), {
+      live: true,
+      onStart: () => { delete state.retries[channel.id]; },
+      onError: (type, detail, info) => {
+        if (state.player !== player) return;
+        stopPlayer();
+        const code = info && info.code;
+        if (code === 409) {
+          confirmDialog("Tutte le connessioni dell'abbonamento sono in uso su un altro dispositivo.\n\nPrendere il controllo?",
+            () => tune(channel, true));
+          return;
+        }
+        // Only network failures are worth retrying; a format the device
+        // cannot decode would just reopen the channel at the provider.
+        const attempt = (state.retries[channel.id] || 0) + 1;
+        if (type !== mpegts.ErrorTypes.NETWORK_ERROR || attempt > 3) {
+          flash(type === mpegts.ErrorTypes.MEDIA_ERROR
+            ? "Questo dispositivo non riesce a decodificare il canale (" + detail + ")"
+            : "Canale non disponibile (" + (code || detail) + ")");
+          return;
+        }
+        state.retries[channel.id] = attempt;
+        flash("Flusso interrotto: nuovo tentativo " + attempt + " di 3…");
+        state.timers.retry = setTimeout(() => state.current === channel && tune(channel), 1500 * attempt);
+      },
     });
-    player.attachMediaElement($("video"));
-    player.on(mpegts.Events.ERROR, (type, detail, info) => {
-      if (state.player !== player) return;
-      stopPlayer();
-      const code = info && info.code;
-      if (code === 409) {
-        confirmDialog("Tutte le connessioni dell'abbonamento sono in uso su un altro dispositivo.\n\nPrendere il controllo?",
-          () => tune(channel, true));
-        return;
-      }
-      // Only network failures are worth retrying; a format the device
-      // cannot decode would just reopen the channel at the provider.
-      const attempt = (state.retries[channel.id] || 0) + 1;
-      if (type !== mpegts.ErrorTypes.NETWORK_ERROR || attempt > 3) {
-        flash(type === mpegts.ErrorTypes.MEDIA_ERROR
-          ? "Questo dispositivo non riesce a decodificare il canale (" + detail + ")"
-          : "Canale non disponibile (" + (code || detail) + ")");
-        return;
-      }
-      state.retries[channel.id] = attempt;
-      flash("Flusso interrotto: nuovo tentativo " + attempt + " di 3…");
-      state.timers.retry = setTimeout(() => state.current === channel && tune(channel), 1500 * attempt);
-    });
-    player.on(mpegts.Events.MEDIA_INFO, () => { delete state.retries[channel.id]; });
-    player.load();
-    const started = player.play();
-    if (started && started.catch) started.catch(() => flash("Premi un tasto o clicca per avviare la riproduzione"));
     state.player = player;
+    showControls();
   }
 
   function stopPlayer() {
     clearTimeout(state.timers.retry);
     if (state.player) {
-      try { state.player.pause(); state.player.unload(); state.player.detachMediaElement(); state.player.destroy(); } catch { /* already gone */ }
+      state.player.destroy();
       state.player = null;
     }
   }
@@ -301,6 +294,48 @@
     flash(state.favoritesOnly ? "P+/P− scorrono solo i preferiti" : "P+/P− scorrono tutti i canali");
   }
 
+  // ---- On-screen controls ----
+  function showControls() {
+    const ctl = $("controls");
+    const p = state.player;
+    const c = state.current;
+    $("ctl-toggle").textContent = p && p.paused ? "▶ Riprendi" : "⏸ Pausa";
+    const behind = p ? p.behind() : 0;
+    const live = $("ctl-live");
+    live.classList.toggle("behind", behind > 4);
+    live.textContent = behind > 4 ? "⏭ Torna in diretta (−" + VodMax.clock(behind) + ")" : "● In diretta";
+    const fav = $("ctl-fav");
+    fav.classList.toggle("on", Boolean(c && c.favorite));
+    fav.textContent = c && c.favorite ? "★ Preferito" : "☆ Preferito";
+    ctl.hidden = false;
+    clearTimeout(state.timers.controls);
+    // Stay visible while paused: it is the way back to playing.
+    if (!(p && p.paused)) state.timers.controls = setTimeout(() => { ctl.hidden = true; }, 5000);
+  }
+
+  const actions = {
+    menu: () => { stopPlayer(); location.href = "/"; },
+    list: () => { $("controls").hidden = true; openList(state.favoritesOnly ? 1 : state.listIndex); },
+    back10: () => { state.player && state.player.seek(-10); showControls(); },
+    fwd30: () => { state.player && state.player.seek(30); showControls(); },
+    toggle: () => { state.player && state.player.toggle(); showControls(); },
+    live: () => { state.player && state.player.goLive(); showControls(); },
+    fav: () => toggleFavorite(state.current).then(showControls),
+    rec: () => record(state.current),
+  };
+  $("controls").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-action]");
+    if (b) actions[b.dataset.action]();
+  });
+  $("screen").addEventListener("mousemove", () => { if (!state.overlay) showControls(); });
+  $("video").addEventListener("click", () => { if (!state.overlay) actions.toggle(); });
+  // Keep the "behind live" label current while visible.
+  setInterval(() => { if (!$("controls").hidden) {
+    const p = state.player, behind = p ? p.behind() : 0;
+    $("ctl-live").classList.toggle("behind", behind > 4);
+    $("ctl-live").textContent = behind > 4 ? "⏭ Torna in diretta (−" + VodMax.clock(behind) + ")" : "● In diretta";
+  } }, 1000);
+
   // ---- Recording ----
   async function record(channel) {
     if (!channel) return;
@@ -356,7 +391,7 @@
     if (byCode[e.keyCode]) return byCode[e.keyCode];
     const byKey = { PageUp: "ChannelUp", PageDown: "ChannelDown", "+": "ChannelUp", "-": "ChannelDown",
       ColorF0Red: "Red", ColorF1Green: "Green", ColorF2Yellow: "Yellow", ColorF3Blue: "Blue",
-      Escape: "Back", Backspace: "Back", BrowserBack: "Back", GoBack: "Back", Enter: "OK", " ": "OK",
+      Escape: "Back", Backspace: "Back", BrowserBack: "Back", GoBack: "Back", Enter: "OK",
       f: "Yellow", F: "Yellow", p: "Red", P: "Red", i: "Info", I: "Info", g: "Green", G: "Green", r: "Blue", R: "Blue" };
     return byKey[e.key] || e.key;
   }
@@ -364,8 +399,7 @@
   // Browsers block autoplay with sound until the user interacts: any key
   // or click resumes a paused channel.
   function resumeIfBlocked() {
-    const video = $("video");
-    if (state.player && video.paused) video.play().catch(() => {});
+    if (state.player) state.player.resumeIfBlocked();
   }
   document.addEventListener("click", resumeIfBlocked);
 
@@ -430,7 +464,10 @@
         case "Red": toggleFavoritesOnly(); break;
         case "Green": stopPlayer(); location.href = "/"; break;
         case "Blue": record(state.browse !== null ? state.channels[state.browse] : state.current); break;
-        case "Info": showBanner(state.current, false); break;
+        case "Info": showBanner(state.current, false); showControls(); break;
+        case " ": case "PlayPause": case "Play": case "Pause": actions.toggle(); break;
+        case "ArrowLeft": actions.back10(); break;
+        case "ArrowRight": actions.fwd30(); break;
         default: handled = false;
       }
     }

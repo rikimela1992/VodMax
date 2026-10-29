@@ -23,6 +23,7 @@ Una decisione approvata si cambia solo con una nuova scheda che la sostituisce.
 | [0015](0015-selezione-del-catalogo.md) | Selezione del catalogo: regole, correzioni manuali, una scheda per titolo | **Approvata** nel principio |
 | [0016](0016-tv-come-un-decoder.md) | La sezione TV come un decoder: numerazione, preferiti, guida, cambio canale | **Approvata** |
 | [0017](0017-film-serie-registrazioni.md) | Film, serie, "Continua a guardare" e registrazioni | **Approvata** |
+| [0018](0018-player-e-formati.md) | Player e formati: browser, APK (Media3), EXE (WebView2 + libmpv), diretta con pausa | Proposta |
 
 ## Ordine consigliato per decidere
 

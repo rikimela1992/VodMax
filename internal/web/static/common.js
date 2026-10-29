@@ -93,5 +93,73 @@ window.VodMax = (() => {
   }
   function hhmm(unix) { const d = new Date(unix * 1000); return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
 
-  return { store, viewer, token, withToken, askToken, api, keyOf, clock, hhmm };
+  // ---- MPEG-TS playback (live channels, recordings in progress) ----
+  //
+  // mpegts.js feeds the browser's video element through Media Source
+  // Extensions. Live streams can leave small gaps in the buffer (audio and
+  // video starting at different times, a reconnect) where the element
+  // stalls without any error; aggressive latency chasing makes it worse by
+  // seeking into such gaps. So: a larger start-up buffer, no chasing, and
+  // a watchdog that steps over gaps and resumes a stall the user did not
+  // ask for.
+  function tsPlayer(video, url, { live, onError, onStart } = {}) {
+    const player = mpegts.createPlayer({ type: "mpegts", isLive: live, url }, {
+      enableWorker: false,
+      enableStashBuffer: true,
+      stashInitialSize: 384 * 1024,
+      liveBufferLatencyChasing: false,
+      autoCleanupSourceBuffer: true,
+      lazyLoad: false,
+    });
+    let userPaused = false, lastTime = -1, stuck = 0, destroyed = false;
+    player.attachMediaElement(video);
+    player.on(mpegts.Events.ERROR, (type, detail, info) => { if (!destroyed && onError) onError(type, detail, info); });
+    player.on(mpegts.Events.MEDIA_INFO, () => { if (!destroyed && onStart) onStart(); });
+    player.load();
+    const tryPlay = () => { const p = video.play(); if (p && p.catch) p.catch(() => {}); };
+    tryPlay();
+
+    const watchdog = setInterval(() => {
+      if (destroyed || userPaused) return;
+      const b = video.buffered;
+      if (!b.length) return;
+      const t = video.currentTime;
+      // Before the first buffered range (start-up): jump in.
+      if (t < b.start(0) - 0.05) { video.currentTime = b.start(0) + 0.05; return; }
+      if (video.paused) { tryPlay(); return; } // paused by the browser, not by the user
+      if (Math.abs(t - lastTime) < 0.01) stuck++; else stuck = 0;
+      lastTime = t;
+      if (stuck < 2) return;
+      // Stalled: move to the next buffered data, or nudge forward.
+      for (let i = 0; i < b.length; i++) {
+        if (b.start(i) > t + 0.01) { video.currentTime = b.start(i) + 0.05; stuck = 0; return; }
+      }
+      if (b.end(b.length - 1) - t > 0.5) { video.currentTime = t + 0.3; stuck = 0; }
+    }, 1000);
+
+    return {
+      pause() { userPaused = true; video.pause(); },
+      play() { userPaused = false; stuck = 0; tryPlay(); },
+      toggle() { if (userPaused || video.paused) this.play(); else this.pause(); },
+      // Browsers block autoplay with sound until the user interacts; a key
+      // or click resumes such a pause, never one the user asked for.
+      resumeIfBlocked() { if (!userPaused && video.paused) tryPlay(); },
+      get paused() { return userPaused || video.paused; },
+      // Seconds behind the newest buffered data (live time-shift).
+      behind() { const b = video.buffered; return b.length ? Math.max(0, b.end(b.length - 1) - video.currentTime) : 0; },
+      goLive() { const b = video.buffered; if (b.length) video.currentTime = Math.max(b.start(b.length - 1), b.end(b.length - 1) - 1.5); this.play(); },
+      seek(delta) {
+        const b = video.buffered;
+        if (!b.length) return;
+        video.currentTime = Math.min(Math.max(video.currentTime + delta, b.start(0) + 0.1), b.end(b.length - 1) - 0.5);
+      },
+      destroy() {
+        destroyed = true;
+        clearInterval(watchdog);
+        try { player.pause(); player.unload(); player.detachMediaElement(); player.destroy(); } catch { /* already gone */ }
+      },
+    };
+  }
+
+  return { store, viewer, token, withToken, askToken, api, keyOf, clock, hhmm, tsPlayer };
 })();

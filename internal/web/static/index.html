@@ -39,7 +39,14 @@
     <div id="player-title" class="player-title"></div>
     <div class="player-progress"><div id="player-fill"></div></div>
     <div class="player-time"><span id="player-pos">0:00</span><span id="player-dur"></span></div>
-    <div class="hint">OK pausa · ◀ −10 s · ▶ +30 s · Indietro esce</div>
+    <div class="player-buttons">
+      <button data-action="close">✕ Chiudi</button>
+      <button data-action="back10">⏪ 10 s</button>
+      <button data-action="toggle" id="player-toggle">⏸ Pausa</button>
+      <button data-action="fwd30">30 s ⏩</button>
+      <button data-action="live" id="player-live" hidden>⏭ Torna in diretta</button>
+    </div>
+    <div class="hint">OK o Spazio pausa · ◀ −10 s · ▶ +30 s · Indietro chiude</div>
   </div>
 </section>
 

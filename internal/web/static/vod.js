@@ -247,6 +247,7 @@
     stopPlayback(false);
     state.play = { media, id, title, sess, offset: 0, duration: sess.duration || 0, fellBack: mode === "remux" };
     $("player-title").textContent = title || sess.title;
+    $("player-live").hidden = true;
     $("player").hidden = false;
     load(startAt || 0);
     saveTimer = setInterval(saveProgress, 15000);
@@ -274,9 +275,26 @@
     return p.sess.mode === "direct" && isFinite(video.duration) ? video.duration : p.duration;
   }
 
+  function toggle() {
+    const p = state.play;
+    if (!p) return;
+    if (p.ts) p.ts.toggle(); else if (video.paused) video.play(); else video.pause();
+    updateToggle();
+    showBar();
+  }
+
+  function updateToggle() {
+    const p = state.play;
+    const paused = p && (p.ts ? p.ts.paused : video.paused);
+    $("player-toggle").textContent = paused ? "▶ Riprendi" : "⏸ Pausa";
+  }
+  video.addEventListener("play", updateToggle);
+  video.addEventListener("pause", updateToggle);
+
   function seek(delta) {
     const p = state.play;
     if (!p) return;
+    if (p.ts) { p.ts.seek(delta); showBar(); return; }
     const target = Math.max(0, Math.min(position() + delta, (duration() || Infinity) - 5));
     if (p.sess.mode === "direct") video.currentTime = target;
     else load(target);
@@ -321,7 +339,7 @@
   function stopPlayback(save) {
     if (save) saveProgress();
     clearInterval(saveTimer);
-    if (state.play && state.play.mpegts) { try { state.play.mpegts.destroy(); } catch { /* gone */ } }
+    if (state.play && state.play.ts) state.play.ts.destroy();
     video.pause();
     video.removeAttribute("src");
     video.load();
@@ -331,8 +349,15 @@
 
   function showBar() {
     $("player-bar").classList.remove("idle");
+    $("player").classList.remove("cursor-hidden");
+    updateToggle();
     clearTimeout(idleTimer);
-    idleTimer = setTimeout(() => $("player-bar").classList.add("idle"), 4000);
+    idleTimer = setTimeout(() => {
+      const p = state.play;
+      if (p && (p.ts ? p.ts.paused : video.paused)) return; // stays visible while paused
+      $("player-bar").classList.add("idle");
+      $("player").classList.add("cursor-hidden");
+    }, 4000);
   }
 
   async function playRecording(r) {
@@ -347,11 +372,11 @@
     const isTS = r.status === "recording" || !(await fetch(url, { headers: { Range: "bytes=0-0" } })
       .then((res) => { res.body && res.body.cancel(); return (res.headers.get("Content-Type") || "").includes("mp4"); }).catch(() => false));
     if (isTS && window.mpegts && mpegts.isSupported()) {
-      const player = mpegts.createPlayer({ type: "mpegts", isLive: r.status === "recording", url }, { enableWorker: false });
-      player.attachMediaElement(video);
-      player.load();
-      player.play();
-      state.play.mpegts = player;
+      state.play.ts = window.VodMax.tsPlayer(video, url, {
+        live: r.status === "recording",
+        onError: (type, detail) => flash("Registrazione non riproducibile (" + detail + ")"),
+      });
+      $("player-live").hidden = r.status !== "recording";
     } else {
       video.src = url;
       video.play().catch(() => flash("Premi OK per avviare"));
@@ -398,9 +423,9 @@
     const key = keyOf(e);
     if (!$("player").hidden) {
       const handled = {
-        OK: () => { video.paused ? video.play() : video.pause(); showBar(); },
-        PlayPause: () => { video.paused ? video.play() : video.pause(); showBar(); },
-        Play: () => video.play(), Pause: () => video.pause(),
+        OK: toggle, PlayPause: toggle, " ": toggle,
+        Play: () => { if (state.play && (state.play.ts ? state.play.ts.paused : video.paused)) toggle(); },
+        Pause: () => { if (state.play && !(state.play.ts ? state.play.ts.paused : video.paused)) toggle(); },
         ArrowLeft: () => seek(-10), ArrowRight: () => seek(30), ArrowUp: showBar, ArrowDown: showBar,
         Back: () => stopPlayback(true), Stop: () => stopPlayback(true), Backspace: () => stopPlayback(true),
       }[key];
@@ -436,6 +461,18 @@
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => { state.query = $("search").value.trim(); render().then(() => $("search").focus()); }, 350);
   });
+
+  // Mouse and touch: buttons in the bar, click on the picture to pause.
+  $("player-bar").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-action]");
+    if (!b) return;
+    ({
+      close: () => stopPlayback(true), back10: () => seek(-10), fwd30: () => seek(30), toggle,
+      live: () => { if (state.play && state.play.ts) { state.play.ts.goLive(); showBar(); } },
+    })[b.dataset.action]();
+  });
+  video.addEventListener("click", toggle);
+  $("player").addEventListener("mousemove", showBar);
 
   addEventListener("pagehide", () => saveProgress());
   window.VodMax.withToken(render);

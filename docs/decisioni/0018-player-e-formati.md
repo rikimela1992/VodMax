@@ -1,0 +1,76 @@
+# 0018 — Player e formati di consegna (browser, APK, EXE)
+
+Stato: **Proposta** (29 ottobre 2026)
+
+## Contesto
+
+La prima prova dell'utente in Chrome (registrazione e diretta) ha mostrato:
+- mancavano i comandi a schermo (play/pausa, indietro, chiudi);
+- il video MPEG-TS si fermava e ripartiva solo premendo un tasto.
+
+Il browser è il player più limitato: non legge MPEG-TS (serve mpegts.js su
+Media Source Extensions), né MKV, AC-3, DTS e spesso HEVC; blocca l'audio
+automatico finché l'utente non interagisce; non controlla il buffer come un
+player nativo. Le app APK ed EXE previste non devono ereditare questi
+limiti.
+
+## Interventi già fatti nel browser
+
+- Player MPEG-TS comune (`common.js`): buffer di avvio più ampio, senza
+  inseguimento aggressivo della diretta (salta in buchi del buffer) e con un
+  controllo che scavalca i buchi e riprende una pausa non chiesta
+  dall'utente.
+- Comandi a schermo cliccabili e da telecomando: TV (Menu, Canali, −10 s,
+  Pausa, +30 s, In diretta / Torna in diretta, Preferito, Registra) e player
+  di film, serie e registrazioni (Chiudi, −10 s, Pausa, +30 s, Torna in
+  diretta).
+
+## Proposta
+
+### 1. Il server offre più "sorgenti" per ogni riproduzione
+
+La sessione di riproduzione restituisce l'elenco di ciò che il server sa
+fornire, con i codec; ogni client sceglie quello che sa riprodurre (stesso
+schema del `PlaybackInfo` di Jellyfin):
+
+| Sorgente | Per cosa | Chi la usa |
+|---|---|---|
+| **diretta** (file o flusso così com'è) | film, episodi, diretta TS | APK, EXE, browser per gli MP4 |
+| **HLS** (segmenti, senza ricodifica) | diretta con pausa e riavvolgimento, registrazioni in corso | browser (hls.js), webOS (nativo), APK, EXE |
+| **conversione** (ffmpeg, solo audio o video incompatibili) | MKV/AVI/HEVC per il browser | solo browser |
+
+### 2. Diretta con pausa come su Sky: HLS con buffer sul server
+
+Per ogni canale guardato, il server riconfeziona il flusso in HLS senza
+ricodifica e tiene un buffer su disco (proposta: 2 ore). Si può mettere in
+pausa, tornare indietro e tornare in diretta; il cambio canale chiude il
+buffer precedente; una registrazione dello stesso canale usa gli stessi
+segmenti.
+- Costo: un ffmpeg in copia per canale guardato (CPU minima), circa 4 GB per
+  2 ore di un canale HD, latenza di 4–8 secondi rispetto al flusso diretto.
+- In alternativa resta il flusso diretto (latenza minima, pausa solo nel
+  buffer del player, come oggi).
+
+### 3. Player per piattaforma
+
+| Piattaforma | Player | Perché |
+|---|---|---|
+| Browser, LG webOS | `<video>` + hls.js (webOS: HLS nativo), mpegts.js di riserva | unica scelta possibile nel browser |
+| **APK Android (telefono e TV)** | **Media3 / ExoPlayer** nativo | legge MPEG-TS, HLS, MP4, MKV; decodifica hardware; AC-3/DTS in passthrough o con estensione ffmpeg; D-pad del telecomando |
+| **EXE Windows** | **interfaccia web in WebView2 + libmpv per il video** (lo schema di Jellyfin Media Player) | mpv legge tutto (MKV, HEVC, AC-3, DTS, sottotitoli) con decodifica hardware; l'interfaccia resta una sola |
+
+Alternativa per l'EXE: solo WebView2, più semplice, ma con gli stessi limiti
+di codec del browser (servirebbe la conversione sul server).
+
+### 4. Comandi comuni a tutti i player
+
+Play/pausa, −10/+30 s, chiudi, barra di avanzamento, scelta della traccia
+audio e dei sottotitoli, episodio successivo; in diretta: pausa, riavvolgi,
+torna in diretta. Lo stesso schema di tasti del telecomando su tutte le
+piattaforme.
+
+## Domande per l'utente
+
+1. Diretta con **pausa e riavvolgimento** (HLS con buffer sul server) o
+   flusso diretto con latenza minima?
+2. EXE: **WebView2 + libmpv** (consigliato) o solo WebView2?
