@@ -341,18 +341,24 @@
     fav.classList.toggle("on", Boolean(c && c.favorite));
     VodMax.label(fav, "star", c && c.favorite ? "Preferito ✓" : "Preferito");
     ctl.hidden = false;
+    document.body.classList.add("controls-on");
     clearTimeout(state.timers.controls);
     // They stay on screen only while the viewer has paused (the way back
     // to playing); a video still loading counts as playing.
     state.timers.controls = setTimeout(function hide() {
       if (state.player && state.player.userPaused) { state.timers.controls = setTimeout(hide, 1000); return; }
-      ctl.hidden = true;
+      hideControls();
     }, 5000);
+  }
+  function hideControls() {
+    clearTimeout(state.timers.controls);
+    $("controls").hidden = true;
+    document.body.classList.remove("controls-on");
   }
 
   const actions = {
     menu: () => { stopPlayer(); location.href = "/"; },
-    list: () => { $("controls").hidden = true; openList(state.favoritesOnly ? 1 : state.listIndex); },
+    list: () => { hideControls(); openList(state.favoritesOnly ? 1 : state.listIndex); },
     back10: () => { state.player && state.player.seek(-10); showControls(); },
     fwd30: () => { state.player && state.player.seek(30); showControls(); },
     toggle: () => { state.player && state.player.toggle(); showControls(); },
@@ -364,9 +370,19 @@
   $("controls").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-action]");
     if (b) actions[b.dataset.action]();
+    else if (e.target === $("controls")) hideControls(); // a tap on the picture
   });
-  $("screen").addEventListener("mousemove", () => { if (!state.overlay) showControls(); });
-  $("video").addEventListener("click", () => { if (!state.overlay) actions.toggle(); });
+  // Mouse: moving shows the controls, a click pauses. Touch: a tap shows
+  // or hides them (pausing is the button in the middle).
+  let lastPointer = "mouse";
+  document.addEventListener("pointerdown", (e) => { lastPointer = e.pointerType; }, true);
+  $("screen").addEventListener("pointermove", (e) => { if (e.pointerType === "mouse" && !state.overlay) showControls(); });
+  $("video").addEventListener("click", () => {
+    if (state.overlay) return;
+    if (lastPointer === "mouse") actions.toggle();
+    else if ($("controls").hidden) showControls();
+    else hideControls();
+  });
   // Keep the "behind live" label current while visible.
   setInterval(() => { if (!$("controls").hidden) {
     const p = state.player, behind = p ? p.behind() : 0;

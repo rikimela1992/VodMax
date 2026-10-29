@@ -452,7 +452,10 @@ window.VodMax = (() => {
   function label(el, iconName, text) {
     const parts = [];
     if (iconName && window.VodMaxIcons) parts.push(VodMaxIcons.icon(iconName));
-    parts.push(text);
+    const span = document.createElement("span");
+    span.className = "lbl";
+    span.textContent = text;
+    parts.push(span);
     el.replaceChildren(...parts);
   }
 

@@ -232,3 +232,41 @@ video {
 .dialog-buttons { display: flex; gap: 0.6rem; margin: 1rem 0 0.4rem; }
 .dialog-buttons button { padding: 0.6rem 1.3rem; font: inherit; color: var(--text); background: var(--raised); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
 .dialog-buttons button:first-child { color: var(--bg); background: var(--text); }
+
+/* Touch screens: controls over the whole picture, like the streaming
+   apps: Menu and Channels at the top, rewind / pause / forward large in
+   the middle, the other actions along the bottom. */
+@media (pointer: coarse), (max-width: 800px) {
+  .controls:not([hidden]) {
+    inset: 0; top: 0; left: 0; transform: none;
+    display: grid; grid-template-columns: repeat(12, 1fr); grid-template-rows: auto 1fr auto; align-items: center;
+    gap: 0; padding: calc(12px + env(safe-area-inset-top)) 12px calc(14px + env(safe-area-inset-bottom));
+    font-size: 0.85rem;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.72) 0, rgba(0, 0, 0, 0) 22%, rgba(0, 0, 0, 0) 62%, rgba(0, 0, 0, 0.82) 100%);
+    border: 0; border-radius: 0;
+  }
+  .controls button {
+    display: flex; flex-direction: column; align-items: center; gap: 0.25rem;
+    padding: 0.5rem 0.2rem; color: #fff; background: none; border: 0; border-radius: 12px;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  }
+  .controls button .icon { width: 1.6rem; height: 1.6rem; }
+  .controls button:focus, .controls button:hover { background: rgba(255, 255, 255, 0.12); }
+  .controls [data-action="menu"] { grid-area: 1 / 1 / 2 / 4; flex-direction: row; justify-self: start; padding: 0.5rem 0.8rem; }
+  .controls [data-action="list"] { grid-area: 1 / 10 / 2 / 13; flex-direction: row; justify-self: end; padding: 0.5rem 0.8rem; }
+  .controls [data-action="back10"] { grid-area: 2 / 2 / 3 / 5; justify-self: center; }
+  .controls [data-action="toggle"] { grid-area: 2 / 5 / 3 / 9; justify-self: center; }
+  .controls [data-action="fwd30"] { grid-area: 2 / 9 / 3 / 12; justify-self: center; }
+  .controls [data-action="back10"] .icon, .controls [data-action="fwd30"] .icon { width: 2.4rem; height: 2.4rem; }
+  .controls #ctl-toggle { width: 4.6rem; height: 4.6rem; justify-content: center; padding: 0; background: rgba(255, 255, 255, 0.16); border-radius: 50%; }
+  .controls #ctl-toggle .icon { width: 2.4rem; height: 2.4rem; }
+  .controls #ctl-toggle .lbl { display: none; }
+  .controls [data-action="startOver"] { grid-area: 3 / 1 / 4 / 4; }
+  .controls [data-action="live"] { grid-area: 3 / 4 / 4 / 7; }
+  .controls [data-action="fav"] { grid-area: 3 / 7 / 4 / 10; }
+  .controls [data-action="rec"] { grid-area: 3 / 10 / 4 / 13; }
+  .controls #ctl-live.behind { color: #fff; background: var(--accent); }
+  .controls #ctl-live .lbl { max-width: 100%; white-space: normal; text-align: center; }
+  /* The channel banner would sit under the bottom row. */
+  body.controls-on .banner { display: none; }
+}
