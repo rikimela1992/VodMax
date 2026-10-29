@@ -34,11 +34,14 @@ import java.net.URL;
  * the browser), with films, episodes, recordings and catch-up played by
  * the native player (Media3), which reads formats a browser cannot.
  * First run: the server address; the device is then paired with a code in
- * the interface itself.
+ * the interface itself. Or no server at all: the app runs its own, for
+ * this device alone (LocalServer).
  */
 public class MainActivity extends Activity {
     private static final String PREFS = "vodmax";
     private static final String KEY_SERVER = "server";
+    private static final String KEY_LOCAL = "local";
+    private static final String KEY_LOCAL_TOKEN = "localToken";
     private static final int PLAY = 1;
 
     private WebView web;
@@ -48,8 +51,9 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         server = prefs().getString(KEY_SERVER, null);
-        if (server == null) showSetup(null);
-        else open();
+        if (prefs().getBoolean(KEY_LOCAL, false)) openLocal();
+        else if (server == null) showSetup(null);
+        else open("/");
     }
 
     private SharedPreferences prefs() {
@@ -68,7 +72,7 @@ public class MainActivity extends Activity {
         EditText field = findViewById(R.id.server);
         TextView text = findViewById(R.id.setup_text);
         Button connect = findViewById(R.id.connect);
-        if (server != null) field.setText(server);
+        if (server != null && !server.equals(LocalServer.URL)) field.setText(server);
         if (message != null) text.setText(message);
         Runnable go = () -> {
             String url = normalize(field.getText().toString());
@@ -83,13 +87,18 @@ public class MainActivity extends Activity {
                         text.setText(R.string.setup_unreachable);
                         return;
                     }
+                    LocalServer.stop();
                     server = url;
-                    prefs().edit().putString(KEY_SERVER, url).apply();
-                    open();
+                    prefs().edit().putString(KEY_SERVER, url).putBoolean(KEY_LOCAL, false).apply();
+                    open("/");
                 });
             }).start();
         };
         connect.setOnClickListener(v -> go.run());
+        findViewById(R.id.standalone).setOnClickListener(v -> {
+            prefs().edit().putBoolean(KEY_LOCAL, true).apply();
+            openLocal();
+        });
         field.setOnEditorActionListener((v, action, event) -> {
             if (action == EditorInfo.IME_ACTION_GO || action == EditorInfo.IME_ACTION_DONE) {
                 go.run();
@@ -123,10 +132,47 @@ public class MainActivity extends Activity {
         }
     }
 
+    // ---- This device alone: the server inside the app ----
+
+    private void openLocal() {
+        if (web != null) {
+            web.destroy();
+            web = null;
+        }
+        TextView wait = new TextView(this);
+        wait.setText(R.string.local_starting);
+        wait.setTextColor(0xFFA9ABB5);
+        wait.setTextSize(20);
+        wait.setGravity(android.view.Gravity.CENTER);
+        setContentView(insetted(wait));
+        new Thread(() -> {
+            try {
+                String token = LocalServer.start(this);
+                boolean configured = LocalServer.configured(token);
+                runOnUiThread(() -> {
+                    server = LocalServer.URL;
+                    // First start: straight to the subscription to add.
+                    String path = configured ? "/" : "/settings.html?view=subscriptions";
+                    // The page keeps the token once it has it.
+                    if (!token.equals(prefs().getString(KEY_LOCAL_TOKEN, null))) {
+                        path += "#token=" + token;
+                        prefs().edit().putString(KEY_LOCAL_TOKEN, token).apply();
+                    }
+                    open(path);
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    prefs().edit().putBoolean(KEY_LOCAL, false).apply();
+                    showSetup(getString(R.string.local_failed) + ": " + e.getMessage());
+                });
+            }
+        }).start();
+    }
+
     // ---- The interface ----
 
     @SuppressLint("SetJavaScriptEnabled")
-    private void open() {
+    private void open(String path) {
         web = new WebView(this);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -157,7 +203,7 @@ public class MainActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(insetted(web));
         web.requestFocus(View.FOCUS_DOWN);
-        web.loadUrl(server + "/");
+        web.loadUrl(server + path);
     }
 
     /**
@@ -184,6 +230,10 @@ public class MainActivity extends Activity {
     }
 
     private void showOffline() {
+        if (prefs().getBoolean(KEY_LOCAL, false)) {
+            openLocal();
+            return;
+        }
         showSetup(getString(R.string.error_title) + ": " + server + ". " + getString(R.string.setup_unreachable));
     }
 
@@ -243,6 +293,16 @@ public class MainActivity extends Activity {
             return true;
         }
         return super.onKeyDown(keyCode, event);
+    }
+
+    // Android may stop the server while the app is in the background.
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (!prefs().getBoolean(KEY_LOCAL, false) || web == null) return;
+        new Thread(() -> {
+            if (!LocalServer.running()) runOnUiThread(this::openLocal);
+        }).start();
     }
 
     @Override

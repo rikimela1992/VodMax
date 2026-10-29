@@ -5,6 +5,10 @@
 // On first start it creates in the data directory the database, the key
 // that encrypts credentials (secret.key) and the admin token (admin.token),
 // all readable only by the owner.
+//
+// With -device it runs inside the Android app, for that device alone:
+// no ffmpeg there, so no recordings and no pause of live TV (the native
+// player reads films and episodes as they are).
 package main
 
 import (
@@ -37,18 +41,19 @@ func main() {
 	recordings := flag.String("recordings", "", "cartella delle registrazioni (predefinita: <data>/recordings)")
 	ffmpeg := flag.String("ffmpeg", "ffmpeg", "eseguibile ffmpeg (per film in MKV/AVI nel browser)")
 	ffprobe := flag.String("ffprobe", "ffprobe", "eseguibile ffprobe")
+	device := flag.Bool("device", false, "dentro l'app Android, per quel dispositivo: senza registrazioni né pausa della diretta")
 	flag.Parse()
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	if *recordings == "" {
 		*recordings = filepath.Join(*data, "recordings")
 	}
-	if err := run(*data, *listen, *recordings, *ffmpeg, *ffprobe, log); err != nil {
+	if err := run(*data, *listen, *recordings, *ffmpeg, *ffprobe, *device, log); err != nil {
 		log.Error("avvio fallito", "err", err)
 		os.Exit(1)
 	}
 }
 
-func run(data, listen, recordings, ffmpeg, ffprobe string, log *slog.Logger) error {
+func run(data, listen, recordings, ffmpeg, ffprobe string, device bool, log *slog.Logger) error {
 	if err := os.MkdirAll(data, 0o700); err != nil {
 		return err
 	}
@@ -81,13 +86,15 @@ func run(data, listen, recordings, ffmpeg, ffprobe string, log *slog.Logger) err
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := svc.StartRecorder(ctx, recordings, log); err != nil {
-		return err
+	if !device {
+		if err := svc.StartRecorder(ctx, recordings, log); err != nil {
+			return err
+		}
+		if err := svc.SetTimeshiftDir(filepath.Join(data, "timeshift"), log); err != nil {
+			return err
+		}
 	}
 	svc.SetBackupDir(filepath.Join(data, "backups"))
-	if err := svc.SetTimeshiftDir(filepath.Join(data, "timeshift"), log); err != nil {
-		return err
-	}
 	if err := svc.SetCacheDir(filepath.Join(data, "cache")); err != nil {
 		return err
 	}
@@ -98,7 +105,7 @@ func run(data, listen, recordings, ffmpeg, ffprobe string, log *slog.Logger) err
 		defer cancel()
 		srv.Shutdown(shutdown)
 	}()
-	log.Info("VodMax server avviato", "listen", listen, "data", data)
+	log.Info("VodMax server avviato", "listen", listen, "data", data, "dispositivo", device)
 	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

@@ -26,6 +26,7 @@ Una decisione approvata si cambia solo con una nuova scheda che la sostituisce.
 | [0018](0018-player-e-formati.md) | Player e formati: browser, APK (Media3), EXE (WebView2 + libmpv), diretta con pausa | Diretta con pausa **approvata e fatta**; resto proposta |
 | [0019](0019-profili-e-dispositivi.md) | Profili (anche bambini), dispositivi abbinati con codice | **Approvata** |
 | [0020](0020-app-android-e-webos.md) | App Android (WebView + player Media3) e webOS | **Approvata** |
+| [0021](0021-dispositivo-da-solo.md) | Dispositivo da solo: il server dentro l'app Android | **Approvata** |
 
 ## Ordine consigliato per decidere
 

@@ -9,4 +9,8 @@
     <string name="error_title">Server non raggiungibile</string>
     <string name="error_retry">Riprova</string>
     <string name="error_change">Cambia indirizzo</string>
+    <string name="local_text">Nessun server in casa? VodMax può funzionare solo su questo dispositivo: aggiungi abbonamento e VPN nelle Impostazioni. Senza registrazioni né pausa della diretta.</string>
+    <string name="local_button">Usa questo dispositivo da solo</string>
+    <string name="local_starting">Avvio di VodMax…</string>
+    <string name="local_failed">VodMax non si è avviato su questo dispositivo</string>
 </resources>

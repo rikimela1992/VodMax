@@ -20,6 +20,17 @@ JAVA_HOME=/percorso/jdk-17 ./gradlew assembleDebug
 Primo avvio: indirizzo del server (es. `http://192.168.1.10:8095`), poi il
 codice di abbinamento. Server diverso: Impostazioni → Sistema → Cambia server.
 
+**Senza server** ("Usa questo dispositivo da solo", decisione 0021): l'APK
+contiene il server stesso, che va compilato prima dell'APK (Go e Android
+NDK):
+
+```sh
+./build-server.sh   # → app/src/main/jniLibs/<abi>/libvodmax.so
+```
+
+Senza registrazioni né pausa della diretta. Funziona anche su Fire TV con
+Fire OS (non sulla Fire TV Stick 4K Select, che usa Vega OS).
+
 ## LG webOS — `webos/`
 
 Un avvio leggero: chiede l'indirizzo del server, controlla che risponda e

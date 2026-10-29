@@ -263,6 +263,12 @@ type RecordingRequest struct {
 }
 
 func (s *Service) ScheduleRecording(ctx context.Context, req RecordingRequest) (store.Recording, error) {
+	s.rec.mu.Lock()
+	recorder := s.rec.dir != ""
+	s.rec.mu.Unlock()
+	if !recorder {
+		return store.Recording{}, invalid("su questo dispositivo non si registra: le registrazioni sono del server di casa")
+	}
 	it, err := s.st.PlaybackItem(ctx, req.ChannelID)
 	if err != nil {
 		return store.Recording{}, err
