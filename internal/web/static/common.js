@@ -250,6 +250,7 @@ window.VodMax = (() => {
       // or click resumes such a pause, never one the user asked for.
       resumeIfBlocked() { if (!userPaused && video.paused) tryPlay(); },
       get paused() { return userPaused || video.paused; },
+      get userPaused() { return userPaused; }, // paused by the viewer, not loading
       // Seconds behind the newest buffered data (live time-shift).
       behind() { const b = video.buffered; return b.length ? Math.max(0, b.end(b.length - 1) - video.currentTime) : 0; },
       goLive() { const b = video.buffered; if (b.length) video.currentTime = Math.max(b.start(b.length - 1), b.end(b.length - 1) - 1.5); this.play(); },
@@ -312,6 +313,7 @@ window.VodMax = (() => {
       play() { userPaused = false; tryPlay(); },
       toggle() { if (userPaused || video.paused) this.play(); else this.pause(); },
       get paused() { return userPaused || video.paused; },
+      get userPaused() { return userPaused; }, // paused by the viewer, not loading
       resumeIfBlocked() { if (!userPaused && video.paused) tryPlay(); },
       behind() {
         const live = hls && hls.liveSyncPosition != null ? hls.liveSyncPosition : (range() || [0, 0])[1];

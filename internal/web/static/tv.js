@@ -342,8 +342,12 @@
     fav.textContent = c && c.favorite ? "★ Preferito" : "☆ Preferito";
     ctl.hidden = false;
     clearTimeout(state.timers.controls);
-    // Stay visible while paused: it is the way back to playing.
-    if (!(p && p.paused)) state.timers.controls = setTimeout(() => { ctl.hidden = true; }, 5000);
+    // They stay on screen only while the viewer has paused (the way back
+    // to playing); a video still loading counts as playing.
+    state.timers.controls = setTimeout(function hide() {
+      if (state.player && state.player.userPaused) { state.timers.controls = setTimeout(hide, 1000); return; }
+      ctl.hidden = true;
+    }, 5000);
   }
 
   const actions = {
