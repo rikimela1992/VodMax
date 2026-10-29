@@ -13,8 +13,8 @@ che può diventare il **Server** della casa per gli altri dispositivi.
 > catalogo** (paesi, adulti, anno minimo, categorie, una scheda per titolo),
 > catalogo con ricerca via API, **TV in diretta** con numerazione da
 > telecomando, guida, preferiti, loghi e flusso ritrasmesso dal server, e
-> un'interfaccia TV (`/`) provata in un browser automatico ma non ancora su
-> una TV vera. Film e serie non sono ancora riproducibili.
+> un'interfaccia TV (`/`) provata con la riproduzione reale in Chrome, non
+> ancora su una TV. Film e serie non sono ancora riproducibili.
 
 ## L'idea in breve
 

@@ -78,9 +78,13 @@ senza cambiare; lista con loghi; preferiti; numeri; tasto giallo; P+/P− e
 VodMax. Questo Chromium non decodifica H.264/AAC, quindi la riproduzione
 vera non è stata provata, e il player non ha aperto flussi inutili.
 
+**Riproduzione verificata** lo stesso giorno dall'utente con Chrome su un PC di
+casa (sessione temporanea del server sul gateway, account B tramite VPN):
+"va da dio".
+
 ## Ancora da fare
 
-- **Riproduzione su una TV vera** (webOS, Android TV) o su un Chrome normale.
+- **Riproduzione su TV** (LG webOS, Android TV) e sul telefono.
 - Profili: oggi i preferiti appartengono a un unico profilo.
 - Guida per le playlist M3U (`url-tvg`).
 - Riordino manuale dei preferiti e dei numeri.
