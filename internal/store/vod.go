@@ -162,6 +162,7 @@ type ContinueEntry struct {
 	ImageItemID  int64    `json:"-"`
 	ImageAllowed bool     `json:"-"`
 	Logo         string   `json:"image,omitempty"`
+	Next         bool     `json:"next,omitempty"` // the episode after the one finished last
 }
 
 // Continue lists unfinished films and episodes, most recent first. For a
@@ -191,6 +192,65 @@ func (s *Store) Continue(ctx context.Context, profileID int64, noAdult bool, lim
 			&c.Progress.Position, &c.Progress.Duration, &c.Progress.UpdatedAt, &c.ImageItemID, &c.ImageAllowed); err != nil {
 			return nil, err
 		}
+		if year.Valid {
+			y := int(year.Int64)
+			c.Year = &y
+		}
+		out = append(out, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	next, err := s.nextEpisodes(ctx, profileID, noAdult)
+	if err != nil {
+		return nil, err
+	}
+	// Merged by when the series was last watched; at most limit.
+	for _, n := range next {
+		at := len(out)
+		for i, c := range out {
+			if c.Progress.UpdatedAt < n.Progress.UpdatedAt {
+				at = i
+				break
+			}
+		}
+		out = append(out[:at], append([]ContinueEntry{n}, out[at:]...)...)
+	}
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+// nextEpisodes: for each series whose most recently watched episode is
+// finished, the following episode (next number, or the next season's
+// first) if it has not been finished. UpdatedAt is the finished one's.
+func (s *Store) nextEpisodes(ctx context.Context, profileID int64, noAdult bool) ([]ContinueEntry, error) {
+	rows, err := s.r.QueryContext(ctx, `
+		SELECT n.id, n.title, i.id, i.display_title, n.season, n.number, i.year, n.duration, p.updated_at, i.image <> ''
+		FROM progress p
+		JOIN episode e ON e.id = p.media_id
+		JOIN item i ON i.id = e.series_item_id
+		JOIN episode n ON n.id = (SELECT x.id FROM episode x WHERE x.series_item_id = e.series_item_id
+			AND (x.season > e.season OR (x.season = e.season AND x.number > e.number)) ORDER BY x.season, x.number LIMIT 1)
+		WHERE p.profile_id = ? AND p.media = 'episode' AND p.completed = 1 AND i.available = 1 AND (? = 0 OR i.adult = 0)
+			AND p.updated_at = (SELECT max(p2.updated_at) FROM progress p2 JOIN episode e2 ON e2.id = p2.media_id
+				WHERE p2.profile_id = p.profile_id AND p2.media = 'episode' AND e2.series_item_id = e.series_item_id)
+			AND NOT EXISTS (SELECT 1 FROM progress q WHERE q.profile_id = p.profile_id AND q.media = 'episode' AND q.media_id = n.id AND q.completed = 1)
+		ORDER BY p.updated_at DESC LIMIT 20`, profileID, noAdult)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ContinueEntry
+	for rows.Next() {
+		c := ContinueEntry{Media: "episode", Next: true}
+		var year sql.NullInt64
+		if err := rows.Scan(&c.ID, &c.Title, &c.SeriesID, &c.SeriesTitle, &c.Season, &c.Number, &year, &c.Progress.Duration,
+			&c.Progress.UpdatedAt, &c.ImageAllowed); err != nil {
+			return nil, err
+		}
+		c.ImageItemID = c.SeriesID
 		if year.Valid {
 			y := int(year.Int64)
 			c.Year = &y

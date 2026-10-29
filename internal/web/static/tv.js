@@ -417,6 +417,14 @@
     $("dialog").hidden = false;
     dialogAction = action;
   }
+  function closeDialog(confirmed) {
+    $("dialog").hidden = true;
+    const a = dialogAction;
+    dialogAction = null;
+    if (confirmed && a) a();
+  }
+  $("dialog-yes").onclick = () => closeDialog(true);
+  $("dialog-no").onclick = () => closeDialog(false);
 
   // ---- Keys: browser, LG webOS and Android TV ----
   function keyOf(e) {
@@ -438,14 +446,14 @@
   document.addEventListener("click", resumeIfBlocked);
 
   document.addEventListener("keydown", (e) => {
-    if (!$("setup").hidden) return;
+    if (document.querySelector(".setup-panel")) return; // pairing or profile choice on screen
     resumeIfBlocked();
     const key = keyOf(e);
     let handled = true;
 
     if (!$("dialog").hidden) {
-      if (key === "OK") { $("dialog").hidden = true; const a = dialogAction; dialogAction = null; a && a(); }
-      else if (key === "Back") { $("dialog").hidden = true; dialogAction = null; }
+      if (key === "OK") closeDialog(true);
+      else if (key === "Back") closeDialog(false);
       e.preventDefault();
       return;
     }

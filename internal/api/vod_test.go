@@ -94,6 +94,13 @@ func TestSeriesEpisodesAndContinue(t *testing.T) {
 	if !strings.Contains(string(body), `"series_title":"Twin Peaks"`) || !strings.Contains(string(body), `"number":2`) {
 		t.Fatalf("continue with episode: %s", body)
 	}
+	// Finished: the next one is proposed, also across seasons.
+	e.do(t, "PUT", "/api/v1/progress/episode/"+ep, map[string]int{"position": 2790, "duration": 2800}, true)
+	_, body = e.do(t, "GET", "/api/v1/continue", nil, true)
+	if !strings.Contains(string(body), `"next":true`) || !strings.Contains(string(body), `"season":2`) || strings.Contains(string(body), "Traces") {
+		t.Fatalf("next episode: %s", body)
+	}
+	e.do(t, "PUT", "/api/v1/progress/episode/"+ep, map[string]int{"position": 600, "duration": 2800}, true)
 	code, body = e.do(t, "POST", "/api/v1/vod/episode/"+ep+"/session", map[string]string{"viewer": "salotto-pc-01"}, true)
 	if code != 200 || !strings.Contains(string(body), "S1E2 Traces to Nowhere") || !strings.Contains(string(body), `"position":600`) {
 		t.Fatalf("episode session: %d %s", code, body)

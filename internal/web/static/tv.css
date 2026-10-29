@@ -240,3 +240,6 @@ video {
 .profile-kind { color: var(--soft); font-size: 0.85rem; min-height: 1em; }
 .setup-panel button { padding: 0.7rem 1.4rem; font: inherit; color: var(--bg); background: var(--text); border: 0; border-radius: 8px; }
 .setup-panel button.profile-choice { color: var(--text); background: var(--raised); border: 2px solid transparent; }
+.dialog-buttons { display: flex; gap: 0.6rem; margin: 1rem 0 0.4rem; }
+.dialog-buttons button { padding: 0.6rem 1.3rem; font: inherit; color: var(--text); background: var(--raised); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+.dialog-buttons button:first-child { color: var(--bg); background: var(--text); }

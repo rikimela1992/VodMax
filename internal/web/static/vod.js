@@ -43,12 +43,13 @@
 
   function continueCard(c) {
     const title = c.media === "episode" ? c.series_title : c.title;
-    const sub = c.media === "episode" ? "S" + c.season + "E" + c.number + " · " + c.title : "Mancano " + clock(c.progress.duration - c.progress.position);
-    const pct = c.progress.duration ? (c.progress.position / c.progress.duration) * 100 : 0;
+    const ep = "S" + c.season + "E" + c.number + " · " + c.title;
+    const sub = c.next ? "Prossima puntata · " + ep : c.media === "episode" ? ep : "Mancano " + clock(c.progress.duration - c.progress.position);
+    const pct = c.next ? 0 : c.progress.duration ? (c.progress.position / c.progress.duration) * 100 : 0;
     const card = el("button", { className: "card wide focusable" }, poster({ logo: c.image }, title),
       el("div", { className: "bar" }, el("div", { style: "width:" + pct + "%" })),
       el("span", { className: "label" }, title), el("span", { className: "sub" }, sub));
-    card.onclick = () => play(c.media, c.id, title + (c.media === "episode" ? " · " + sub : ""), c.progress.position);
+    card.onclick = () => play(c.media, c.id, title + (c.media === "episode" ? " · " + ep : ""), c.next ? 0 : c.progress.position);
     return card;
   }
 
@@ -59,11 +60,13 @@
 
   async function render() {
     setTabs();
+    $("search").placeholder = state.view === "tv" ? "Cerca un canale (nome o numero)" : "Cerca film e serie";
     store.set("vodView", state.view);
     const main = $("content");
     main.replaceChildren(el("p", { className: "empty" }, "Caricamento…"));
     try {
-      if (state.query) await renderSearch(main);
+      if (state.view === "tv") await renderTV(main);
+      else if (state.query) await renderSearch(main);
       else if (state.view === "home") await renderHome(main);
       else if (state.view === "recordings") await renderRecordings(main);
       else await renderGrid(main, state.view);
@@ -73,14 +76,49 @@
     focusFirst(main);
   }
 
+  // ---- TV: the channel list, then full screen ----
+  const TV_LISTS = [["", "Tutti"], ["tv", "TV"], ["sport", "Sport"], ["radio", "Radio"], ["favorites", "Preferiti"]];
+  async function renderTV(main) {
+    const query = state.query.toLowerCase();
+    const list = store.get("tvList", "");
+    // A search looks in every channel, whatever the list.
+    const q = query ? "" : list === "favorites" ? "?list=favorites" : list ? "?section=" + list : "";
+    let channels = await api("GET", "/api/v1/tv/channels" + q);
+    if (query) channels = channels.filter((c) => c.name.toLowerCase().includes(query) || String(c.number) === query);
+    const now = Date.now() / 1000;
+    const chips = TV_LISTS.map(([id, label]) => {
+      const b = el("button", { className: "chip focusable" + (id === list && !query ? " active" : "") }, label);
+      b.onclick = () => { store.set("tvList", id); state.query = ""; $("search").value = ""; render(); };
+      return b;
+    });
+    const guide = el("a", { className: "chip focusable", href: "/guide.html" }, "Guida TV");
+    const items = channels.slice(0, 600).map((c) => {
+      const p = c.now;
+      const pct = p ? Math.min(100, Math.max(0, ((now - p.start) / (p.stop - p.start)) * 100)) : 0;
+      const b = el("button", { className: "focusable" }, el("span", { className: "num" }, c.number || ""),
+        c.logo ? el("img", { src: c.logo, alt: "", loading: "lazy" }) : el("span", { className: "nologo" }),
+        el("span", { className: "what" }, el("strong", {}, (c.favorite ? "★ " : "") + c.name),
+          el("span", {}, p ? hhmm(p.start) + " " + p.title : "Nessuna informazione"),
+          c.next ? el("span", {}, "Dopo: " + hhmm(c.next.start) + " " + c.next.title) : null,
+          p ? el("div", { className: "bar" }, el("div", { style: "width:" + pct + "%" })) : null));
+      b.onclick = () => { location.href = "/tv.html?channel=" + c.id; };
+      return el("li", {}, b);
+    });
+    main.replaceChildren(el("h2", {}, "TV"), el("div", { className: "tv-tools" }, ...chips, guide),
+      query ? el("p", { className: "empty" }, channels.length + " canali per “" + state.query + "” (nome o numero)") : null,
+      items.length ? el("ol", { className: "channels" }, ...items) : el("p", { className: "empty" }, list === "favorites"
+        ? "Nessun preferito: in TV premi il tasto giallo (F) su un canale." : "Nessun canale."));
+  }
+
   async function renderHome(main) {
     const [cont, films, series] = await Promise.all([
       api("GET", "/api/v1/continue"),
       api("GET", "/api/v1/catalog/movie?sort=recent&limit=24"),
       api("GET", "/api/v1/catalog/series?sort=recent&limit=24"),
     ]);
-    const parts = [];
-    if (cont.length) parts.push(el("h2", {}, "Continua a guardare"), el("div", { className: "row" }, ...cont.map(continueCard)));
+    const parts = [el("h2", {}, "Continua a guardare")];
+    parts.push(cont.length ? el("div", { className: "row" }, ...cont.map(continueCard))
+      : el("p", { className: "empty" }, "Qui compaiono i film e gli episodi iniziati e la prossima puntata delle serie che stai seguendo."));
     parts.push(el("h2", {}, "Nuovi film"), el("div", { className: "row" }, ...films.items.map(itemCard)));
     parts.push(el("h2", {}, "Nuove serie"), el("div", { className: "row" }, ...series.items.map(itemCard)));
     main.replaceChildren(...parts);
@@ -371,6 +409,7 @@
     focusFirst($("detail-actions"));
   }
 
+  $("detail-back").onclick = () => closeDetail();
   function closeDetail() {
     $("detail").hidden = true;
     state.detail = null;

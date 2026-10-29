@@ -13,7 +13,7 @@
     <button class="tab focusable" data-view="movie">Film</button>
     <button class="tab focusable" data-view="series">Serie</button>
     <button class="tab focusable" data-view="recordings">Registrazioni</button>
-    <a class="tab focusable" href="/tv.html">TV</a>
+    <button class="tab focusable" data-view="tv">TV</button>
     <a class="tab focusable" href="/guide.html">Guida</a>
     <a class="tab focusable" href="/settings.html">Impostazioni</a>
   </nav>
@@ -23,6 +23,7 @@
 <main id="content" aria-live="polite"></main>
 
 <section id="detail" class="detail" hidden>
+  <button id="detail-back" class="back-button focusable" type="button">← Indietro</button>
   <div class="detail-head">
     <img id="detail-image" alt="" hidden>
     <div>
