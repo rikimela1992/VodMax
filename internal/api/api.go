@@ -96,6 +96,14 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	route("POST /api/v1/recordings", levelMember, a.addRecording)
 	route("DELETE /api/v1/recordings/{id}", levelMember, a.deleteRecording)
 	route("POST /api/v1/recordings/{id}/ticket", levelViewer, a.recordingTicket)
+	route("PUT /api/v1/recordings/{id}/protected", levelMember, a.protectRecording)
+	route("GET /api/v1/recordings/space", levelViewer, a.recordingSpace)
+	route("PUT /api/v1/settings/recordings", levelAdmin, a.putRecordingSettings)
+	route("GET /api/v1/recording-rules", levelMember, a.recordingRules)
+	route("POST /api/v1/recording-rules", levelMember, a.addRecordingRule)
+	route("POST /api/v1/recording-rules/preview", levelMember, a.previewRecordingRule)
+	route("PUT /api/v1/recording-rules/{id}", levelMember, a.putRecordingRule)
+	route("DELETE /api/v1/recording-rules/{id}", levelMember, a.deleteRecordingRule)
 	mux.Handle("/api/", a.authenticate(token, protected))
 	// Pairing a new device: no credentials yet.
 	mux.HandleFunc("POST /api/v1/pair", a.startPairing)
@@ -1293,4 +1301,115 @@ func (a *api) syncGuideSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
+}
+
+func (a *api) protectRecording(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	var in struct {
+		Protected bool `json:"protected"`
+	}
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if err := a.svc.SetRecordingProtected(r.Context(), id, in.Protected); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) recordingSpace(w http.ResponseWriter, r *http.Request) {
+	sp, err := a.svc.Space(r.Context())
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, sp)
+}
+
+func (a *api) putRecordingSettings(w http.ResponseWriter, r *http.Request) {
+	var in service.RecordingSettings
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if err := a.svc.SetRecordingSettings(r.Context(), in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) recordingRules(w http.ResponseWriter, r *http.Request) {
+	list, err := a.svc.RecordingRules(r.Context())
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+func (a *api) addRecordingRule(w http.ResponseWriter, r *http.Request) {
+	var in service.RuleInput
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	rule, err := a.svc.AddRecordingRule(r.Context(), in)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, rule)
+}
+
+func (a *api) previewRecordingRule(w http.ResponseWriter, r *http.Request) {
+	var in service.RuleInput
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	list, err := a.svc.PreviewRuleInput(r.Context(), in)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+func (a *api) putRecordingRule(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	var in service.RuleInput
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	rule, err := a.svc.UpdateRecordingRule(r.Context(), id, in)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, rule)
+}
+
+func (a *api) deleteRecordingRule(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if err := a.svc.DeleteRecordingRule(r.Context(), id); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

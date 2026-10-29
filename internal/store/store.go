@@ -288,6 +288,19 @@ var migrations = []string{
 		programmes INTEGER NOT NULL DEFAULT 0,
 		created_at INTEGER NOT NULL
 	);`,
+	// 10: recording rules, protected recordings.
+	`CREATE TABLE recording_rule (
+		id         INTEGER PRIMARY KEY,
+		name       TEXT NOT NULL,
+		spec       TEXT NOT NULL,            -- JSON: words, channel, section
+		keep       INTEGER NOT NULL DEFAULT 0, -- completed recordings to keep, 0 = all
+		enabled    INTEGER NOT NULL DEFAULT 1,
+		created_at INTEGER NOT NULL,
+		last_run   INTEGER,
+		last_note  TEXT NOT NULL DEFAULT ''
+	);
+	ALTER TABLE recording ADD COLUMN rule_id INTEGER;
+	ALTER TABLE recording ADD COLUMN protected INTEGER NOT NULL DEFAULT 0;`,
 }
 
 func (s *Store) migrate(ctx context.Context) error {

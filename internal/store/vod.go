@@ -214,19 +214,30 @@ type Recording struct {
 	Bytes     int64  `json:"bytes"`
 	Error     string `json:"error,omitempty"`
 	CreatedAt int64  `json:"created_at"`
+	RuleID    int64  `json:"rule_id,omitempty"` // created by a rule
+	Protected bool   `json:"protected"`         // never deleted automatically
 }
 
-const recordingColumns = `id, item_id, group_key, channel, title, start, stop, status, file, bytes, error, created_at`
+const recordingColumns = `id, item_id, group_key, channel, title, start, stop, status, file, bytes, error, created_at, coalesce(rule_id, 0), protected`
+
+func (r *Recording) scanTargets() []any {
+	return []any{&r.ID, &r.ItemID, &r.GroupKey, &r.Channel, &r.Title, &r.Start, &r.Stop, &r.Status, &r.File, &r.Bytes, &r.Error,
+		&r.CreatedAt, &r.RuleID, &r.Protected}
+}
 
 func scanRecording(row interface{ Scan(...any) error }) (Recording, error) {
 	var r Recording
-	err := row.Scan(&r.ID, &r.ItemID, &r.GroupKey, &r.Channel, &r.Title, &r.Start, &r.Stop, &r.Status, &r.File, &r.Bytes, &r.Error, &r.CreatedAt)
+	err := row.Scan(r.scanTargets()...)
 	return r, err
 }
 
 func (s *Store) AddRecording(ctx context.Context, r Recording) (int64, error) {
-	res, err := s.w.ExecContext(ctx, `INSERT INTO recording (item_id, group_key, channel, title, start, stop, status, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, 'scheduled', ?)`, r.ItemID, r.GroupKey, r.Channel, r.Title, r.Start, r.Stop, time.Now().Unix())
+	var rule any
+	if r.RuleID != 0 {
+		rule = r.RuleID
+	}
+	res, err := s.w.ExecContext(ctx, `INSERT INTO recording (item_id, group_key, channel, title, start, stop, status, created_at, rule_id)
+		VALUES (?, ?, ?, ?, ?, ?, 'scheduled', ?, ?)`, r.ItemID, r.GroupKey, r.Channel, r.Title, r.Start, r.Stop, time.Now().Unix(), rule)
 	if err != nil {
 		return 0, err
 	}
@@ -336,12 +347,52 @@ func (s *Store) ActiveRecordingsBetween(ctx context.Context, start, stop int64) 
 	for rows.Next() {
 		var r Recording
 		var sub int64
-		if err := rows.Scan(&r.ID, &r.ItemID, &r.GroupKey, &r.Channel, &r.Title, &r.Start, &r.Stop, &r.Status, &r.File,
-			&r.Bytes, &r.Error, &r.CreatedAt, &sub); err != nil {
+		if err := rows.Scan(append(r.scanTargets(), &sub)...); err != nil {
 			return nil, nil, err
 		}
 		list = append(list, r)
 		subs = append(subs, sub)
 	}
 	return list, subs, rows.Err()
+}
+
+// RecordingCovers returns the state of a recording of the channel that
+// overlaps [start, stop), cancelled ones too ("" if none): rules do not
+// record a programme twice, nor again after the user cancelled it.
+func (s *Store) RecordingCovers(ctx context.Context, groupKey string, start, stop int64) (string, error) {
+	var status string
+	err := s.r.QueryRowContext(ctx, `SELECT status FROM recording WHERE group_key = ? AND start < ? AND stop > ?
+		ORDER BY status = 'cancelled' LIMIT 1`, groupKey, stop, start).Scan(&status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return status, err
+}
+
+// CancelRecording keeps a cancelled rule recording as a marker.
+func (s *Store) CancelRecording(ctx context.Context, id int64) error {
+	_, err := s.w.ExecContext(ctx, `UPDATE recording SET status = 'cancelled', file = '', bytes = 0 WHERE id = ?`, id)
+	return err
+}
+
+// PurgeCancelled forgets cancelled markers of programmes long past.
+func (s *Store) PurgeCancelled(ctx context.Context, before int64) error {
+	_, err := s.w.ExecContext(ctx, `DELETE FROM recording WHERE status = 'cancelled' AND stop < ?`, before)
+	return err
+}
+
+func (s *Store) SetRecordingProtected(ctx context.Context, id int64, protected bool) error {
+	res, err := s.w.ExecContext(ctx, `UPDATE recording SET protected = ? WHERE id = ?`, protected, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// CompletedRecordings lists finished recordings, oldest first.
+func (s *Store) CompletedRecordings(ctx context.Context) ([]Recording, error) {
+	return s.queryRecordings(ctx, `SELECT `+recordingColumns+` FROM recording WHERE status IN ('completed', 'failed') ORDER BY stop`)
 }

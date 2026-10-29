@@ -26,6 +26,7 @@ type Backup struct {
 	Settings      map[string]string   `json:"settings"`
 	Secrets       map[string]string   `json:"secrets,omitempty"` // sealed settings, in clear inside the backup
 	GuideSources  []GuideSource       `json:"guide_sources,omitempty"`
+	Rules         []RecordingRule     `json:"recording_rules,omitempty"`
 	Extra         map[string][]string `json:"extra,omitempty"` // reserved for later tables
 }
 
@@ -220,6 +221,17 @@ func (s *Store) ExportBackup(ctx context.Context, openVPN, openSub func(id int64
 	if err != nil {
 		return nil, err
 	}
+	err = eachRow(ctx, tx, `SELECT `+ruleColumns+` FROM recording_rule ORDER BY id`, func(rows *sql.Rows) error {
+		r, err := scanRule(rows)
+		if err != nil {
+			return err
+		}
+		b.Rules = append(b.Rules, r)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
 	err = eachRow(ctx, tx, `SELECT name, url, enabled FROM guide_source ORDER BY id`, func(rows *sql.Rows) error {
 		var g GuideSource
 		if err := rows.Scan(&g.Name, &g.URL, &g.Enabled); err != nil {
@@ -282,7 +294,7 @@ func (s *Store) ImportBackup(ctx context.Context, b *Backup, sealVPN, sealSub fu
 	defer tx.Rollback()
 	for _, q := range []string{
 		`DELETE FROM progress`, `DELETE FROM favorite`, `DELETE FROM recording`, `DELETE FROM setting`,
-		`DELETE FROM epg_programme`, `DELETE FROM epg_channel`, `DELETE FROM guide_source`,
+		`DELETE FROM epg_programme`, `DELETE FROM epg_channel`, `DELETE FROM guide_source`, `DELETE FROM recording_rule`,
 		`DELETE FROM subscription`, `DELETE FROM vpn`, // cascades to the catalog
 	} {
 		if _, err := tx.ExecContext(ctx, q); err != nil {
@@ -324,9 +336,20 @@ func (s *Store) ImportBackup(ctx context.Context, b *Backup, sealVPN, sealSub fu
 		if status == "recording" {
 			status, r.Error = "failed", "interrotta (ripristino da backup)"
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO recording (id, item_id, group_key, channel, title, start, stop, status, file, bytes, error, created_at)
-			VALUES (?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, r.ID, b.RecordingKeys[r.ID], r.Channel, r.Title, r.Start, r.Stop,
-			status, r.File, r.Bytes, r.Error, r.CreatedAt); err != nil {
+		var rule any
+		if r.RuleID != 0 {
+			rule = r.RuleID
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO recording (id, item_id, group_key, channel, title, start, stop, status, file, bytes, error, created_at, rule_id, protected)
+			VALUES (?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, r.ID, b.RecordingKeys[r.ID], r.Channel, r.Title, r.Start, r.Stop,
+			status, r.File, r.Bytes, r.Error, r.CreatedAt, rule, r.Protected); err != nil {
+			return err
+		}
+	}
+	for _, r := range b.Rules {
+		spec, _ := json.Marshal(r.Spec)
+		if _, err := tx.ExecContext(ctx, `INSERT INTO recording_rule (id, name, spec, keep, enabled, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+			r.ID, r.Name, string(spec), r.Keep, r.Enabled, r.CreatedAt); err != nil {
 			return err
 		}
 	}

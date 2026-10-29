@@ -361,8 +361,26 @@
     parts.push(el("h2", {}, "Aggiornamenti automatici"),
       el("p", { className: "note" }, "Il catalogo di ogni abbonamento (con la guida) si aggiorna ogni notte; se non riesce riprova ogni ora. La guida si aggiorna anche tra una notte e l'altra." +
         (status.next_catalog ? " Prossimo aggiornamento del catalogo: " + when(status.next_catalog) + "." : "")), form);
-    parts.push(...(await metadataSection()).filter(Boolean), ...await backupSection());
+    parts.push(...await recordingLimits(), ...(await metadataSection()).filter(Boolean), ...await backupSection());
     main.replaceChildren(...parts);
+  }
+
+  // ---- Recording space ----
+  async function recordingLimits() {
+    const sp = await api("GET", "/api/v1/recordings/space");
+    const gb = (b) => (b / 1e9).toLocaleString("it-IT", { maximumFractionDigits: 1 }) + " GB";
+    const max = input({ type: "number", min: 0, value: sp.max_gb || "", placeholder: "nessun limite" });
+    const days = input({ type: "number", min: 0, value: sp.keep_days || "", placeholder: "per sempre" });
+    const save = el("button", { className: "small primary focusable full", type: "submit" }, "Salva");
+    const form = el("form", { className: "form" }, ...field("Spazio massimo (GB)", max), ...field("Tieni per (giorni)", days), save);
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      try { await api("PUT", "/api/v1/settings/recordings", { max_gb: Number(max.value) || 0, keep_days: Number(days.value) || 0 }); flash("Limiti salvati e applicati"); render(); }
+      catch (err) { flash(err.message); }
+    };
+    return [el("h2", {}, "Spazio delle registrazioni"),
+      el("p", { className: "note" }, sp.count + " registrazioni, " + gb(sp.used_bytes) + (sp.free_bytes >= 0 ? "; liberi sul disco " + gb(sp.free_bytes) + " su " + gb(sp.total_bytes) : "") +
+        ". Oltre i limiti si cancellano le più vecchie; quelle protette (🔒) mai. Sotto 1 GB liberi le registrazioni non partono."), form];
   }
 
   // ---- Covers and details (TMDB) ----

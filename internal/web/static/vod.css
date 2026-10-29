@@ -321,3 +321,16 @@ video::cue { font-size: 1.6rem; background: rgba(0, 0, 0, 0.65); }
 .credits { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; max-width: 48rem; margin: 0.5rem 0; color: var(--soft); }
 .credits dt { color: var(--soft); }
 .credits dd { margin: 0; color: var(--text); }
+
+/* Recording rules */
+.rule { margin: 1rem 0; padding: 1rem 1.2rem; background: var(--raised); border-radius: 12px; }
+.rule p { margin: 0.3rem 0; }
+.rule-form { display: grid; gap: 0.6rem; max-width: 52rem; margin: 1rem 0 3rem; }
+.rule-field { display: grid; grid-template-columns: 14rem 1fr; align-items: center; gap: 1rem; color: var(--soft); }
+.rule-form input, .rule-form select { padding: 0.5em 0.7em; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
+.rule-form button { justify-self: start; }
+.matches { margin: 0; padding-left: 1.2rem; color: var(--text); }
+.matches .conflict, .matches .too_long { color: #ff9a92; }
+.matches .scheduled { color: #8fd9b6; }
+.matches .cancelled { color: var(--soft); }
+.recs .tag { color: var(--soft); }

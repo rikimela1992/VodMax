@@ -49,6 +49,7 @@ type maintenanceState struct {
 	guideErr   map[int64]string
 	guideRetry map[int64]time.Time
 	backupDir  string
+	rulesRun   time.Time
 }
 
 func (s *Service) Schedule(ctx context.Context) (Schedule, error) {
@@ -234,8 +235,19 @@ func (s *Service) runScheduled(ctx context.Context, log *slog.Logger, now time.T
 	}
 	if providerGuide {
 		s.syncExternalGuides(ctx) // they extend the channels it replaced
+		s.applyRules(ctx, log)
+		s.cleanupRecordings(ctx, log)
 		return
 	}
+	defer func() {
+		s.mu.Lock()
+		due := time.Since(s.maint.rulesRun) >= rulesEvery
+		s.mu.Unlock()
+		if due {
+			s.applyRules(ctx, log)
+		}
+		s.cleanupRecordings(ctx, log)
+	}()
 	// External guides after the providers', which they complete.
 	if sc.GuideHours == 0 {
 		return
@@ -302,7 +314,7 @@ func (s *Service) guideDone(ctx context.Context, subID int64, err error) {
 // Problem is something the user should know about.
 type Problem struct {
 	Level string `json:"level"` // "error" or "warning"
-	Area  string `json:"area"`  // "vpn", "subscription", "guide", "profile"
+	Area  string `json:"area"`  // "vpn", "subscription", "guide", "profile", "disk"
 	Text  string `json:"text"`
 }
 
@@ -355,6 +367,7 @@ func (s *Service) Status(ctx context.Context) (SystemStatus, error) {
 		guideErr[id] = e
 	}
 	s.mu.Unlock()
+	out.Problems = append(out.Problems, s.diskProblems()...)
 	// With a kids profile, an admin profile without PIN can be chosen on
 	// any device, settings and adult content included.
 	if profiles, err := s.st.Profiles(ctx); err == nil {

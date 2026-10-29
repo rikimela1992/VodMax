@@ -117,23 +117,130 @@
 
   const recState = { scheduled: "In programma", recording: "● In registrazione", completed: "Registrata", failed: "Non riuscita" };
   async function renderRecordings(main) {
-    const list = await api("GET", "/api/v1/recordings");
-    if (!list.length) {
-      main.replaceChildren(el("p", { className: "empty" }, "Nessuna registrazione. In TV premi R (tasto blu) su un canale per registrare il programma in onda."));
-      return;
-    }
+    const [list, space, who] = await Promise.all([api("GET", "/api/v1/recordings"), api("GET", "/api/v1/recordings/space"),
+      window.VodMax.me().catch(() => null)]);
+    const kids = who && who.profile && who.profile.kind === "kids";
+    const gb = (b) => (b / 1e9).toLocaleString("it-IT", { maximumFractionDigits: 1 }) + " GB";
     const day = (t) => new Date(t * 1000).toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" });
-    main.replaceChildren(el("h2", {}, "Registrazioni"), el("p", { className: "empty" }, "OK guarda · Rosso (Canc) elimina"),
-      el("ol", { className: "recs" }, ...list.map((r) => {
+    const usage = "Usati " + gb(space.used_bytes) + (space.free_bytes >= 0 ? " · liberi " + gb(space.free_bytes) : "") +
+      (space.max_gb ? " · limite " + space.max_gb + " GB" : "") + (space.keep_days ? " · si tengono " + space.keep_days + " giorni" : "");
+    const parts = [el("h2", {}, "Registrazioni"), el("p", { className: "empty" }, usage)];
+    if (!list.length) parts.push(el("p", { className: "empty" }, "Nessuna registrazione. In TV premi R (tasto blu) sul programma in onda, " +
+      "oppure registra dalla Guida, oppure crea una regola qui sotto."));
+    else {
+      parts.push(el("p", { className: "empty" }, "OK guarda · Giallo (P) protegge dalla cancellazione automatica · Rosso (Canc) elimina"));
+      parts.push(el("ol", { className: "recs" }, ...list.map((r) => {
         const b = el("button", { className: "focusable" },
           el("span", {}, day(r.start) + " " + hhmm(r.start)),
-          el("span", {}, el("strong", {}, r.title), " · " + r.channel),
-          el("span", { className: "state " + r.status }, recState[r.status] || r.status),
-          el("span", { className: "state" }, (r.bytes / 1e9).toFixed(2) + " GB"));
+          el("span", {}, el("strong", {}, r.title), " · " + r.channel, r.rule_id ? el("small", { className: "tag" }, " regola") : null),
+          el("span", { className: "state " + r.status }, (r.protected ? "🔒 " : "") + (recState[r.status] || r.status)),
+          el("span", { className: "state" }, r.bytes ? gb(r.bytes) : ""));
         b.onclick = () => r.status === "scheduled" ? flash("Non ancora iniziata") : playRecording(r);
         b.dataset.recording = r.id;
+        b.dataset.protected = r.protected ? "1" : "";
+        b.title = r.error || "";
         return el("li", {}, b);
       })));
+    }
+    if (!kids) parts.push(...await rulesSection());
+    main.replaceChildren(...parts);
+  }
+
+  async function toggleProtected(id, now) {
+    try { await api("PUT", "/api/v1/recordings/" + id + "/protected", { protected: !now }); flash(now ? "Protezione tolta" : "Protetta dalla cancellazione automatica"); render(); }
+    catch (e) { flash(e.message); }
+  }
+
+  // ---- Recording rules ----
+  const words = (v) => v.split(",").map((w) => w.trim()).filter(Boolean);
+  const MATCH = { new: "da registrare", scheduled: "in programma", cancelled: "annullata a mano", conflict: "non registrabile", too_long: "troppo lunga" };
+
+  async function rulesSection() {
+    const rules = await api("GET", "/api/v1/recording-rules");
+    const out = [el("h2", {}, "Regole automatiche"),
+      el("p", { className: "empty" }, "Una regola registra da sola i programmi della guida che contengono certe parole: per esempio tutte le partite " +
+        "della Juve, o gara e qualifiche di Formula 1. Si applica ogni 10 minuti ai prossimi giorni di guida.")];
+    for (const r of rules) {
+      const desc = ["tutte: " + r.spec.all.join(", "), r.spec.any && r.spec.any.length ? "almeno una: " + r.spec.any.join(", ") : "",
+        r.spec.none && r.spec.none.length ? "escluse: " + r.spec.none.join(", ") : "", r.channel_name ? "solo " + r.channel_name : "",
+        r.spec.section ? "sezione " + r.spec.section : "", r.keep ? "tiene le ultime " + r.keep : ""].filter(Boolean).join(" · ");
+      const box = el("div", { className: "rule" }, el("strong", {}, r.name + (r.enabled ? "" : " (sospesa)")), el("p", { className: "empty" }, desc),
+        r.last_note ? el("p", { className: "empty" }, "Ultimo controllo: " + r.last_note) : null);
+      const edit = el("button", { className: "button secondary focusable" }, "Modifica");
+      edit.onclick = () => { edit.disabled = true; box.append(ruleForm(r)); };
+      const toggle = el("button", { className: "button secondary focusable" }, r.enabled ? "Sospendi" : "Riattiva");
+      toggle.onclick = async () => {
+        try { await api("PUT", "/api/v1/recording-rules/" + r.id, ruleInput(r, { enabled: !r.enabled })); render(); } catch (e) { flash(e.message); }
+      };
+      const del = el("button", { className: "button secondary focusable" }, "Elimina");
+      del.onclick = async () => {
+        if (!confirm("Eliminare la regola “" + r.name + "”? Le registrazioni già fatte restano; quelle in programma vengono tolte.")) return;
+        try { await api("DELETE", "/api/v1/recording-rules/" + r.id); render(); } catch (e) { flash(e.message); }
+      };
+      box.append(el("div", { className: "actions" }, edit, toggle, del));
+      out.push(box);
+    }
+    out.push(el("h3", {}, "Nuova regola"), ruleForm());
+    return out;
+  }
+
+  function ruleInput(r, extra) {
+    return { name: r.name, all: r.spec.all, any: r.spec.any || [], none: r.spec.none || [], section: r.spec.section || "", keep: r.keep,
+      channel_id: 0, enabled: r.enabled, ...extra };
+  }
+
+  let channelsCache;
+  function ruleForm(existing) {
+    const f = (label, input) => el("label", { className: "rule-field" }, el("span", {}, label), input);
+    const name = el("input", { className: "focusable", value: existing ? existing.name : "", placeholder: "es. Juventus" });
+    const all = el("input", { className: "focusable", value: existing ? existing.spec.all.join(", ") : "", placeholder: "es. juventus" });
+    const any = el("input", { className: "focusable", value: existing && existing.spec.any ? existing.spec.any.join(", ") : "", placeholder: "es. gara, qualifiche (facoltativo)" });
+    const none = el("input", { className: "focusable", value: existing && existing.spec.none ? existing.spec.none.join(", ") : "", placeholder: "es. replica, highlights" });
+    const section = el("select", { className: "focusable" }, el("option", { value: "" }, "Tutti i canali"), el("option", { value: "sport" }, "Solo Sport"), el("option", { value: "tv" }, "Solo TV"));
+    section.value = existing ? existing.spec.section || "" : "";
+    const channel = el("select", { className: "focusable" }, el("option", { value: "0" }, "Qualsiasi canale"));
+    (channelsCache ||= api("GET", "/api/v1/tv/channels")).then((list) => {
+      channel.append(...list.map((c) => el("option", { value: c.id }, c.number + " " + c.name)));
+      if (existing && existing.channel_name) {
+        const o = [...channel.options].find((o) => o.textContent.endsWith(" " + existing.channel_name));
+        if (o) channel.value = o.value;
+      }
+    }).catch(() => {});
+    const keep = el("input", { className: "focusable", type: "number", min: 0, value: existing ? existing.keep || "" : "", placeholder: "tutte" });
+    const result = el("ol", { className: "matches" });
+    const read = () => ({ name: name.value || "Anteprima", all: words(all.value), any: words(any.value), none: words(none.value),
+      section: section.value, channel_id: Number(channel.value), keep: Number(keep.value) || 0, enabled: existing ? existing.enabled : true });
+    let timer;
+    const refresh = () => {
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        if (!words(all.value).length) { result.replaceChildren(); return; }
+        try {
+          const m = await api("POST", "/api/v1/recording-rules/preview", read());
+          result.replaceChildren(...(m.length ? m.map((x) => el("li", { className: "match " + x.state },
+            day(x.start) + " " + hhmm(x.start) + " · " + x.channel + " · " + x.title + " — " + (MATCH[x.state] || x.state) + (x.note ? ": " + x.note : "")))
+            : [el("li", { className: "empty" }, "Nessun programma corrispondente nella guida dei prossimi giorni")]));
+        } catch (e) { result.replaceChildren(el("li", { className: "empty" }, e.message)); }
+      }, 400);
+    };
+    const day = (t) => new Date(t * 1000).toLocaleDateString("it-IT", { weekday: "short", day: "numeric" });
+    const save = el("button", { className: "button focusable", type: "submit" }, existing ? "Salva la regola" : "Crea la regola");
+    const form = el("form", { className: "rule-form" }, f("Nome", name), f("Deve contenere (tutte)", all), f("E almeno una di", any),
+      f("Escludi se contiene", none), f("Sezione", section), f("Canale", channel), f("Tieni le ultime", keep),
+      el("p", { className: "empty" }, "Anteprima di cosa registrerebbe:"), result, save);
+    form.addEventListener("input", refresh);
+    form.addEventListener("change", refresh);
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        const body = { ...read(), name: name.value };
+        const r = existing ? await api("PUT", "/api/v1/recording-rules/" + existing.id, body) : await api("POST", "/api/v1/recording-rules", body);
+        flash("Regola salvata: " + (r.last_note || ""));
+        render();
+      } catch (err) { flash(err.message); }
+    };
+    if (existing) refresh();
+    return form;
   }
 
   async function deleteRecording(id) {
@@ -614,6 +721,11 @@
       return;
     }
     if (key === "Green" || key === "g") { location.href = "/tv.html"; return; }
+    if ((key === "Yellow" || key === "p") && document.activeElement && document.activeElement.dataset.recording) {
+      toggleProtected(document.activeElement.dataset.recording, document.activeElement.dataset.protected === "1");
+      e.preventDefault();
+      return;
+    }
     if ((key === "Red" || key === "Delete") && document.activeElement && document.activeElement.dataset.recording) {
       deleteRecording(document.activeElement.dataset.recording);
       e.preventDefault();

@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -176,4 +177,68 @@ func health(t *testing.T, svc *Service, id int64) VPNHealth {
 	}
 	t.Fatalf("no health for VPN %d", id)
 	return VPNHealth{}
+}
+
+func TestCleanupRecordings(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	box, _ := secret.LoadOrCreate(filepath.Join(dir, "secret.key"))
+	st, err := store.Open(filepath.Join(dir, "vodmax.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	svc := New(st, box, nil)
+	rule, _ := st.AddRecordingRule(ctx, store.RecordingRule{Name: "Juve", Keep: 2, Enabled: true, Spec: store.RuleSpec{All: []string{"juve"}}})
+	day := int64(24 * 3600)
+	now := time.Now().Unix()
+	add := func(title string, ruleID int64, daysAgo int64, gb int64, protected bool) int64 {
+		id, err := st.AddRecording(ctx, store.Recording{GroupKey: "g", Channel: "C", Title: title, RuleID: ruleID,
+			Start: now - daysAgo*day - 3600, Stop: now - daysAgo*day})
+		if err != nil {
+			t.Fatal(err)
+		}
+		r, _ := st.Recording(ctx, id)
+		r.Status, r.Bytes, r.File = "completed", gb<<30, filepath.Join(dir, title+".mp4")
+		os.WriteFile(r.File, []byte("x"), 0o600)
+		st.UpdateRecording(ctx, r)
+		if protected {
+			st.SetRecordingProtected(ctx, id, true)
+		}
+		return id
+	}
+	add("Juve 1", rule, 30, 1, false)
+	add("Juve 2", rule, 20, 1, true) // protected: stays, still counts
+	add("Juve 3", rule, 10, 1, false)
+	add("Juve 4", rule, 5, 1, false)
+	add("Film vecchio", 0, 100, 3, false)
+	add("Film protetto", 0, 200, 3, true)
+	add("Documentario", 0, 2, 4, false)
+	add("Concerto", 0, 1, 4, false)
+	titles := func() []string {
+		list, _ := st.Recordings(ctx)
+		var out []string
+		for _, r := range list {
+			out = append(out, r.Title)
+		}
+		return out
+	}
+	// Rule keeps its two latest: Juve 1 goes (Juve 2 is protected).
+	svc.cleanupRecordings(ctx, nil)
+	if got := strings.Join(titles(), ","); got != "Concerto,Documentario,Juve 4,Juve 3,Juve 2,Film vecchio,Film protetto" {
+		t.Fatalf("after rule keep: %s", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "Juve 1.mp4")); !os.IsNotExist(err) {
+		t.Fatal("file of a deleted recording left on disk")
+	}
+	// 60 days: the old film goes, the protected one stays.
+	svc.SetRecordingSettings(ctx, RecordingSettings{KeepDays: 60})
+	if got := strings.Join(titles(), ","); got != "Concerto,Documentario,Juve 4,Juve 3,Juve 2,Film protetto" {
+		t.Fatalf("after keep days: %s", got)
+	}
+	// 12 GB (now 15): the oldest unprotected go until under.
+	svc.SetRecordingSettings(ctx, RecordingSettings{MaxGB: 12})
+	if got := strings.Join(titles(), ","); got != "Concerto,Documentario,Juve 2,Film protetto" {
+		t.Fatalf("after size limit: %s", got)
+	}
 }

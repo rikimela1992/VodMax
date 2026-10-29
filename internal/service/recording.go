@@ -119,6 +119,11 @@ func (s *Service) scheduleDue(ctx context.Context) {
 }
 
 func (s *Service) startRecording(parent context.Context, r store.Recording) {
+	if free, _, ok := diskSpace(s.rec.dir); ok && free < minFreeToRecord {
+		r.Status, r.Error = "failed", fmt.Sprintf("spazio su disco esaurito (%.1f GB liberi)", float64(free)/(1<<30))
+		s.st.UpdateRecording(parent, r)
+		return
+	}
 	ctx, cancel := context.WithDeadline(parent, time.Unix(r.Stop, 0))
 	a := &activeRec{rec: r, cancel: cancel, done: make(chan struct{})}
 	r.Status = "recording"
@@ -374,6 +379,10 @@ func (s *Service) DeleteRecording(ctx context.Context, id int64) error {
 		if err := os.Remove(r.File); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
+	}
+	if r.RuleID != 0 && r.Stop > time.Now().Unix() {
+		// Its rule must not schedule it again.
+		return s.st.CancelRecording(ctx, id)
 	}
 	return s.st.DeleteRecording(ctx, id)
 }
