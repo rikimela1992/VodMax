@@ -14,7 +14,8 @@ che può diventare il **Server** della casa per gli altri dispositivi.
 > catalogo con ricerca via API, **TV in diretta** con numerazione da
 > telecomando, guida, preferiti, loghi e flusso ritrasmesso dal server, e
 > un'interfaccia TV (`/`) provata con la riproduzione reale in Chrome, non
-> ancora su una TV. Film e serie non sono ancora riproducibili.
+> ancora su una TV. **Film e serie** riproducibili con "Continua a guardare"
+> e **registrazioni** dalla TV (`/vod.html`).
 
 ## L'idea in breve
 
@@ -106,6 +107,12 @@ API, tranne `/api/v1/health`, richiede `Authorization: Bearer <token>`.
 | `POST /api/v1/subscriptions/{id}/guide/sync` | Aggiorna la guida (fatto anche a ogni sincronizzazione) |
 | `POST /api/v1/live/{id}/ticket` `{viewer}` | Permesso di visione monouso (30 s) → `{url}` |
 | `GET /stream/live/{permesso}` | Il flusso MPEG-TS ritrasmesso dal server (`?force=1` per prendere il controllo della connessione) |
+| `GET /api/v1/series/{id}/episodes` | Episodi di una serie, con avanzamento |
+| `GET` · `PUT /api/v1/progress/{movie\|episode}/{id}` | Avanzamento (`position`, `duration` in secondi) |
+| `GET /api/v1/continue` | Continua a guardare |
+| `POST /api/v1/vod/{movie\|episode}/{id}/session` `{viewer, mode?}` | Sessione di riproduzione: `direct` (MP4, intervalli) o `remux` (ffmpeg, `?t=` secondi) |
+| `GET` · `POST /api/v1/recordings` | Registrazioni; `{channel_id}` registra il programma in onda, oppure `start`/`stop` esatti |
+| `DELETE /api/v1/recordings/{id}` · `POST …/{id}/ticket` | Annulla o elimina; permesso di visione |
 | `GET /img/logo/{id}?s=firma` | Logo del canale scaricato tramite VPN e in cache (indirizzo firmato, fornito dall'elenco dei canali) |
 
 ## Sviluppo

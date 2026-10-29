@@ -54,6 +54,7 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	protected.HandleFunc("POST /api/v1/live/{id}/ticket", a.liveTicket)
 	protected.HandleFunc("GET /api/v1/series/{id}/episodes", a.episodes)
 	protected.HandleFunc("PUT /api/v1/progress/{media}/{id}", a.putProgress)
+	protected.HandleFunc("GET /api/v1/progress/{media}/{id}", a.getProgress)
 	protected.HandleFunc("GET /api/v1/continue", a.continueWatching)
 	protected.HandleFunc("POST /api/v1/vod/{media}/{id}/session", a.vodSession)
 	protected.HandleFunc("GET /api/v1/recordings", a.recordings)
@@ -711,7 +712,29 @@ func (a *api) recordingStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
-	w.Header().Set("Content-Type", "video/mp2t")
+	ctype := "video/mp2t"
+	if strings.HasSuffix(file.Name(), ".mp4") {
+		ctype = "video/mp4"
+	}
+	w.Header().Set("Content-Type", ctype)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	http.ServeContent(w, r, "", time.Unix(rec.Stop, 0), file)
+}
+
+func (a *api) getProgress(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	p, err := a.svc.Progress(r.Context(), r.PathValue("media"), id)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if p == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"position": 0, "duration": 0, "completed": false})
+		return
+	}
+	writeJSON(w, http.StatusOK, p)
 }

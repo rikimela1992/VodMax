@@ -299,6 +299,15 @@
     flash(state.favoritesOnly ? "P+/P− scorrono solo i preferiti" : "P+/P− scorrono tutti i canali");
   }
 
+  // ---- Recording ----
+  async function record(channel) {
+    if (!channel) return;
+    try {
+      const r = await api("POST", "/api/v1/recordings", { channel_id: channel.id });
+      flash("Registrazione di “" + r.title + "” fino alle " + hhmm(r.stop) + " (Verde → Registrazioni)");
+    } catch (e) { flash(e.message); }
+  }
+
   // ---- Direct number entry ----
   function digit(d) {
     state.digits = (state.digits + d).slice(-4);
@@ -346,7 +355,7 @@
     const byKey = { PageUp: "ChannelUp", PageDown: "ChannelDown", "+": "ChannelUp", "-": "ChannelDown",
       ColorF0Red: "Red", ColorF1Green: "Green", ColorF2Yellow: "Yellow", ColorF3Blue: "Blue",
       Escape: "Back", Backspace: "Back", BrowserBack: "Back", GoBack: "Back", Enter: "OK", " ": "OK",
-      f: "Yellow", F: "Yellow", p: "Red", P: "Red", i: "Info", I: "Info" };
+      f: "Yellow", F: "Yellow", p: "Red", P: "Red", i: "Info", I: "Info", g: "Green", G: "Green", r: "Blue", R: "Blue" };
     return byKey[e.key] || e.key;
   }
 
@@ -395,6 +404,7 @@
           break;
         }
         case "Yellow": toggleFavorite(o.channels[o.selected]); break;
+        case "Blue": record(o.channels[o.selected]); break;
         case "Back": closeList(); break;
         default: handled = false;
       }
@@ -414,6 +424,8 @@
           break;
         case "Yellow": toggleFavorite(state.browse !== null ? state.channels[state.browse] : state.current); break;
         case "Red": toggleFavoritesOnly(); break;
+        case "Green": stopPlayer(); location.href = "/vod.html"; break;
+        case "Blue": record(state.browse !== null ? state.channels[state.browse] : state.current); break;
         case "Info": showBanner(state.current, false); break;
         default: handled = false;
       }

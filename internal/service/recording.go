@@ -1,14 +1,17 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -151,6 +154,16 @@ func (s *Service) startRecording(parent context.Context, r store.Recording) {
 				final.Error = "registrazione parziale: " + err.Error()
 			}
 		}
+		if final.Status == "completed" {
+			if mp4, err := s.remuxRecording(final.File); err == nil {
+				final.File = mp4
+				if fi, err := os.Stat(mp4); err == nil {
+					final.Bytes = fi.Size()
+				}
+			} else if s.rec.log != nil {
+				s.rec.log.Warn("registrazione lasciata in MPEG-TS", "id", r.ID, "err", err)
+			}
+		}
 		s.st.UpdateRecording(context.Background(), final)
 		if s.rec.log != nil {
 			s.rec.log.Info("registrazione terminata", "id", r.ID, "stato", final.Status, "byte", final.Bytes)
@@ -180,6 +193,10 @@ func (s *Service) record(ctx context.Context, a *activeRec) error {
 		}
 		lastErr = s.recordOnce(ctx, a, it, f)
 		if ctx.Err() != nil {
+			// Reaching the stop time closes the stream: not an error.
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				lastErr = nil
+			}
 			break
 		}
 		select {
@@ -455,3 +472,26 @@ func (s *Service) OpenRecording(ctx context.Context, ticket string) (*os.File, *
 
 // ErrNotReady means the recording has no file yet.
 var ErrNotReady = errNotReady
+
+// remuxRecording copies a finished MPEG-TS recording into an MP4 with the
+// index at the start, so browsers can seek in it; the TS is removed on
+// success. Nothing is re-encoded.
+func (s *Service) remuxRecording(ts string) (string, error) {
+	mp4 := strings.TrimSuffix(ts, ".ts") + ".mp4"
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, s.ffmpegBin(), "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
+		"-i", ts, "-map", "0:v:0", "-map", "0:a?", "-c", "copy", "-movflags", "+faststart", mp4)
+	var stderr bytes.Buffer
+	cmd.Stderr = &limitedWriter{w: &stderr, n: 4096}
+	if err := cmd.Run(); err != nil {
+		os.Remove(mp4)
+		return "", fmt.Errorf("%s", firstLine(stderr.String(), err))
+	}
+	if fi, err := os.Stat(mp4); err != nil || fi.Size() == 0 {
+		os.Remove(mp4)
+		return "", errors.New("file MP4 vuoto")
+	}
+	os.Remove(ts)
+	return mp4, nil
+}

@@ -206,6 +206,7 @@ type CatalogItem struct {
 	Visible        bool     `json:"visible"`
 	VariantCount   int      `json:"variant_count"`
 	GroupKey       string   `json:"-"`
+	Logo           string   `json:"logo,omitempty"` // signed local image URL
 }
 
 // Query selects a page of the catalog.

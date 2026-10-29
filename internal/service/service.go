@@ -412,7 +412,19 @@ func (s *Service) fetch(ctx context.Context, id int64) (*catalog.Snapshot, error
 
 // Catalog and Categories pass through to the store.
 func (s *Service) Catalog(ctx context.Context, q store.Query) (store.Page, error) {
-	return s.st.Catalog(ctx, q)
+	page, err := s.st.Catalog(ctx, q)
+	s.catalogImages(page.Items)
+	return page, err
+}
+
+// catalogImages replaces provider image URLs with signed local ones.
+func (s *Service) catalogImages(items []store.CatalogItem) {
+	for i := range items {
+		if items[i].Image != "" {
+			items[i].Logo = s.LogoURL(items[i].ID)
+		}
+		items[i].Image = ""
+	}
 }
 
 func (s *Service) Categories(ctx context.Context, kind string, subID int64) ([]store.Category, error) {

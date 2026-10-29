@@ -179,5 +179,7 @@ func (s *Service) SetItemHidden(ctx context.Context, itemID int64, hidden bool) 
 }
 
 func (s *Service) Variants(ctx context.Context, itemID int64) ([]store.CatalogItem, error) {
-	return s.st.Variants(ctx, itemID)
+	list, err := s.st.Variants(ctx, itemID)
+	s.catalogImages(list)
+	return list, err
 }

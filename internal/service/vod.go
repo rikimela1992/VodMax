@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -64,12 +65,26 @@ func (s *Service) loadEpisodes(ctx context.Context, it store.PlaybackItem) error
 		if e.ID == "" {
 			continue
 		}
-		title := strings.TrimSpace(e.Title.String())
+		title := episodeTitle(e.Title.String())
 		eps = append(eps, store.Episode{SourceID: e.ID.String(), Season: int(e.Season.Int()), Number: int(e.EpisodeNum.Int()),
 			Title: title, Extension: e.ContainerExtension.String(), Duration: int(e.Info.DurationSecs.Int()),
 			Plot: strings.TrimSpace(e.Info.Plot.String())})
 	}
 	return s.st.ReplaceEpisodes(ctx, it.ID, eps)
+}
+
+// Providers often name episodes "Series (year) - S01E01 - Title": keep
+// only the title.
+var episodeCode = regexp.MustCompile(`(?i)\bS\d{1,3}\s*E\d{1,4}\b\s*[-–:]?\s*`)
+
+func episodeTitle(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if loc := episodeCode.FindStringIndex(raw); loc != nil {
+		if rest := strings.TrimSpace(raw[loc[1]:]); rest != "" {
+			return rest
+		}
+	}
+	return raw
 }
 
 // ---- Progress ----
@@ -96,6 +111,14 @@ func (s *Service) SaveProgress(ctx context.Context, media string, id int64, posi
 		return p, invalid("%v", err)
 	}
 	return p, err
+}
+
+// Progress returns the saved position of a film or episode (nil if none).
+func (s *Service) Progress(ctx context.Context, media string, id int64) (*store.Progress, error) {
+	if media != "movie" && media != "episode" {
+		return nil, invalid("tipo non valido: movie o episode")
+	}
+	return s.st.GetProgress(ctx, DefaultProfile, media, id)
 }
 
 func (s *Service) Continue(ctx context.Context) ([]store.ContinueEntry, error) {
