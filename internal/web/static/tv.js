@@ -549,7 +549,21 @@
     // From the guide: /tv.html?channel=ID.
     const asked = Number(new URLSearchParams(location.search).get("channel"));
     const last = asked || store.get("last", null);
-    tune(state.channels.find((c) => c.id === last) || state.channels[0]);
+    let channel = state.channels.find((c) => c.id === last);
+    if (!channel && last) {
+      // A sport or radio channel: zap in its own list from now on.
+      const all = await load({ section: "" }).catch(() => []);
+      const found = all.find((c) => c.id === last);
+      const i = found ? LISTS.findIndex((l) => l.section === found.section) : -1;
+      if (i >= 0) {
+        state.listIndex = i;
+        store.set("list", i);
+        if (state.favoritesOnly && !found.favorite) { state.favoritesOnly = false; store.set("favoritesOnly", false); }
+        await refreshChannels();
+        channel = state.channels.find((c) => c.id === last);
+      }
+    }
+    tune(channel || state.channels[0]);
   }
 
   window.VodMax.withToken(start);

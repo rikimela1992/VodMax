@@ -93,7 +93,11 @@
     const now = Date.now() / 1000;
     const chips = TV_LISTS.map(([id, label]) => {
       const b = el("button", { className: "chip focusable" + (id === list && !query ? " active" : "") }, label);
-      b.onclick = () => { store.set("tvList", id); state.query = ""; $("search").value = ""; render(); };
+      // Focus stays on the chosen list, not back on the first one.
+      b.onclick = () => { store.set("tvList", id); state.query = ""; $("search").value = ""; render().then(() => {
+        const on = document.querySelector(".tv-tools .chip.active");
+        if (on) on.focus();
+      }); };
       return b;
     });
     const guide = el("a", { className: "chip focusable", href: "/guide.html" }, "Guida TV");
