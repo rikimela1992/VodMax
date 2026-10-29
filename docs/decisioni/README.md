@@ -1,0 +1,24 @@
+# Decisioni di base
+
+Ogni scheda descrive una scelta, le alternative, la raccomandazione e le
+domande aperte. Stato possibile: **Proposta** → **Approvata** / **Scartata**.
+Una decisione approvata si cambia solo con una nuova scheda che la sostituisce.
+
+| # | Decisione | Stato |
+|---|---|---|
+| [0001](0001-modalita-agent-server.md) | Modalità Agent, Server e promozione Agent → Server | Proposta |
+| [0002](0002-sorgenti.md) | Sorgenti supportate | Proposta |
+| [0003](0003-stack-tecnologico.md) | Stack tecnologico | Proposta |
+| [0004](0004-client-e-piattaforme.md) | Client e piattaforme | Proposta |
+| [0005](0005-dati-e-sincronizzazione.md) | Dati, profili e sincronizzazione | Proposta |
+| [0006](0006-riproduzione.md) | Riproduzione | Proposta |
+| [0007](0007-registrazioni.md) | Registrazioni e catch-up | Proposta |
+| [0008](0008-sicurezza.md) | Sicurezza, accesso e privacy | Proposta |
+| [0009](0009-licenza-e-pubblicazione.md) | Licenza e pubblicazione | Proposta |
+| [0010](0010-prima-versione.md) | Perimetro della prima versione | Proposta |
+
+## Ordine consigliato per decidere
+
+1. **0001 e 0003** insieme: definiscono la forma di tutto il resto.
+2. **0002, 0004, 0010**: cosa supportare e cosa fare per primo.
+3. Le altre si possono raffinare mentre si scrive il codice.

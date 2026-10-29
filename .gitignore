@@ -1,0 +1,25 @@
+# Build
+build/
+.gradle/
+out/
+node_modules/
+dist/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Local configuration and secrets: only *.example files are versioned
+*.env
+.env*
+!*.example
+local.properties
+*.jks
+*.keystore
+keystore.properties
+
+# Runtime data
+*.sqlite3
+*.db
+cache/
