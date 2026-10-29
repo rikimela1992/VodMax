@@ -1,8 +1,13 @@
 # VodMax
 
-Media center per IPTV, film e serie: un'unica applicazione che funziona da
-sola su un dispositivo (**Agent**) e che può diventare il **Server** della casa
-per gli altri dispositivi.
+Media center in stile Plex / Jellyfin / IPTV Extreme: aggiungi i tuoi
+**abbonamenti** (provider IPTV, playlist M3U, file locali, ma anche Netflix,
+Prime Video, Disney+, Paramount+…) e ritrovi tutto in una sola Home, una sola
+ricerca, una sola lista. Ogni abbonamento può passare da una **VPN**
+registrata.
+
+Un'unica applicazione che funziona da sola su un dispositivo (**Agent**) e
+che può diventare il **Server** della casa per gli altri dispositivi.
 
 > Stato: **progettazione**. Il repository contiene per ora soltanto le
 > decisioni di base, da approvare prima di scrivere codice.
@@ -18,6 +23,18 @@ per gli altri dispositivi.
 Un dispositivo che trova un Server in rete può collegarsi a lui invece di
 gestire le sorgenti da solo: profili, preferiti e "Continua a guardare"
 diventano condivisi.
+
+## Abbonamenti
+
+| Famiglia | Tipi | Cosa fa VodMax |
+|---|---|---|
+| **Riproducibili** | Xtream Codes, M3U + EPG, file locali (Server), in seguito Jellyfin/Plex e Tvheadend | Riproduce nel proprio player, con progressi, registrazioni e VPN |
+| **Servizi di streaming** | Netflix, Prime Video, Disney+, Paramount+, RaiPlay… | Mostra i titoli disponibili nel catalogo unico e con **Guarda** apre l'app ufficiale sul titolo |
+
+I servizi di streaming sono protetti da DRM: VodMax non li riproduce, non ne
+chiede le password e non li registra. Dettagli nella
+[decisione 0011](docs/decisioni/0011-abbonamenti-e-tipi-di-account.md);
+VPN nella [decisione 0012](docs/decisioni/0012-connessioni-vpn.md).
 
 ## Principi
 
