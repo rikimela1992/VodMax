@@ -34,15 +34,21 @@ import (
 func main() {
 	data := flag.String("data", "./vodmax-data", "cartella dei dati")
 	listen := flag.String("listen", "127.0.0.1:8095", "indirizzo HTTP")
+	recordings := flag.String("recordings", "", "cartella delle registrazioni (predefinita: <data>/recordings)")
+	ffmpeg := flag.String("ffmpeg", "ffmpeg", "eseguibile ffmpeg (per film in MKV/AVI nel browser)")
+	ffprobe := flag.String("ffprobe", "ffprobe", "eseguibile ffprobe")
 	flag.Parse()
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	if err := run(*data, *listen, log); err != nil {
+	if *recordings == "" {
+		*recordings = filepath.Join(*data, "recordings")
+	}
+	if err := run(*data, *listen, *recordings, *ffmpeg, *ffprobe, log); err != nil {
 		log.Error("avvio fallito", "err", err)
 		os.Exit(1)
 	}
 }
 
-func run(data, listen string, log *slog.Logger) error {
+func run(data, listen, recordings, ffmpeg, ffprobe string, log *slog.Logger) error {
 	if err := os.MkdirAll(data, 0o700); err != nil {
 		return err
 	}
@@ -66,6 +72,7 @@ func run(data, listen string, log *slog.Logger) error {
 	defer st.Close()
 	svc := service.New(st, box, nil)
 	defer svc.Close()
+	svc.SetFFmpeg(ffmpeg, ffprobe)
 
 	srv := &http.Server{
 		Addr:              listen,
@@ -74,6 +81,9 @@ func run(data, listen string, log *slog.Logger) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if err := svc.StartRecorder(ctx, recordings, log); err != nil {
+		return err
+	}
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)

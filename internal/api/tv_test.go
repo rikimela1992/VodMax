@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -23,7 +24,18 @@ type tvProvider struct {
 	maxSeen  int
 	opened   []string
 	logoHits map[string]int
+	ranges   []string
 }
+
+// fakeFilm is the content served for films and episodes.
+var fakeFilm = func() []byte {
+	b := make([]byte, 1<<20)
+	copy(b[4:], "ftypisom")
+	for i := 16; i < len(b); i++ {
+		b[i] = byte(i)
+	}
+	return b
+}()
 
 func newTVProvider() *tvProvider {
 	p := &tvProvider{logoHits: map[string]int{}}
@@ -50,6 +62,15 @@ func newTVProvider() *tvProvider {
 				<programme start="%s" stop="%s" channel="cielo.guide"><title>Case da sogno</title></programme>
 				</tv>`, f(now.Add(-10*time.Minute)), f(now.Add(20*time.Minute)), f(now.Add(20*time.Minute)), f(now.Add(2*time.Hour)),
 				f(now.Add(-time.Hour)), f(now.Add(time.Hour)))
+		case strings.HasPrefix(r.URL.Path, "/movie/"), strings.HasPrefix(r.URL.Path, "/series/"):
+			p.mu.Lock()
+			p.active++
+			p.maxSeen = max(p.maxSeen, p.active)
+			p.ranges = append(p.ranges, r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]+" "+r.Header.Get("Range"))
+			p.mu.Unlock()
+			defer func() { p.mu.Lock(); p.active--; p.mu.Unlock() }()
+			w.Header().Set("Content-Type", "video/mp4")
+			http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(fakeFilm))
 		case strings.HasPrefix(r.URL.Path, "/live/"):
 			p.mu.Lock()
 			p.active++
@@ -83,6 +104,20 @@ func newTVProvider() *tvProvider {
 				w.Write([]byte(`[{"name":"Canale 5 HD","stream_id":105,"category_id":"1"},{"name":"Rai 1 HD","stream_id":101,"category_id":"1","epg_channel_id":"Rai1.it","stream_icon":"` + logo + `rai1.png"},
 					{"name":"Cielo HD","stream_id":126,"category_id":"2","stream_icon":"` + logo + `cielo.svg"},{"name":"Alma Tv","stream_id":300,"category_id":"2"},
 					{"name":"DAZN Calcio 1 HD","stream_id":400,"category_id":"3"}]`))
+			case "get_vod_categories":
+				w.Write([]byte(`[{"category_id":"10","category_name":"Horror"}]`))
+			case "get_vod_streams":
+				w.Write([]byte(`[{"name":"1408 (2007)","stream_id":555,"category_id":"10","container_extension":"mp4"},
+					{"name":"Psycho (1960)","stream_id":556,"category_id":"10","container_extension":"mkv"}]`))
+			case "get_series_categories":
+				w.Write([]byte(`[{"category_id":"20","category_name":"Serie Netflix"}]`))
+			case "get_series":
+				w.Write([]byte(`[{"name":"Twin Peaks","series_id":77,"category_id":"20"}]`))
+			case "get_series_info":
+				w.Write([]byte(`{"info":{"name":"Twin Peaks"},"episodes":{
+					"1":[{"id":"9001","episode_num":1,"title":"Pilot","container_extension":"mp4","info":{"duration_secs":5400}},
+					     {"id":"9002","episode_num":2,"title":"Traces to Nowhere","container_extension":"mp4","info":{"duration_secs":2800}}],
+					"2":[{"id":"9101","episode_num":1,"title":"May the Giant Be with You","container_extension":"mp4"}]}}`))
 			default:
 				w.Write([]byte(`[]`))
 			}

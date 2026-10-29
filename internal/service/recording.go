@@ -1,0 +1,457 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"strconv"
+	"sync"
+	"time"
+
+	"github.com/rikimela1992/vodmax/internal/playlist/xtream"
+	"github.com/rikimela1992/vodmax/internal/store"
+)
+
+// Recordings are made by the server: at start time it opens the channel
+// through the VPN (taking priority over viewers) and writes the MPEG-TS
+// stream to disk until the stop time, reconnecting if the stream drops.
+
+const (
+	recordBefore  = 2 * time.Minute
+	recordAfter   = 5 * time.Minute
+	maxRecording  = 6 * time.Hour
+	schedulerTick = 5 * time.Second
+)
+
+type activeRec struct {
+	rec    store.Recording
+	cancel context.CancelFunc
+	done   chan struct{}
+	mu     sync.Mutex
+	bytes  int64
+}
+
+type recorderState struct {
+	mu      sync.Mutex
+	dir     string
+	running map[int64]*activeRec
+	log     *slog.Logger
+	tickets map[string]recTicket
+}
+
+type recTicket struct {
+	id      int64
+	expires time.Time
+}
+
+// StartRecorder runs the scheduler until ctx ends. Recordings left
+// "recording" by a previous run (crash, restart) are marked failed with
+// what they managed to save.
+func (s *Service) StartRecorder(ctx context.Context, dir string, log *slog.Logger) error {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	s.rec.mu.Lock()
+	s.rec.dir, s.rec.log, s.rec.running = dir, log, map[int64]*activeRec{}
+	s.rec.mu.Unlock()
+	interrupted, err := s.st.RecordingsInState(ctx, "recording")
+	if err != nil {
+		return err
+	}
+	for _, r := range interrupted {
+		r.Status, r.Error = "failed", "interrotta da un riavvio del server"
+		if fi, err := os.Stat(r.File); err == nil && fi.Size() > 0 {
+			r.Bytes = fi.Size()
+		}
+		s.st.UpdateRecording(ctx, r)
+	}
+	go func() {
+		t := time.NewTicker(schedulerTick)
+		defer t.Stop()
+		for {
+			s.scheduleDue(ctx)
+			select {
+			case <-ctx.Done():
+				s.rec.mu.Lock()
+				for _, a := range s.rec.running {
+					a.cancel()
+				}
+				s.rec.mu.Unlock()
+				return
+			case <-t.C:
+			}
+		}
+	}()
+	return nil
+}
+
+func (s *Service) scheduleDue(ctx context.Context) {
+	s.rec.mu.Lock()
+	started := s.rec.running != nil
+	s.rec.mu.Unlock()
+	if !started {
+		return // recorder not running (tests, tools)
+	}
+	due, err := s.st.DueRecordings(ctx, time.Now())
+	if err != nil {
+		return
+	}
+	for _, r := range due {
+		if time.Now().Unix() >= r.Stop {
+			r.Status, r.Error = "failed", "non avviata in tempo"
+			s.st.UpdateRecording(ctx, r)
+			continue
+		}
+		s.rec.mu.Lock()
+		_, already := s.rec.running[r.ID]
+		s.rec.mu.Unlock()
+		if !already {
+			s.startRecording(ctx, r)
+		}
+	}
+}
+
+func (s *Service) startRecording(parent context.Context, r store.Recording) {
+	ctx, cancel := context.WithDeadline(parent, time.Unix(r.Stop, 0))
+	a := &activeRec{rec: r, cancel: cancel, done: make(chan struct{})}
+	r.Status = "recording"
+	r.File = filepath.Join(s.rec.dir, fmt.Sprintf("%d-%s.ts", r.ID, time.Unix(r.Start, 0).Format("20060102-1504")))
+	a.rec = r
+	s.st.UpdateRecording(parent, r)
+	s.rec.mu.Lock()
+	s.rec.running[r.ID] = a
+	s.rec.mu.Unlock()
+	go func() {
+		defer close(a.done)
+		defer cancel()
+		err := s.record(ctx, a)
+		s.rec.mu.Lock()
+		delete(s.rec.running, r.ID)
+		s.rec.mu.Unlock()
+		a.mu.Lock()
+		final := a.rec
+		final.Bytes = a.bytes
+		a.mu.Unlock()
+		switch {
+		case final.Status == "cancelled":
+		case final.Bytes == 0:
+			final.Status = "failed"
+			if err != nil {
+				final.Error = err.Error()
+			} else {
+				final.Error = "nessun dato ricevuto"
+			}
+		default:
+			final.Status = "completed"
+			if err != nil && !errors.Is(err, context.DeadlineExceeded) {
+				final.Error = "registrazione parziale: " + err.Error()
+			}
+		}
+		s.st.UpdateRecording(context.Background(), final)
+		if s.rec.log != nil {
+			s.rec.log.Info("registrazione terminata", "id", r.ID, "stato", final.Status, "byte", final.Bytes)
+		}
+	}()
+}
+
+func (a *activeRec) size() int64 {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.bytes
+}
+
+// record writes the channel to the file until ctx ends, reconnecting on
+// errors. It returns the last error, if any.
+func (s *Service) record(ctx context.Context, a *activeRec) error {
+	f, err := os.OpenFile(a.rec.File, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	var lastErr error
+	for ctx.Err() == nil {
+		it, err := s.st.ChannelForGroup(ctx, a.rec.GroupKey)
+		if err != nil {
+			return fmt.Errorf("canale non più disponibile: %w", err)
+		}
+		lastErr = s.recordOnce(ctx, a, it, f)
+		if ctx.Err() != nil {
+			break
+		}
+		select {
+		case <-ctx.Done():
+		case <-time.After(3 * time.Second): // reconnect
+		}
+	}
+	return lastErr
+}
+
+func (s *Service) recordOnce(ctx context.Context, a *activeRec, it store.PlaybackItem, f *os.File) error {
+	streamCtx, release, err := s.acquire(ctx, it.SubscriptionID, "recording:"+strconv.FormatInt(a.rec.ID, 10), true, true)
+	if err != nil {
+		return err
+	}
+	defer release()
+	client, err := s.xtreamClient(streamCtx, it.SubscriptionID, 0)
+	if err != nil {
+		return err
+	}
+	resp, err := s.upstream(streamCtx, it.SubscriptionID, client.StreamURL(xtream.KindLive, it.SourceID, "ts"), "")
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	buf := make([]byte, 188*512)
+	for {
+		n, err := resp.Body.Read(buf)
+		if n > 0 {
+			if _, werr := f.Write(buf[:n]); werr != nil {
+				return werr
+			}
+			a.mu.Lock()
+			a.bytes += int64(n)
+			a.mu.Unlock()
+		}
+		if err != nil {
+			if err == io.EOF {
+				return errors.New("flusso terminato dal provider")
+			}
+			return err
+		}
+	}
+}
+
+// ---- Scheduling ----
+
+// RecordingRequest schedules a recording. Without Start/Stop, the
+// programme on air on the channel is recorded, with margins; explicit
+// times are used as given.
+type RecordingRequest struct {
+	ChannelID int64  `json:"channel_id"`
+	Start     int64  `json:"start,omitempty"`
+	Stop      int64  `json:"stop,omitempty"`
+	Title     string `json:"title,omitempty"`
+}
+
+func (s *Service) ScheduleRecording(ctx context.Context, req RecordingRequest) (store.Recording, error) {
+	it, err := s.st.PlaybackItem(ctx, req.ChannelID)
+	if err != nil {
+		return store.Recording{}, err
+	}
+	if it.Kind != "live" {
+		return store.Recording{}, invalid("si possono registrare solo i canali in diretta")
+	}
+	group, err := s.st.GroupKeyOf(ctx, it.ID)
+	if err != nil {
+		return store.Recording{}, err
+	}
+	now := time.Now()
+	start, stop, title := req.Start, req.Stop, req.Title
+	margins := true
+	if start == 0 && stop == 0 {
+		guide, err := s.st.ChannelGuide(ctx, it.ID, now, now.Add(time.Second))
+		if err != nil {
+			return store.Recording{}, err
+		}
+		for _, p := range guide {
+			if p.Start <= now.Unix() && p.Stop > now.Unix() {
+				start, stop = p.Start, p.Stop
+				if title == "" {
+					title = p.Title
+				}
+				break
+			}
+		}
+		if stop == 0 {
+			return store.Recording{}, invalid("nessun programma in guida per questo canale: indica inizio e fine")
+		}
+	} else {
+		margins = false
+	}
+	if margins {
+		// Guide times are approximate: record a little before and after.
+		start = time.Unix(start, 0).Add(-recordBefore).Unix()
+		stop = time.Unix(stop, 0).Add(recordAfter).Unix()
+	}
+	switch {
+	case stop <= start:
+		return store.Recording{}, invalid("la fine deve essere dopo l'inizio")
+	case stop <= now.Unix():
+		return store.Recording{}, invalid("il programma è già finito")
+	case time.Duration(stop-start)*time.Second > maxRecording:
+		return store.Recording{}, invalid("durata massima di una registrazione: 6 ore")
+	}
+	if title == "" {
+		title = it.Title
+	}
+	if other, err := s.st.OverlappingRecording(ctx, group, start, stop); err != nil {
+		return store.Recording{}, err
+	} else if other != nil {
+		return store.Recording{}, invalid("c'è già una registrazione di questo canale in quell'orario: %s", other.Title)
+	}
+	rec := store.Recording{ItemID: it.ID, GroupKey: group, Channel: it.Title, Title: title, Start: start, Stop: stop}
+	id, err := s.st.AddRecording(ctx, rec)
+	if err != nil {
+		return store.Recording{}, err
+	}
+	rec, err = s.st.Recording(ctx, id)
+	if err == nil && start <= now.Unix() {
+		s.scheduleDue(context.WithoutCancel(ctx)) // starts now, not at the next tick
+	}
+	return rec, err
+}
+
+// Recordings lists recordings with the live size of running ones.
+func (s *Service) Recordings(ctx context.Context) ([]store.Recording, error) {
+	list, err := s.st.Recordings(ctx)
+	s.rec.mu.Lock()
+	for i := range list {
+		if a := s.rec.running[list[i].ID]; a != nil {
+			list[i].Bytes = a.size()
+			list[i].Status = "recording"
+		}
+	}
+	s.rec.mu.Unlock()
+	return list, err
+}
+
+// DeleteRecording cancels a scheduled or running recording, or deletes a
+// finished one and its file.
+func (s *Service) DeleteRecording(ctx context.Context, id int64) error {
+	r, err := s.st.Recording(ctx, id)
+	if err != nil {
+		return err
+	}
+	s.rec.mu.Lock()
+	a := s.rec.running[id]
+	s.rec.mu.Unlock()
+	if a != nil {
+		a.mu.Lock()
+		a.rec.Status = "cancelled"
+		a.mu.Unlock()
+		a.cancel()
+		<-a.done
+	}
+	if r.File != "" {
+		if err := os.Remove(r.File); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	return s.st.DeleteRecording(ctx, id)
+}
+
+// ---- Watching recordings ----
+
+// activeRecordingFor returns the running recording of the channel an item
+// belongs to, if any.
+func (s *Service) activeRecordingFor(ctx context.Context, itemID int64) *activeRec {
+	group, err := s.st.GroupKeyOf(ctx, itemID)
+	if err != nil {
+		return nil
+	}
+	s.rec.mu.Lock()
+	defer s.rec.mu.Unlock()
+	for _, a := range s.rec.running {
+		if a.rec.GroupKey == group {
+			return a
+		}
+	}
+	return nil
+}
+
+// followRecording streams a growing recording from close to its end, like
+// live TV, until the recording stops.
+func (s *Service) followRecording(ctx context.Context, a *activeRec) (*Stream, error) {
+	f, err := os.Open(a.rec.File)
+	if err != nil {
+		return nil, err
+	}
+	const back = 188 * 10000 // ~2 MB before the live edge
+	if size := a.size(); size > back {
+		f.Seek((size-back)/188*188, io.SeekStart)
+	}
+	return &Stream{ReadCloser: &follower{f: f, ctx: ctx, a: a}, ContentType: "video/mp2t", Title: a.rec.Channel}, nil
+}
+
+type follower struct {
+	f   *os.File
+	ctx context.Context
+	a   *activeRec
+}
+
+func (r *follower) Read(p []byte) (int, error) {
+	for {
+		n, err := r.f.Read(p)
+		if n > 0 || (err != nil && err != io.EOF) {
+			return n, err
+		}
+		select {
+		case <-r.ctx.Done():
+			return 0, io.EOF
+		case <-r.a.done:
+			return r.f.Read(p) // last bytes, then EOF
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
+}
+
+func (r *follower) Close() error { return r.f.Close() }
+
+// RecordingTicket authorises playback of a recording for 8 hours (range
+// requests reuse it).
+func (s *Service) RecordingTicket(ctx context.Context, id int64) (string, error) {
+	if _, err := s.st.Recording(ctx, id); err != nil {
+		return "", err
+	}
+	t := randomToken()
+	s.rec.mu.Lock()
+	defer s.rec.mu.Unlock()
+	if s.rec.tickets == nil {
+		s.rec.tickets = map[string]recTicket{}
+	}
+	now := time.Now()
+	for k, v := range s.rec.tickets {
+		if now.After(v.expires) {
+			delete(s.rec.tickets, k)
+		}
+	}
+	s.rec.tickets[t] = recTicket{id: id, expires: now.Add(8 * time.Hour)}
+	return t, nil
+}
+
+// OpenRecording returns the recording file (finished: seekable) or, if it
+// is still being recorded, a stream that follows it.
+func (s *Service) OpenRecording(ctx context.Context, ticket string) (*os.File, *Stream, store.Recording, error) {
+	s.rec.mu.Lock()
+	tk, ok := s.rec.tickets[ticket]
+	s.rec.mu.Unlock()
+	if !ok || time.Now().After(tk.expires) {
+		return nil, nil, store.Recording{}, ErrTicket
+	}
+	r, err := s.st.Recording(ctx, tk.id)
+	if err != nil {
+		return nil, nil, r, err
+	}
+	s.rec.mu.Lock()
+	a := s.rec.running[r.ID]
+	s.rec.mu.Unlock()
+	if a != nil {
+		f, err := os.Open(r.File)
+		if err != nil {
+			return nil, nil, r, err
+		}
+		return nil, &Stream{ReadCloser: &follower{f: f, ctx: ctx, a: a}, ContentType: "video/mp2t", Title: r.Title}, r, nil
+	}
+	if r.File == "" {
+		return nil, nil, r, ErrNotReady
+	}
+	f, err := os.Open(r.File)
+	return f, nil, r, err
+}
+
+// ErrNotReady means the recording has no file yet.
+var ErrNotReady = errNotReady

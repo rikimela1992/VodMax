@@ -52,11 +52,22 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	protected.HandleFunc("PUT /api/v1/tv/favorites/{id}", a.putFavorite)
 	protected.HandleFunc("POST /api/v1/subscriptions/{id}/guide/sync", a.syncGuide)
 	protected.HandleFunc("POST /api/v1/live/{id}/ticket", a.liveTicket)
+	protected.HandleFunc("GET /api/v1/series/{id}/episodes", a.episodes)
+	protected.HandleFunc("PUT /api/v1/progress/{media}/{id}", a.putProgress)
+	protected.HandleFunc("GET /api/v1/continue", a.continueWatching)
+	protected.HandleFunc("POST /api/v1/vod/{media}/{id}/session", a.vodSession)
+	protected.HandleFunc("GET /api/v1/recordings", a.recordings)
+	protected.HandleFunc("POST /api/v1/recordings", a.addRecording)
+	protected.HandleFunc("DELETE /api/v1/recordings/{id}", a.deleteRecording)
+	protected.HandleFunc("POST /api/v1/recordings/{id}/ticket", a.recordingTicket)
 	mux.Handle("/api/", requireToken(token, protected))
 	// The stream is authorised by its single-use ticket: video players
 	// cannot send an Authorization header.
 	mux.HandleFunc("GET /stream/live/{ticket}", a.liveStream)
 	mux.HandleFunc("GET /img/logo/{id}", a.logo)
+	mux.HandleFunc("GET /stream/vod/{session}", a.vodDirect)
+	mux.HandleFunc("GET /stream/vod/{session}/remux", a.vodRemux)
+	mux.HandleFunc("GET /stream/recording/{ticket}", a.recordingStream)
 	mux.Handle("/", web.Handler())
 	return mux
 }
@@ -95,10 +106,12 @@ func (a *api) fail(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, store.ErrInUse), errors.Is(err, service.ErrBusy), errors.Is(err, store.ErrSuspiciousDrop),
 		errors.As(err, new(service.ConnectionBusy)):
 		status = http.StatusConflict
-	case errors.Is(err, service.ErrTicket), errors.Is(err, service.ErrBadSignature):
+	case errors.Is(err, service.ErrTicket), errors.Is(err, service.ErrBadSignature), errors.Is(err, service.ErrSession):
 		status = http.StatusForbidden
-	case errors.Is(err, service.ErrNoImage):
+	case errors.Is(err, service.ErrNoImage), errors.Is(err, service.ErrNotReady):
 		status = http.StatusNotFound
+	case errors.As(err, new(*service.UpstreamError)):
+		status = http.StatusBadGateway
 	case errors.Is(err, context.DeadlineExceeded):
 		status = http.StatusGatewayTimeout
 	}
@@ -492,11 +505,16 @@ func (a *api) liveStream(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, r, err)
 		return
 	}
+	relay(w, stream, http.StatusOK)
+}
+
+// relay copies a stream to the client, flushing as data arrives.
+func relay(w http.ResponseWriter, stream *service.Stream, status int) {
 	defer stream.Close()
 	w.Header().Set("Content-Type", stream.ContentType)
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(status)
 	flusher, _ := w.(http.Flusher)
 	buf := make([]byte, 64<<10)
 	for {
@@ -535,4 +553,165 @@ func (a *api) logo(w http.ResponseWriter, r *http.Request) {
 	h.Set("Content-Security-Policy", "default-src 'none'")
 	h.Set("X-Content-Type-Options", "nosniff")
 	w.Write(img.Data)
+}
+
+func (a *api) episodes(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	list, err := a.svc.Episodes(r.Context(), id)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+func (a *api) putProgress(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	var in struct {
+		Position int `json:"position"`
+		Duration int `json:"duration"`
+	}
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	p, err := a.svc.SaveProgress(r.Context(), r.PathValue("media"), id, in.Position, in.Duration)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, p)
+}
+
+func (a *api) continueWatching(w http.ResponseWriter, r *http.Request) {
+	list, err := a.svc.Continue(r.Context())
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+func (a *api) vodSession(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	var in struct {
+		Viewer string `json:"viewer"`
+		Mode   string `json:"mode"`
+	}
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
+	defer cancel()
+	sess, err := a.svc.NewPlaybackSession(ctx, r.PathValue("media"), id, in.Viewer, in.Mode)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, sess)
+}
+
+func (a *api) vodDirect(w http.ResponseWriter, r *http.Request) {
+	stream, err := a.svc.OpenDirect(r.Context(), r.PathValue("session"), r.Header.Get("Range"), r.URL.Query().Get("force") == "1")
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	h := w.Header()
+	h.Set("Accept-Ranges", "bytes")
+	if stream.ContentLength >= 0 {
+		h.Set("Content-Length", strconv.FormatInt(stream.ContentLength, 10))
+	}
+	if stream.ContentRange != "" {
+		h.Set("Content-Range", stream.ContentRange)
+	}
+	relay(w, stream, stream.Status)
+}
+
+func (a *api) vodRemux(w http.ResponseWriter, r *http.Request) {
+	t, _ := strconv.ParseFloat(r.URL.Query().Get("t"), 64)
+	stream, err := a.svc.OpenRemux(r.Context(), r.PathValue("session"), max(t, 0), r.URL.Query().Get("force") == "1")
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	relay(w, stream, http.StatusOK)
+}
+
+func (a *api) recordings(w http.ResponseWriter, r *http.Request) {
+	list, err := a.svc.Recordings(r.Context())
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+func (a *api) addRecording(w http.ResponseWriter, r *http.Request) {
+	var in service.RecordingRequest
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	rec, err := a.svc.ScheduleRecording(r.Context(), in)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, rec)
+}
+
+func (a *api) deleteRecording(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err == nil {
+		err = a.svc.DeleteRecording(r.Context(), id)
+	}
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) recordingTicket(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	t, err := a.svc.RecordingTicket(r.Context(), id)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"url": "/stream/recording/" + t})
+}
+
+func (a *api) recordingStream(w http.ResponseWriter, r *http.Request) {
+	file, stream, rec, err := a.svc.OpenRecording(r.Context(), r.PathValue("ticket"))
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if stream != nil {
+		relay(w, stream, http.StatusOK)
+		return
+	}
+	defer file.Close()
+	w.Header().Set("Content-Type", "video/mp2t")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	http.ServeContent(w, r, "", time.Unix(rec.Stop, 0), file)
 }

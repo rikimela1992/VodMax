@@ -1,0 +1,214 @@
+package service
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"sync"
+	"time"
+
+	"github.com/rikimela1992/vodmax/internal/provider"
+)
+
+// Provider connections are scarce (often one per account), so every
+// stream opened towards a provider — live channel, film, episode,
+// recording — goes through the same accounting, per subscription:
+//   - a viewer (one player) has at most one stream: opening another
+//     closes the previous one first (zapping, seeking, next episode);
+//   - when all connections are used, a viewer gets ConnectionBusy and may
+//     take over the oldest viewer stream ("force");
+//   - recordings are never taken over by viewers.
+
+type conn struct {
+	viewer    string
+	recording bool
+	cancel    context.CancelFunc
+	done      chan struct{}
+	once      sync.Once
+}
+
+func (c *conn) finish() { c.once.Do(func() { close(c.done) }) }
+
+type connManager struct {
+	mu    sync.Mutex
+	bySub map[int64][]*conn
+}
+
+// ConnectionBusy is returned when every provider connection is in use.
+// Recording tells whether a recording holds the connections (it cannot be
+// taken over).
+type ConnectionBusy struct {
+	Max       int
+	Recording bool
+}
+
+func (e ConnectionBusy) Error() string {
+	if e.Recording {
+		return fmt.Sprintf("tutte le connessioni dell'abbonamento (%d) sono occupate da una registrazione in corso", e.Max)
+	}
+	return fmt.Sprintf("tutte le connessioni dell'abbonamento sono in uso (%d): chiudi un'altra visione o prendi il controllo", e.Max)
+}
+
+// maxConnections reads the provider's limit from the account state; 0
+// means unknown/unlimited.
+func (s *Service) maxConnections(ctx context.Context, subID int64) (int, error) {
+	sub, err := s.st.Subscription(ctx, subID)
+	if err != nil {
+		return 0, err
+	}
+	var account struct {
+		MaxConnections int `json:"max_connections"`
+	}
+	json.Unmarshal(sub.Account, &account)
+	return account.MaxConnections, nil
+}
+
+// acquire reserves a provider connection of a subscription for viewer and
+// returns a context that is cancelled when the stream must stop, and the
+// release function to call when it ends.
+func (s *Service) acquire(ctx context.Context, subID int64, viewer string, force, recording bool) (context.Context, func(), error) {
+	max, err := s.maxConnections(ctx, subID)
+	if err != nil {
+		return nil, nil, err
+	}
+	streamCtx, cancel := context.WithCancel(ctx)
+	c := &conn{viewer: viewer, recording: recording, cancel: cancel, done: make(chan struct{})}
+	var stop []*conn
+	m := &s.conns
+	m.mu.Lock()
+	if m.bySub == nil {
+		m.bySub = map[int64][]*conn{}
+	}
+	list := m.bySub[subID]
+	kept := make([]*conn, 0, len(list)+1)
+	for _, other := range list {
+		if other.viewer == viewer && !other.recording {
+			stop = append(stop, other)
+		} else {
+			kept = append(kept, other)
+		}
+	}
+	if max > 0 && len(kept) >= max {
+		victim := -1
+		for i, other := range kept {
+			if !other.recording && (force || recording) {
+				victim = i
+				break
+			}
+		}
+		if victim < 0 {
+			onlyRecordings := true
+			for _, other := range kept {
+				onlyRecordings = onlyRecordings && other.recording
+			}
+			m.mu.Unlock()
+			cancel()
+			return nil, nil, ConnectionBusy{Max: max, Recording: onlyRecordings}
+		}
+		stop = append(stop, kept[victim])
+		kept = append(kept[:victim], kept[victim+1:]...)
+	}
+	m.bySub[subID] = append(kept, c)
+	m.mu.Unlock()
+
+	// Wait for replaced streams to release their provider connection.
+	for _, old := range stop {
+		old.cancel()
+		select {
+		case <-old.done:
+		case <-time.After(2 * time.Second):
+		}
+	}
+	release := func() {
+		c.cancel()
+		m.mu.Lock()
+		list := m.bySub[subID]
+		for i, other := range list {
+			if other == c {
+				m.bySub[subID] = append(list[:i], list[i+1:]...)
+				break
+			}
+		}
+		m.mu.Unlock()
+		c.finish()
+	}
+	return streamCtx, release, nil
+}
+
+// upstream opens a provider URL through the subscription's VPN, retrying
+// briefly when a single-connection account is still releasing the
+// previous stream. rangeHeader is forwarded when not empty.
+func (s *Service) upstream(ctx context.Context, subID int64, url, rangeHeader string) (*http.Response, error) {
+	sub, err := s.st.Subscription(ctx, subID)
+	if err != nil {
+		return nil, err
+	}
+	tun, err := s.tunnel(ctx, sub.VPNID)
+	if err != nil {
+		return nil, fmt.Errorf("VPN: %w", err)
+	}
+	client := provider.NewHTTPClient(tun, 0)
+	var lastStatus int
+	for attempt := 0; attempt < 4; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(time.Duration(attempt) * 400 * time.Millisecond):
+			}
+		}
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		req.Header.Set("User-Agent", "VodMax")
+		if rangeHeader != "" {
+			req.Header.Set("Range", rangeHeader)
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("provider: %w", provider.Redact(err))
+		}
+		if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusPartialContent {
+			return resp, nil
+		}
+		lastStatus = resp.StatusCode
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusRequestedRangeNotSatisfiable || resp.StatusCode == http.StatusNotFound {
+			break
+		}
+	}
+	return nil, &UpstreamError{Status: lastStatus}
+}
+
+// UpstreamError means the provider refused the stream.
+type UpstreamError struct{ Status int }
+
+func (e *UpstreamError) Error() string {
+	return fmt.Sprintf("il provider ha rifiutato il contenuto (HTTP %d)", e.Status)
+}
+
+// Stream is an open relay; Close releases the provider connection.
+type Stream struct {
+	io.ReadCloser
+	ContentType string
+	Title       string
+	// Set for partial content (VOD): the provider's answer to a Range.
+	Status        int
+	ContentLength int64
+	ContentRange  string
+}
+
+type releasingBody struct {
+	io.ReadCloser
+	once    sync.Once
+	release func()
+}
+
+func (b *releasingBody) Close() error {
+	err := b.ReadCloser.Close()
+	b.once.Do(b.release)
+	return err
+}
+
+var errNotReady = errors.New("non pronto")

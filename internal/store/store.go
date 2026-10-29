@@ -184,6 +184,51 @@ var migrations = []string{
 		data         BLOB,
 		fetched_at   INTEGER NOT NULL
 	);`,
+	// 5: episodes (loaded when a series is opened), watch progress,
+	// recordings.
+	`CREATE TABLE episode (
+		id             INTEGER PRIMARY KEY,
+		series_item_id INTEGER NOT NULL REFERENCES item(id) ON DELETE CASCADE,
+		source_id      TEXT NOT NULL,
+		season         INTEGER NOT NULL,
+		number         INTEGER NOT NULL,
+		title          TEXT NOT NULL,
+		extension      TEXT NOT NULL DEFAULT '',
+		duration       INTEGER NOT NULL DEFAULT 0,  -- seconds, 0 if unknown
+		plot           TEXT NOT NULL DEFAULT '',
+		UNIQUE (series_item_id, source_id)
+	);
+	CREATE INDEX episode_order ON episode (series_item_id, season, number);
+	CREATE TABLE series_fetch (
+		series_item_id INTEGER PRIMARY KEY REFERENCES item(id) ON DELETE CASCADE,
+		fetched_at     INTEGER NOT NULL
+	);
+	CREATE TABLE progress (
+		profile_id INTEGER NOT NULL,
+		media      TEXT NOT NULL CHECK (media IN ('movie', 'episode')),
+		media_id   INTEGER NOT NULL,
+		position   INTEGER NOT NULL,              -- seconds
+		duration   INTEGER NOT NULL,
+		completed  INTEGER NOT NULL DEFAULT 0,
+		updated_at INTEGER NOT NULL,
+		PRIMARY KEY (profile_id, media, media_id)
+	);
+	CREATE INDEX progress_recent ON progress (profile_id, completed, updated_at DESC);
+	CREATE TABLE recording (
+		id         INTEGER PRIMARY KEY,
+		item_id    INTEGER NOT NULL,              -- the channel (primary variant when scheduled)
+		group_key  TEXT NOT NULL,                 -- the channel, for when variants change
+		channel    TEXT NOT NULL,
+		title      TEXT NOT NULL,
+		start      INTEGER NOT NULL,
+		stop       INTEGER NOT NULL,
+		status     TEXT NOT NULL CHECK (status IN ('scheduled', 'recording', 'completed', 'failed', 'cancelled')),
+		file       TEXT NOT NULL DEFAULT '',
+		bytes      INTEGER NOT NULL DEFAULT 0,
+		error      TEXT NOT NULL DEFAULT '',
+		created_at INTEGER NOT NULL
+	);
+	CREATE INDEX recording_due ON recording (status, start);`,
 }
 
 func (s *Store) migrate(ctx context.Context) error {

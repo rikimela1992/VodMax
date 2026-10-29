@@ -1,0 +1,179 @@
+package api
+
+import (
+	"encoding/json"
+	"io"
+	"net/http"
+	"os"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+)
+
+func findItem(t *testing.T, e *env, kind, q string) int64 {
+	t.Helper()
+	_, body := e.do(t, "GET", "/api/v1/catalog/"+kind+"?q="+q, nil, true)
+	var page struct {
+		Items []struct {
+			ID int64 `json:"id"`
+		} `json:"items"`
+	}
+	if json.Unmarshal(body, &page) != nil || len(page.Items) == 0 {
+		t.Fatalf("%s %q not found: %s", kind, q, body)
+	}
+	return page.Items[0].ID
+}
+
+func TestFilmDirectPlaybackAndProgress(t *testing.T) {
+	e, p := tvSetup(t)
+	film := findItem(t, e, "movie", "1408")
+	id := strconv.FormatInt(film, 10)
+
+	code, body := e.do(t, "POST", "/api/v1/vod/movie/"+id+"/session", map[string]string{"viewer": "salotto-pc-01"}, true)
+	var sess struct {
+		Mode, URL string
+		Resume    *struct{ Position int }
+	}
+	if code != 200 || json.Unmarshal(body, &sess) != nil || sess.Mode != "direct" || sess.Resume != nil {
+		t.Fatalf("session: %d %s", code, body)
+	}
+	// The browser asks for ranges: they reach the provider through the server.
+	req, _ := http.NewRequest("GET", e.srv.URL+sess.URL, nil)
+	req.Header.Set("Range", "bytes=100-199")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 206 || resp.Header.Get("Content-Range") != "bytes 100-199/1048576" || len(got) != 100 || got[0] != 100 {
+		t.Fatalf("range: %d %q %d", resp.StatusCode, resp.Header.Get("Content-Range"), len(got))
+	}
+	if !strings.Contains(strings.Join(p.ranges, ","), "555.mp4 bytes=100-199") {
+		t.Fatalf("provider requests: %v", p.ranges)
+	}
+
+	// Progress: saved, shown in "continue", then completed.
+	if code, body := e.do(t, "PUT", "/api/v1/progress/movie/"+id, map[string]int{"position": 1800, "duration": 6000}, true); code != 200 {
+		t.Fatalf("progress: %d %s", code, body)
+	}
+	_, body = e.do(t, "GET", "/api/v1/continue", nil, true)
+	if !strings.Contains(string(body), `"title":"1408"`) || !strings.Contains(string(body), `"position":1800`) {
+		t.Fatalf("continue: %s", body)
+	}
+	_, body = e.do(t, "POST", "/api/v1/vod/movie/"+id+"/session", map[string]string{"viewer": "salotto-pc-01"}, true)
+	if json.Unmarshal(body, &sess); sess.Resume == nil || sess.Resume.Position != 1800 {
+		t.Fatalf("resume offered: %s", body)
+	}
+	e.do(t, "PUT", "/api/v1/progress/movie/"+id, map[string]int{"position": 5800, "duration": 6000}, true)
+	if _, body = e.do(t, "GET", "/api/v1/continue", nil, true); strings.Contains(string(body), "1408") {
+		t.Fatalf("finished film still in continue: %s", body)
+	}
+	if code, _ := e.do(t, "PUT", "/api/v1/progress/movie/"+id, map[string]int{"position": 9999, "duration": 100}, true); code != 400 {
+		t.Fatal("impossible position accepted")
+	}
+}
+
+func TestSeriesEpisodesAndContinue(t *testing.T) {
+	e, _ := tvSetup(t)
+	series := findItem(t, e, "series", "twin")
+	code, body := e.do(t, "GET", "/api/v1/series/"+strconv.FormatInt(series, 10)+"/episodes", nil, true)
+	var eps []struct {
+		ID     int64  `json:"id"`
+		Season int    `json:"season"`
+		Number int    `json:"number"`
+		Title  string `json:"title"`
+	}
+	if code != 200 || json.Unmarshal(body, &eps) != nil || len(eps) != 3 || eps[0].Title != "Pilot" || eps[2].Season != 2 {
+		t.Fatalf("episodes: %d %s", code, body)
+	}
+	ep := strconv.FormatInt(eps[1].ID, 10)
+	e.do(t, "PUT", "/api/v1/progress/episode/"+ep, map[string]int{"position": 600, "duration": 2800}, true)
+	_, body = e.do(t, "GET", "/api/v1/continue", nil, true)
+	if !strings.Contains(string(body), `"series_title":"Twin Peaks"`) || !strings.Contains(string(body), `"number":2`) {
+		t.Fatalf("continue with episode: %s", body)
+	}
+	code, body = e.do(t, "POST", "/api/v1/vod/episode/"+ep+"/session", map[string]string{"viewer": "salotto-pc-01"}, true)
+	if code != 200 || !strings.Contains(string(body), "S1E2 Traces to Nowhere") || !strings.Contains(string(body), `"position":600`) {
+		t.Fatalf("episode session: %d %s", code, body)
+	}
+}
+
+func TestRecordingWatchWhileRecordingAndDelete(t *testing.T) {
+	e, p := tvSetup(t)
+	tv := channels(t, e, "?section=tv")
+	rai := tv[0]
+	now := time.Now().Unix()
+	code, body := e.do(t, "POST", "/api/v1/recordings",
+		map[string]any{"channel_id": rai.ID, "start": now, "stop": now + 3, "title": "Prova"}, true)
+	if code != 201 {
+		t.Fatalf("schedule: %d %s", code, body)
+	}
+	var rec struct{ ID int64 }
+	json.Unmarshal(body, &rec)
+	if code, _ := e.do(t, "POST", "/api/v1/recordings",
+		map[string]any{"channel_id": rai.ID, "start": now + 1, "stop": now + 2}, true); code != 400 {
+		t.Fatal("overlapping recording accepted")
+	}
+
+	time.Sleep(700 * time.Millisecond)
+	// Watching the channel being recorded uses the recording, not a second
+	// provider connection.
+	live, err := openStream(t, e, ticket(t, e, rai.ID, "salotto-tv-01"))
+	if err != nil || live.StatusCode != 200 {
+		t.Fatalf("watch while recording: %v %v", err, live)
+	}
+	readSome(t, live)
+	live.Body.Close()
+	// Another channel: the only connection is held by the recording.
+	busy, _ := openStream(t, e, ticket(t, e, tv[1].ID, "salotto-tv-01")+"?force=1")
+	body, _ = io.ReadAll(busy.Body)
+	busy.Body.Close()
+	if busy.StatusCode != 409 || !strings.Contains(string(body), "registrazione") {
+		t.Fatalf("recording must not be taken over: %d %s", busy.StatusCode, body)
+	}
+
+	time.Sleep(3 * time.Second)
+	_, body = e.do(t, "GET", "/api/v1/recordings", nil, true)
+	var list []struct {
+		ID     int64
+		Status string
+		Bytes  int64
+	}
+	json.Unmarshal(body, &list)
+	if len(list) != 1 || list[0].Status != "completed" || list[0].Bytes < 188*10 {
+		t.Fatalf("recordings: %s", body)
+	}
+	_, body = e.do(t, "POST", "/api/v1/recordings/"+strconv.FormatInt(rec.ID, 10)+"/ticket", nil, true)
+	var tk struct{ URL string }
+	json.Unmarshal(body, &tk)
+	req, _ := http.NewRequest("GET", e.srv.URL+tk.URL, nil)
+	req.Header.Set("Range", "bytes=0-187")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 206 || len(got) != 188 || got[0] != 0x47 {
+		t.Fatalf("recording playback: %d %d", resp.StatusCode, len(got))
+	}
+	p.mu.Lock()
+	opened := strings.Join(p.opened, ",")
+	p.mu.Unlock()
+	if strings.Count(opened, "101.ts") != 1 {
+		t.Fatalf("channel opened at the provider: %s (expected once, by the recording)", opened)
+	}
+
+	files, _ := os.ReadDir(e.recordings)
+	if len(files) != 1 {
+		t.Fatalf("recording files: %v", files)
+	}
+	if code, _ := e.do(t, "DELETE", "/api/v1/recordings/"+strconv.FormatInt(rec.ID, 10), nil, true); code != 204 {
+		t.Fatal("delete")
+	}
+	if files, _ := os.ReadDir(e.recordings); len(files) != 0 {
+		t.Fatalf("file not deleted: %v", files)
+	}
+}

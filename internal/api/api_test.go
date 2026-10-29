@@ -78,9 +78,10 @@ func fakeProvider(hits *atomic.Int32) *httptest.Server {
 }
 
 type env struct {
-	srv    *httptest.Server
-	tunnel *fakeTunnel
-	dbPath string
+	srv        *httptest.Server
+	tunnel     *fakeTunnel
+	dbPath     string
+	recordings string
 }
 
 func setup(t *testing.T, tunnelComesUp bool) *env {
@@ -99,8 +100,13 @@ func setup(t *testing.T, tunnelComesUp bool) *env {
 		e.tunnel.up.Store(tunnelComesUp)
 		return e.tunnel, nil
 	})
+	e.recordings = filepath.Join(dir, "recordings")
+	ctx, cancel := context.WithCancel(context.Background())
+	if err := svc.StartRecorder(ctx, e.recordings, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
+		t.Fatal(err)
+	}
 	e.srv = httptest.NewServer(Handler(svc, token, slog.New(slog.NewTextHandler(io.Discard, nil))))
-	t.Cleanup(func() { e.srv.Close(); svc.Close(); st.Close() })
+	t.Cleanup(func() { cancel(); e.srv.Close(); svc.Close(); st.Close() })
 	return e
 }
 

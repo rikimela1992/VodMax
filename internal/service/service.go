@@ -46,7 +46,10 @@ type Service struct {
 
 	selMu  sync.Mutex // serialises selection recomputation
 	live   liveState
+	conns  connManager
 	images imageState
+	vod    vodState
+	rec    recorderState
 }
 
 func New(st *store.Store, box *secret.Box, start StartTunnel) *Service {

@@ -120,6 +120,20 @@ func main() {
 			fail(err)
 		}
 		report(tun)
+	case "xtream-vod-check":
+		password := os.Getenv("VODMAX_XTREAM_PASSWORD")
+		if *server == "" || *user == "" || password == "" {
+			fail(errors.New("servono -server, -user e VODMAX_XTREAM_PASSWORD"))
+		}
+		tun := up(cfg, *wait)
+		defer tun.Close()
+		client, err := xtream.New(*server, *user, password, provider.NewHTTPClient(tun, 10*time.Minute))
+		if err != nil {
+			fail(err)
+		}
+		if err := vodCheck(client); err != nil {
+			fail(err)
+		}
 	default:
 		usage()
 	}
@@ -201,7 +215,7 @@ func report(tun *vpn.Tunnel) {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "uso: vodmax-probe vpn-check|vpn-up|xtream-login|xtream-dump|xtream-live-check -conf wg.conf [-server URL -user NOME]")
+	fmt.Fprintln(os.Stderr, "uso: vodmax-probe vpn-check|vpn-up|xtream-login|xtream-dump|xtream-live-check|xtream-vod-check -conf wg.conf [-server URL -user NOME]")
 	os.Exit(2)
 }
 

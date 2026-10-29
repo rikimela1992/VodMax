@@ -157,9 +157,9 @@ func (s *Service) SetFavorite(ctx context.Context, itemID int64, favorite bool) 
 // ---- Live streams ----
 
 // Live streams are relayed by the server: clients never reach the
-// provider, which is only reachable through the internal VPN. A viewer is
-// one player (browser tab, app); changing channel replaces its stream at
-// once, which matters for accounts with a single connection.
+// provider, which is only reachable through the internal VPN. Opening a
+// stream needs a single-use ticket, because video players cannot send an
+// Authorization header.
 
 type ticket struct {
 	itemID  int64
@@ -167,17 +167,9 @@ type ticket struct {
 	expires time.Time
 }
 
-type liveStream struct {
-	viewer string
-	itemID int64
-	cancel context.CancelFunc
-	done   chan struct{}
-}
-
 type liveState struct {
 	mu      sync.Mutex
 	tickets map[string]ticket
-	streams map[int64][]*liveStream // by subscription
 }
 
 var viewerID = regexp.MustCompile(`^[A-Za-z0-9_-]{8,64}$`)
@@ -195,13 +187,11 @@ func (s *Service) LiveTicket(ctx context.Context, itemID int64, viewer string) (
 	if it.Kind != "live" {
 		return "", invalid("non è un canale in diretta")
 	}
-	b := make([]byte, 24)
-	rand.Read(b)
-	t := hex.EncodeToString(b)
+	t := randomToken()
 	s.live.mu.Lock()
 	defer s.live.mu.Unlock()
 	if s.live.tickets == nil {
-		s.live.tickets, s.live.streams = map[string]ticket{}, map[int64][]*liveStream{}
+		s.live.tickets = map[string]ticket{}
 	}
 	now := time.Now()
 	for k, v := range s.live.tickets {
@@ -213,28 +203,19 @@ func (s *Service) LiveTicket(ctx context.Context, itemID int64, viewer string) (
 	return t, nil
 }
 
+func randomToken() string {
+	b := make([]byte, 24)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
 // ErrTicket means the stream ticket is unknown, used or expired.
 var ErrTicket = errors.New("permesso di visione non valido o scaduto")
 
-// ConnectionBusy is returned when every provider connection is used by
-// other viewers. Force takes over the oldest one.
-type ConnectionBusy struct{ Max int }
-
-func (e ConnectionBusy) Error() string {
-	return fmt.Sprintf("tutte le connessioni dell'abbonamento sono in uso (%d): chiudi un'altra visione o prendi il controllo", e.Max)
-}
-
-// LiveStream is an open relay; Close releases the provider connection.
-type LiveStream struct {
-	io.ReadCloser
-	ContentType string
-	Title       string
-}
-
-// OpenLive opens the stream authorised by ticket. The stream ends when ctx
-// ends (client gone), when Close is called, or when the same viewer opens
-// another channel.
-func (s *Service) OpenLive(ctx context.Context, t string, force bool) (*LiveStream, error) {
+// OpenLive opens the stream authorised by ticket. It ends when ctx ends
+// (client gone), when Close is called, or when the same viewer opens
+// another stream.
+func (s *Service) OpenLive(ctx context.Context, t string, force bool) (*Stream, error) {
 	s.live.mu.Lock()
 	tk, ok := s.live.tickets[t]
 	delete(s.live.tickets, t)
@@ -246,121 +227,28 @@ func (s *Service) OpenLive(ctx context.Context, t string, force bool) (*LiveStre
 	if err != nil {
 		return nil, err
 	}
-	sub, err := s.st.Subscription(ctx, it.SubscriptionID)
+	// A channel being recorded is watched from the recording: no second
+	// provider connection is needed.
+	if rec := s.activeRecordingFor(ctx, it.ID); rec != nil {
+		return s.followRecording(ctx, rec)
+	}
+	streamCtx, release, err := s.acquire(ctx, it.SubscriptionID, tk.viewer, force, false)
 	if err != nil {
 		return nil, err
 	}
-	var account struct {
-		MaxConnections int `json:"max_connections"`
-	}
-	json.Unmarshal(sub.Account, &account)
-
-	streamCtx, cancel := context.WithCancel(ctx)
-	ls := &liveStream{viewer: tk.viewer, itemID: it.ID, cancel: cancel, done: make(chan struct{})}
-	var stop []*liveStream
-	s.live.mu.Lock()
-	list := s.live.streams[it.SubscriptionID]
-	kept := list[:0]
-	for _, other := range list {
-		if other.viewer == tk.viewer {
-			stop = append(stop, other) // zapping: replace this viewer's stream
-		} else {
-			kept = append(kept, other)
-		}
-	}
-	if max := account.MaxConnections; max > 0 && len(kept) >= max {
-		if !force {
-			s.live.mu.Unlock()
-			cancel()
-			return nil, ConnectionBusy{Max: max}
-		}
-		stop = append(stop, kept[0])
-		kept = kept[1:]
-	}
-	s.live.streams[it.SubscriptionID] = append(kept, ls)
-	s.live.mu.Unlock()
-
-	// Wait for replaced streams to release their provider connection.
-	for _, old := range stop {
-		old.cancel()
-		select {
-		case <-old.done:
-		case <-time.After(2 * time.Second):
-		}
-	}
-
-	body, ctype, err := s.openUpstream(streamCtx, it)
-	if err != nil {
-		s.endLive(it.SubscriptionID, ls)
-		return nil, err
-	}
-	return &LiveStream{ReadCloser: &liveBody{ReadCloser: body, end: func() { s.endLive(it.SubscriptionID, ls) }},
-		ContentType: ctype, Title: it.Title}, nil
-}
-
-func (s *Service) endLive(subID int64, ls *liveStream) {
-	ls.cancel()
-	s.live.mu.Lock()
-	list := s.live.streams[subID]
-	for i, other := range list {
-		if other == ls {
-			s.live.streams[subID] = append(list[:i], list[i+1:]...)
-			break
-		}
-	}
-	s.live.mu.Unlock()
-	select {
-	case <-ls.done:
-	default:
-		close(ls.done)
-	}
-}
-
-type liveBody struct {
-	io.ReadCloser
-	once sync.Once
-	end  func()
-}
-
-func (b *liveBody) Close() error {
-	err := b.ReadCloser.Close()
-	b.once.Do(b.end)
-	return err
-}
-
-// openUpstream requests the channel from the provider through the VPN. A
-// provider may take a moment to release the previous connection of a
-// single-connection account, so refusals are retried briefly.
-func (s *Service) openUpstream(ctx context.Context, it store.PlaybackItem) (io.ReadCloser, string, error) {
 	client, err := s.xtreamClient(ctx, it.SubscriptionID, 0)
 	if err != nil {
-		return nil, "", err
+		release()
+		return nil, err
 	}
-	url := client.StreamURL(xtream.KindLive, it.SourceID, "ts")
-	var lastStatus int
-	for attempt := 0; attempt < 4; attempt++ {
-		if attempt > 0 {
-			select {
-			case <-ctx.Done():
-				return nil, "", ctx.Err()
-			case <-time.After(time.Duration(attempt) * 400 * time.Millisecond):
-			}
-		}
-		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-		req.Header.Set("User-Agent", "VodMax")
-		resp, err := client.HTTP().Do(req)
-		if err != nil {
-			return nil, "", fmt.Errorf("canale: %w", provider.Redact(err))
-		}
-		if resp.StatusCode == http.StatusOK {
-			ctype := resp.Header.Get("Content-Type")
-			if ctype == "" || ctype == "application/octet-stream" {
-				ctype = "video/mp2t"
-			}
-			return resp.Body, ctype, nil
-		}
-		lastStatus = resp.StatusCode
-		resp.Body.Close()
+	resp, err := s.upstream(streamCtx, it.SubscriptionID, client.StreamURL(xtream.KindLive, it.SourceID, "ts"), "")
+	if err != nil {
+		release()
+		return nil, err
 	}
-	return nil, "", fmt.Errorf("il provider ha rifiutato il canale (HTTP %d)", lastStatus)
+	ctype := resp.Header.Get("Content-Type")
+	if ctype == "" || ctype == "application/octet-stream" {
+		ctype = "video/mp2t"
+	}
+	return &Stream{ReadCloser: &releasingBody{ReadCloser: resp.Body, release: release}, ContentType: ctype, Title: it.Title}, nil
 }
