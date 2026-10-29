@@ -6,9 +6,8 @@ Stato: **Proposta**
 
 Un **Agent Android autonomo** che sostituisce un player IPTV classico:
 
-- aggiungere un abbonamento Xtream Codes o M3U + EPG XMLTV;
-- dichiarare i servizi di streaming posseduti e vederne i titoli con
-  "Apri nell'app" (vedi 0011);
+- aggiungere uno o più abbonamenti (playlist M3U o Xtream Codes) con EPG
+  XMLTV (vedi 0011);
 - Diretta con guida TV, Film, Serie con stagioni ed episodi;
 - ricerca istantanea, preferiti, "Continua a guardare", episodio successivo;
 - un profilo, tema chiaro/scuro;
@@ -23,12 +22,13 @@ Un **Agent Android autonomo** che sostituisce un player IPTV classico:
 
 ## Poi (0.3+)
 
-- Server Docker con file locali, VPN multiple e registrazioni; arricchimento
-  TMDB; app webOS.
+- Server Docker con VPN multiple e registrazioni; arricchimento TMDB;
+  app webOS.
 
 ## Fuori dal perimetro iniziale
 
-Transcodifica, accesso da internet, iOS, cartelle locali, import da Jellyfin.
+Transcodifica, accesso da internet, iOS, servizi di streaming (Netflix e
+simili, scartati), file locali e import da Jellyfin (da rivalutare).
 
 ## Criteri di "fatto" per ogni versione
 

@@ -34,11 +34,6 @@ Conseguenza pratica: con abbonamenti su VPN diverse, il dispositivo giusto
 per gestirli è il **Server**, e gli Agent collegati riproducono attraverso di
 lui.
 
-## Servizi di streaming (famiglia B)
-
-La VPN di VodMax non si applica a Netflix e agli altri servizi B: quei
-contenuti si guardano nelle app ufficiali, che usano la rete del dispositivo.
-
 ## Sicurezza
 
 - Chiavi private WireGuard cifrate a riposo, mai nei log né nelle API.

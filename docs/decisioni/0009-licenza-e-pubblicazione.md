@@ -25,8 +25,7 @@ resti aperto; **Apache-2.0** se si vuole la massima libertà di riuso.
 - Dipendenze con licenze compatibili.
 - README con avviso: VodMax non fornisce contenuti; l'utente è responsabile
   delle sorgenti che aggiunge.
-- Marchi di Netflix, Prime Video, Disney+ e altri usati solo per indicare il
-  servizio, secondo le loro linee guida; attribuzione TMDB / JustWatch.
+- Attribuzione TMDB, se si usa l'arricchimento dei metadati.
 
 ## Domande aperte
 

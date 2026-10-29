@@ -16,11 +16,11 @@ Una decisione approvata si cambia solo con una nuova scheda che la sostituisce.
 | [0008](0008-sicurezza.md) | Sicurezza, accesso e privacy | Proposta |
 | [0009](0009-licenza-e-pubblicazione.md) | Licenza e pubblicazione | Proposta |
 | [0010](0010-prima-versione.md) | Perimetro della prima versione | Proposta |
-| [0011](0011-abbonamenti-e-tipi-di-account.md) | Abbonamenti e tipi di account (riproducibili / servizi di streaming) | Proposta |
+| [0011](0011-abbonamenti-e-tipi-di-account.md) | Abbonamenti: solo playlist (M3U, Xtream Codes) | **Approvata** |
 | [0012](0012-connessioni-vpn.md) | Connessioni VPN registrate per abbonamento | Proposta |
 
 ## Ordine consigliato per decidere
 
-1. **0011, 0001 e 0003** insieme: definiscono la forma di tutto il resto.
+1. **0001 e 0003** insieme: definiscono la forma di tutto il resto.
 2. **0002, 0004, 0010, 0012**: cosa supportare e cosa fare per primo.
 3. Le altre si possono raffinare mentre si scrive il codice.

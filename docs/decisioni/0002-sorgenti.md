@@ -1,6 +1,8 @@
 # 0002 — Sorgenti supportate
 
-Stato: **Proposta**
+Stato: **Proposta** · Il perimetro delle sorgenti è fissato dalla
+[0011](0011-abbonamenti-e-tipi-di-account.md): solo playlist M3U e Xtream
+Codes con EPG. Le sorgenti "successive" qui sotto sono da rivalutare.
 
 ## Proposta
 
