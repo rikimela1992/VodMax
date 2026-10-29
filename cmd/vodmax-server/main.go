@@ -84,6 +84,7 @@ func run(data, listen, recordings, ffmpeg, ffprobe string, log *slog.Logger) err
 	if err := svc.StartRecorder(ctx, recordings, log); err != nil {
 		return err
 	}
+	svc.SetBackupDir(filepath.Join(data, "backups"))
 	svc.StartMaintenance(ctx, log)
 	go func() {
 		<-ctx.Done()

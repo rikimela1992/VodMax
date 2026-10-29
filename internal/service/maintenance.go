@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -47,6 +48,7 @@ type maintenanceState struct {
 	vpn        map[int64]*vpnHealth
 	guideErr   map[int64]string
 	guideRetry map[int64]time.Time
+	backupDir  string
 }
 
 func (s *Service) Schedule(ctx context.Context) (Schedule, error) {
@@ -187,6 +189,11 @@ func (s *Service) runScheduled(ctx context.Context, log *slog.Logger, now time.T
 	sc, err := s.Schedule(ctx)
 	if err != nil {
 		return
+	}
+	if s.autoBackupDue() {
+		if _, err := s.AutoBackup(ctx); err != nil && !errors.Is(err, errNoBackupDir) {
+			log.Warn("backup automatico non riuscito", "err", err)
+		}
 	}
 	subs, err := s.st.Subscriptions(ctx)
 	if err != nil {

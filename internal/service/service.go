@@ -447,6 +447,10 @@ func (s *Service) Sync(ctx context.Context, id int64, allowDrop bool) (SyncResul
 		s.st.SetSyncResult(context.Background(), id, "error", err.Error(), snap.Account)
 		return SyncResult{}, err
 	}
+	// Hidden titles and watch progress from a restored backup.
+	if err := s.st.ApplyPendingRestore(ctx); err != nil {
+		return SyncResult{}, err
+	}
 	if err := s.st.SetSyncResult(ctx, id, "ok", "", snap.Account); err != nil {
 		return SyncResult{}, err
 	}

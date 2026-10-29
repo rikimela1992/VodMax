@@ -35,6 +35,12 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	protected.HandleFunc("DELETE /api/v1/vpn/{id}", a.deleteVPN)
 	protected.HandleFunc("PATCH /api/v1/vpn/{id}", a.patchVPN)
 	protected.HandleFunc("GET /api/v1/status", a.status)
+	protected.HandleFunc("POST /api/v1/backup", a.exportBackup)
+	protected.HandleFunc("POST /api/v1/restore", a.restoreBackup)
+	protected.HandleFunc("GET /api/v1/backups", a.listBackups)
+	protected.HandleFunc("POST /api/v1/backups", a.makeBackup)
+	protected.HandleFunc("GET /api/v1/backups/{name}", a.downloadBackup)
+	protected.HandleFunc("POST /api/v1/backups/{name}/restore", a.restoreAutoBackup)
 	protected.HandleFunc("GET /api/v1/settings/schedule", a.getSchedule)
 	protected.HandleFunc("PUT /api/v1/settings/schedule", a.putSchedule)
 	protected.HandleFunc("PATCH /api/v1/subscriptions/{id}", a.patchSubscription)
@@ -110,6 +116,7 @@ func (a *api) fail(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, store.ErrNotFound):
 		status = http.StatusNotFound
 	case errors.Is(err, store.ErrInUse), errors.Is(err, service.ErrBusy), errors.Is(err, store.ErrSuspiciousDrop),
+		errors.Is(err, service.ErrBusyRecording),
 		errors.As(err, new(service.ConnectionBusy)):
 		status = http.StatusConflict
 	case errors.Is(err, service.ErrTicket), errors.Is(err, service.ErrBadSignature), errors.Is(err, service.ErrSession):
@@ -808,6 +815,84 @@ func (a *api) putSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := a.svc.SetSchedule(r.Context(), sc); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func backupHeaders(w http.ResponseWriter, name string) {
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
+	w.Header().Set("Cache-Control", "no-store")
+}
+
+func (a *api) exportBackup(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Password string `json:"password"`
+	}
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	data, err := a.svc.ExportBackup(r.Context(), in.Password)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	backupHeaders(w, time.Now().Format("vodmax-backup-20060102")+".vodmaxbackup")
+	w.Write(data)
+}
+
+// restoreBackup takes the file as the request body and the password in a
+// header (never in the URL, which may end up in logs).
+func (a *api) restoreBackup(w http.ResponseWriter, r *http.Request) {
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 64<<20))
+	if err != nil {
+		a.fail(w, r, service.ErrInvalid{Msg: "file del backup troppo grande o interrotto"})
+		return
+	}
+	if err := a.svc.RestoreBackup(r.Context(), data, r.Header.Get("X-Backup-Password")); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) listBackups(w http.ResponseWriter, r *http.Request) {
+	list, err := a.svc.Backups()
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+func (a *api) makeBackup(w http.ResponseWriter, r *http.Request) {
+	b, err := a.svc.AutoBackup(r.Context())
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, b)
+}
+
+func (a *api) downloadBackup(w http.ResponseWriter, r *http.Request) {
+	data, err := a.svc.AutoBackupData(r.PathValue("name"))
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	backupHeaders(w, r.PathValue("name"))
+	w.Write(data)
+}
+
+func (a *api) restoreAutoBackup(w http.ResponseWriter, r *http.Request) {
+	data, err := a.svc.AutoBackupData(r.PathValue("name"))
+	if err == nil {
+		err = a.svc.RestoreBackup(r.Context(), data, "")
+	}
+	if err != nil {
 		a.fail(w, r, err)
 		return
 	}

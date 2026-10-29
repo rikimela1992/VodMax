@@ -101,6 +101,7 @@ func setup(t *testing.T, tunnelComesUp bool) *env {
 		return e.tunnel, nil
 	})
 	e.recordings = filepath.Join(dir, "recordings")
+	svc.SetBackupDir(filepath.Join(dir, "backups"))
 	ctx, cancel := context.WithCancel(context.Background())
 	if err := svc.StartRecorder(ctx, e.recordings, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
 		t.Fatal(err)

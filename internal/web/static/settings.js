@@ -361,7 +361,84 @@
     parts.push(el("h2", {}, "Aggiornamenti automatici"),
       el("p", { className: "note" }, "Il catalogo di ogni abbonamento (con la guida) si aggiorna ogni notte; se non riesce riprova ogni ora. La guida si aggiorna anche tra una notte e l'altra." +
         (status.next_catalog ? " Prossimo aggiornamento del catalogo: " + when(status.next_catalog) + "." : "")), form);
+    parts.push(...await backupSection());
     main.replaceChildren(...parts);
+  }
+
+  // ---- Backup ----
+  async function download(method, path, body, headers = {}) {
+    const res = await fetch(path, { method, body, headers: { Authorization: "Bearer " + window.VodMax.token(), ...headers } });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(data && data.error ? data.error : "errore " + res.status);
+    }
+    const name = (/filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") || "") || [])[1] || "vodmax.vodmaxbackup";
+    const url = URL.createObjectURL(await res.blob());
+    const a = el("a", { href: url, download: name });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+
+  async function restoreFrom(send) {
+    if (!confirm("Il ripristino sostituisce abbonamenti, VPN, regole, preferiti, avanzamenti e registrazioni programmate con quelli del backup. " +
+      "Prima viene fatta una copia automatica dello stato attuale. Continuare?")) return;
+    try {
+      await send();
+      flash("Ripristino fatto: i cataloghi si stanno scaricando di nuovo (circa un minuto per abbonamento)");
+      render();
+    } catch (e) { flash(e.message); }
+  }
+
+  async function backupSection() {
+    const pass = input({ type: "password", autocomplete: "new-password", placeholder: "almeno 8 caratteri" });
+    const pass2 = input({ type: "password", autocomplete: "new-password" });
+    const make = el("button", { className: "small primary focusable full", type: "submit" }, "Scarica il backup");
+    const exportForm = el("form", { className: "form" }, ...field("Password", pass), ...field("Ripeti la password", pass2), make);
+    exportForm.onsubmit = async (e) => {
+      e.preventDefault();
+      if (pass.value !== pass2.value) { flash("Le due password non coincidono"); return; }
+      make.disabled = true;
+      try { await download("POST", "/api/v1/backup", JSON.stringify({ password: pass.value }), { "Content-Type": "application/json" }); flash("Backup scaricato"); }
+      catch (err) { flash(err.message); }
+      make.disabled = false;
+    };
+    const file = input({ type: "file", accept: ".vodmaxbackup" });
+    const rpass = input({ type: "password", autocomplete: "off" });
+    const restoreButton = el("button", { className: "small focusable full", type: "submit" }, "Ripristina da questo file");
+    const importForm = el("form", { className: "form" }, ...field("File", file), ...field("Password del backup", rpass), restoreButton);
+    importForm.onsubmit = (e) => {
+      e.preventDefault();
+      if (!file.files[0]) { flash("Scegli il file del backup"); return; }
+      restoreFrom(async () => {
+        const res = await fetch("/api/v1/restore", { method: "POST", body: file.files[0],
+          headers: { Authorization: "Bearer " + window.VodMax.token(), "X-Backup-Password": rpass.value } });
+        if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d && d.error ? d.error : "errore " + res.status); }
+      });
+    };
+    const list = await api("GET", "/api/v1/backups");
+    const rows = list.map((b) => el("tr", {}, el("td", {}, when(b.created)), el("td", { className: "n" }, Math.max(1, Math.round(b.size / 1024)) + " kB"),
+      el("td", {}, button("Scarica", () => download("GET", "/api/v1/backups/" + b.name).catch((e) => flash(e.message))),
+        " ", button("Ripristina", () => restoreFrom(() => api("POST", "/api/v1/backups/" + b.name + "/restore"))))));
+    const now = button("Crea una copia adesso", async () => {
+      try { await api("POST", "/api/v1/backups"); flash("Copia creata"); render(); } catch (e) { flash(e.message); }
+    });
+    return [
+      el("h2", {}, "Backup"),
+      el("p", { className: "note" }, "Contiene abbonamenti e VPN (con le credenziali), regole di selezione, categorie, titoli nascosti, preferiti, " +
+        "avanzamenti, registrazioni programmate e impostazioni. Non contiene il catalogo né i file registrati: il catalogo si riscarica da solo dopo il ripristino."),
+      el("h3", {}, "Backup da conservare altrove"),
+      el("p", { className: "note" }, "Cifrato con una password tua: si può ripristinare anche su un'altra installazione. Senza la password non si apre: non c'è modo di recuperarla."),
+      exportForm,
+      el("h3", {}, "Ripristina da un file"),
+      importForm,
+      el("h3", {}, "Copie automatiche"),
+      el("p", { className: "note" }, "Una al giorno, le ultime 14, sul server. Si aprono solo su questa installazione: per un guasto del disco serve il backup con password."),
+      list.length ? el("table", { className: "cats" }, el("tr", {}, el("th", {}, "Creata"), el("th", {}, "Dimensione"), el("th", {}, "")), ...rows)
+        : el("p", { className: "note" }, "Nessuna copia ancora."),
+      el("div", { className: "buttons" }, now),
+    ];
   }
 
   for (const t of document.querySelectorAll(".tab[data-view]")) t.onclick = () => { state.view = t.dataset.view; render(); };
