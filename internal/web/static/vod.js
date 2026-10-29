@@ -11,7 +11,9 @@
     return e;
   };
 
-  const state = { view: store.get("vodView", "home"), query: "", detail: null, play: null };
+  const askedView = new URLSearchParams(location.search).get("view");
+  const state = { view: ["home", "movie", "series", "recordings", "tv"].includes(askedView) ? askedView : store.get("vodView", "home"), query: "", detail: null, play: null };
+  if (askedView) history.replaceState(null, "", "/");
   let statusTimer;
   function flash(text) {
     $("status").textContent = text;
@@ -58,6 +60,7 @@
   // ---- Views ----
   function setTabs() {
     for (const t of document.querySelectorAll(".tab[data-view]")) t.classList.toggle("active", t.dataset.view === state.view);
+    window.VodMax.bottomNav(state.view === "recordings" ? "more" : state.view);
   }
 
   async function render() {
@@ -654,6 +657,7 @@
   // Android "Back": close what is open, then the menu's home; false lets
   // the app go to the background.
   window.VodMaxNativeBack = () => {
+    if (window.VodMax.sheetOpen()) { window.VodMax.closeSheet(); return true; }
     if ($("picker") || !$("player").hidden || !$("detail").hidden || state.query) {
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
       return true;

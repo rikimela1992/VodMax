@@ -285,3 +285,43 @@ h2 { margin: 1.8rem 0 0.8rem; font-size: 1.2rem; font-weight: 600; color: var(--
 .picker .options { overflow-y: auto; display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0.4rem; }
 .picker .chip small { color: inherit; opacity: 0.7; }
 .scrim { position: fixed; inset: 0; z-index: 7; background: rgba(0, 0, 0, 0.55); }
+
+/* ---- Phone: bottom navigation bar and the "Altro" sheet ---- */
+.bnav, .sheet { display: none; }
+@media (max-width: 800px) {
+  body.has-bnav { padding-bottom: calc(4.2rem + env(safe-area-inset-bottom)); }
+  body.has-bnav .top > #tabs:not(.keep), body.has-bnav .nav-link, body.has-bnav #profile-chip { display: none; }
+  body.has-bnav .top { padding-top: 0.7rem; }
+  .bnav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 9;
+    display: flex; justify-content: space-around;
+    padding: 0.35rem 0.4rem calc(0.35rem + env(safe-area-inset-bottom));
+    background: rgba(13, 14, 19, 0.96); border-top: 1px solid var(--line);
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  }
+  body:has(#player:not([hidden])) .bnav, body:has(#detail:not([hidden])) .bnav { display: none; }
+  .bnav-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.2rem;
+    padding: 0.35rem 0; font: inherit; font-size: 0.72rem; font-weight: 500; color: var(--faint);
+    background: none; border: 0; border-radius: 12px; cursor: pointer;
+  }
+  .bnav-item .icon { width: 1.45rem; height: 1.45rem; }
+  .bnav-item.active { color: var(--text); }
+  .bnav-item.active .icon { color: var(--accent); }
+  .bnav-item:focus { outline: none; color: var(--text); background: var(--raised); }
+  .sheet:not([hidden]) {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 11;
+    display: flex; flex-direction: column; gap: 0.2rem;
+    padding: 0.6rem 0.8rem calc(1rem + env(safe-area-inset-bottom));
+    background: var(--surface); border-top: 1px solid var(--line); border-radius: 20px 20px 0 0;
+    box-shadow: 0 -1rem 3rem rgba(0, 0, 0, 0.6);
+  }
+  #more-scrim { z-index: 10; }
+  .sheet-grip { align-self: center; width: 2.6rem; height: 0.3rem; margin-bottom: 0.6rem; background: var(--line); border-radius: 3px; }
+  .sheet-item {
+    display: flex; align-items: center; gap: 0.9rem; padding: 0.7rem 0.6rem;
+    font: inherit; font-weight: 600; color: var(--text); text-align: left; background: none; border: 0; border-radius: 12px; cursor: pointer;
+  }
+  .sheet-item .item-icon { display: grid; place-items: center; width: 2.2rem; height: 2.2rem; background: var(--raised); border-radius: 10px; }
+  .sheet-item:focus, .sheet-item:active { outline: none; background: var(--raised); }
+}

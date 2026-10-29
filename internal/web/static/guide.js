@@ -187,6 +187,7 @@
       load();
     };
   }
+  window.VodMax.bottomNav("more");
   window.VodMax.withToken(async () => {
     state.me = await window.VodMax.me().catch(() => null);
     load();
@@ -194,6 +195,7 @@
 
   // Android "Back" goes through the page's own Back handling.
   window.VodMaxNativeBack = () => {
+    if (window.VodMax.sheetOpen()) { window.VodMax.closeSheet(); return true; }
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     return true;
   };

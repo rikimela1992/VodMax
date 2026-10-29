@@ -166,6 +166,64 @@ window.VodMax = (() => {
     }
   }
 
+  // ---- Phone: navigation bar at the bottom, like the streaming apps;
+  // "Altro" opens a sheet with the rest. On the menu page the entries
+  // press its tabs; elsewhere they are links. ----
+  const phoneNav = window.matchMedia("(max-width: 800px)");
+  let navBar = null;
+  function bottomNav(active) {
+    if (!navBar) {
+      const ic = (n) => (window.VodMaxIcons ? VodMaxIcons.icon(n) : "");
+      const onMenu = location.pathname === "/" || location.pathname === "/index.html";
+      const go = (view) => () => {
+        const tab = onMenu && document.querySelector('.tab[data-view="' + view + '"]');
+        if (tab) { closeSheet(); tab.click(); window.scrollTo(0, 0); } else location.href = "/?view=" + view;
+      };
+      const item = (key, icon, text, action) => {
+        const b = el("button", { type: "button", className: "bnav-item focusable", onclick: action }, ic(icon), el("span", {}, text));
+        b.dataset.key = key;
+        return b;
+      };
+      navBar = el("nav", { className: "bnav", "aria-label": "Sezioni" },
+        item("home", "house", "Home", go("home")), item("movie", "film", "Film", go("movie")),
+        item("series", "clapperboard", "Serie", go("series")), item("tv", "tv", "TV", go("tv")),
+        item("more", "list", "Altro", () => openSheet()));
+      document.body.append(navBar);
+      document.body.classList.add("has-bnav");
+
+      const entry = (icon, text, action, extra) => {
+        const b = el("button", { type: "button", className: "sheet-item focusable", onclick: action }, el("span", { className: "item-icon" }, ic(icon)), el("span", {}, text));
+        if (extra) b.classList.add(extra);
+        return b;
+      };
+      const sheet = el("div", { id: "more-sheet", className: "sheet", hidden: true },
+        el("div", { className: "sheet-grip" }),
+        entry("video", "Registrazioni", go("recordings")),
+        entry("calendar-days", "Guida TV", () => { location.href = "/guide.html"; }),
+        entry("settings", "Impostazioni", () => { location.href = "/settings.html"; }, "admin-only"),
+        entry("user", "Cambia profilo", () => { closeSheet(); store.set("profile", ""); showProfiles(); }),
+        native ? entry("tv", "Cambia server", () => native.changeServer()) : "");
+      const scrim = el("div", { id: "more-scrim", className: "scrim", hidden: true, onclick: () => closeSheet() });
+      document.body.append(scrim, sheet);
+      me().then((who) => { for (const a of sheet.querySelectorAll(".admin-only")) a.hidden = !who.admin; }).catch(() => {});
+    }
+    if (active) for (const b of navBar.children) b.classList.toggle("active", b.dataset.key === active);
+  }
+  function openSheet() {
+    document.getElementById("more-sheet").hidden = document.getElementById("more-scrim").hidden = false;
+    const first = document.querySelector("#more-sheet .sheet-item:not([hidden])");
+    if (first) first.focus();
+  }
+  function closeSheet() {
+    const s = document.getElementById("more-sheet");
+    if (s) s.hidden = document.getElementById("more-scrim").hidden = true;
+  }
+  document.addEventListener("keydown", (e) => {
+    const s = document.getElementById("more-sheet");
+    if (e.key === "Escape" && s && !s.hidden) { closeSheet(); e.stopImmediatePropagation(); e.preventDefault(); }
+  }, true);
+  const sheetOpen = () => { const s = document.getElementById("more-sheet"); return Boolean(s && !s.hidden); };
+
   // Runs start() once the device is paired, otherwise pairs it.
   function withToken(start) {
     if (!token()) { showPairing(); return; }
@@ -401,5 +459,5 @@ window.VodMax = (() => {
   // The Android app's native player (window.VodMaxNative), if present.
   const native = window.VodMaxNative || null;
 
-  return { native, label, store, viewer, token, withToken, askToken, showProfiles, me, api, keyOf, clock, hhmm, tsPlayer, hlsPlayer, watchStatus };
+  return { native, bottomNav, closeSheet, sheetOpen, label, store, viewer, token, withToken, askToken, showProfiles, me, api, keyOf, clock, hhmm, tsPlayer, hlsPlayer, watchStatus };
 })();

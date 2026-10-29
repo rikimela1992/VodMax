@@ -749,6 +749,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       back();
     }
   });
+  window.VodMax.bottomNav("more");
   window.VodMax.withToken(async () => {
     const who = await window.VodMax.me().catch(() => null);
     if (!who) return;
@@ -763,5 +764,8 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     render();
   });
 
-  window.VodMaxNativeBack = () => { back(); return true; };
+  window.VodMaxNativeBack = () => {
+    if (window.VodMax.sheetOpen()) window.VodMax.closeSheet(); else back();
+    return true;
+  };
 })();
