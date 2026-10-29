@@ -8,14 +8,25 @@ può passare da una **VPN** registrata.
 Un'unica applicazione che funziona da sola su un dispositivo (**Agent**) e
 che può diventare il **Server** della casa per gli altri dispositivi.
 
-> Stato: **sviluppo iniziale**. Funzionano: VPN interna, abbonamenti Xtream
-> e M3U, sincronizzazione del catalogo solo tramite VPN, **selezione del
-> catalogo** (paesi, adulti, anno minimo, categorie, una scheda per titolo),
-> catalogo con ricerca via API, **TV in diretta** con numerazione da
-> telecomando, guida, preferiti, loghi e flusso ritrasmesso dal server, e
-> un'interfaccia TV (`/`) provata con la riproduzione reale in Chrome, non
-> ancora su una TV. **Film e serie** riproducibili con "Continua a guardare"
-> e **registrazioni**. Il menu principale è `/`; la TV è `/tv.html`.
+> Stato: **sviluppo iniziale**, provato su un catalogo reale (non ancora su
+> una TV). Funzionano:
+>
+> - VPN interna (che si ricollega da sola); abbonamenti Xtream e M3U;
+>   sincronizzazione solo tramite VPN, ogni notte e a richiesta;
+> - **selezione del catalogo** (paesi, adulti, anno minimo, categorie, una
+>   scheda per titolo) con anteprima;
+> - **TV** come un decoder (numerazione da telecomando, preferiti, comandi a
+>   schermo), **guida a griglia** anche da fonti XMLTV esterne;
+> - **film e serie** con "Continua a guardare", lingua dell'audio e
+>   sottotitoli, schede dal provider e (con una chiave) da TMDB;
+> - **registrazioni** dal programma in onda, dalla guida o **per regola**,
+>   con controllo delle connessioni e dello spazio;
+> - **profili** (anche bambini) e **dispositivi abbinati** con un codice;
+> - **backup** cifrati e copie automatiche; avvisi su VPN, abbonamenti,
+>   guida e disco.
+>
+> Pagine: menu `/`, TV `/tv.html`, guida `/guide.html`, impostazioni
+> `/settings.html`.
 
 ## L'idea in breve
 
