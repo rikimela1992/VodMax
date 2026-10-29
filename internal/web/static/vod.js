@@ -110,7 +110,7 @@
       return el("li", {}, b);
     });
     main.replaceChildren(el("h2", {}, "TV"), el("div", { className: "tv-tools" }, ...chips, guide),
-      query ? el("p", { className: "empty" }, channels.length + " canali per “" + state.query + "” (nome o numero)") : null,
+      query ? el("p", { className: "empty" }, channels.length + " canali per “" + state.query + "” (nome o numero)") : "",
       items.length ? el("ol", { className: "channels" }, ...items) : el("p", { className: "empty" }, list === "favorites"
         ? "Nessun preferito: in TV premi il tasto giallo (F) su un canale." : "Nessun canale."));
   }
