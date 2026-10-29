@@ -1,0 +1,11 @@
+html, body { margin: 0; height: 100%; background: #0b0c10; color: #f5f5f7; font-family: "LG Smart UI", system-ui, sans-serif; }
+#launcher { box-sizing: border-box; max-width: 60rem; margin: 0 auto; padding: 18vh 5vw 0; font-size: 28px; }
+h1 { margin: 0 0 1rem; font-size: 72px; }
+#message { color: #a9abb5; min-height: 1.4em; }
+input { box-sizing: border-box; width: 100%; padding: 0.6em 0.9em; font: inherit; color: #f5f5f7; background: #1d2028; border: 3px solid transparent; border-radius: 14px; }
+input:focus { border-color: #fff; outline: none; }
+.buttons { margin-top: 1rem; }
+button { padding: 0.6em 1.4em; margin-right: 0.6rem; font: inherit; font-weight: 600; color: #f5f5f7; background: #2a2d36; border: 0; border-radius: 999px; }
+button:focus { color: #0b0c10; background: #fff; outline: none; }
+.hint { color: #6e717c; font-size: 22px; margin-top: 2rem; }
+.bad { color: #ff9a92; }

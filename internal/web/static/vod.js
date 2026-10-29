@@ -236,7 +236,8 @@
       main.lastElementChild.replaceWith(page.items.length ? grid : el("p", { className: "empty" }, "Nessun titolo con questi filtri."));
     }
     grid.append(...page.items.map(itemCard));
-    main.querySelector(".more")?.remove();
+    const oldMore = main.querySelector(".more");
+    if (oldMore) oldMore.remove();
     if (page.next) {
       const more = el("button", { className: "button more focusable" }, "Altri titoli");
       more.onclick = async () => { more.remove(); const n = grid.children.length; await renderGrid(main, kind, page.next, grid); focusFirst(grid.children[n]); };
@@ -401,7 +402,8 @@
     const section = el("select", { className: "focusable" }, el("option", { value: "" }, "Tutti i canali"), el("option", { value: "sport" }, "Solo Sport"), el("option", { value: "tv" }, "Solo TV"));
     section.value = existing ? existing.spec.section || "" : "";
     const channel = el("select", { className: "focusable" }, el("option", { value: "0" }, "Qualsiasi canale"));
-    (channelsCache ||= api("GET", "/api/v1/tv/channels")).then((list) => {
+    if (!channelsCache) channelsCache = api("GET", "/api/v1/tv/channels");
+    channelsCache.then((list) => {
       channel.append(...list.map((c) => el("option", { value: c.id }, c.number + " " + c.name)));
       if (existing && existing.channel_name) {
         const o = [...channel.options].find((o) => o.textContent.endsWith(" " + existing.channel_name));
@@ -596,11 +598,14 @@
     diagCount = 0;
     let sess;
     flash(mode === "remux" ? "Preparazione della conversione…" : "Avvio…");
+    const native = window.VodMax.native;
     try {
       sess = media === "catchup"
         ? await api("POST", "/api/v1/catchup/" + id + "/session", { viewer, ...state.catchup })
-        : await api("POST", "/api/v1/vod/" + media + "/" + id + "/session", { viewer, mode: mode || "" });
+        // The Android player reads MKV, AC-3, HEVC: the file as it is.
+        : await api("POST", "/api/v1/vod/" + media + "/" + id + "/session", { viewer, mode: native ? "direct" : mode || "" });
     } catch (e) { flash(e.message); return; }
+    if (native) { playNative({ media, id, title: title || sess.title, sess, startAt: startAt || 0 }); return; }
     stopPlayback(false);
     const tracks = chooseTracks(sess, keep);
     state.play = { media, id, title, sess, offset: 0, duration: sess.duration || 0, fellBack: mode === "remux", ...tracks };
@@ -617,6 +622,45 @@
     load(startAt || 0);
     saveTimer = setInterval(saveProgress, 15000);
   }
+
+  // ---- The Android app: its native player plays, the position comes
+  // back here and is saved like in the browser. ----
+  let nativeCtx = null;
+  function playNative(ctx) {
+    nativeCtx = ctx;
+    let url = ctx.sess.url, start = ctx.startAt;
+    if (ctx.sess.mode === "remux") { // a converted stream starts where asked
+      url += "?t=" + Math.floor(start) + "&audio=" + (ctx.sess.default_audio || 0) + "&sub=-1";
+      ctx.offset = Math.floor(start);
+      start = 0;
+    }
+    $("status").hidden = true;
+    window.VodMax.native.play(JSON.stringify({ url, title: ctx.title, start, live: Boolean(ctx.live) }));
+  }
+  window.VodMaxNativeDone = (r) => {
+    const c = nativeCtx;
+    nativeCtx = null;
+    if (!c) return;
+    if (r.error) flash("Riproduzione non riuscita: " + r.error);
+    const position = (c.offset || 0) + r.position;
+    const total = (c.sess && c.sess.duration) || r.duration;
+    if ((c.media === "movie" || c.media === "episode") && total > 0 && position > 5) {
+      api("PUT", "/api/v1/progress/" + c.media + "/" + c.id, { position: Math.floor(position), duration: Math.floor(total) })
+        .then(() => { if (state.view === "home" && $("detail").hidden) render(); }).catch(() => {});
+    }
+    if (c.media === "catchup" && state.catchupBack) location.href = state.catchupBack;
+  };
+  window.VodMaxNativeError = (m) => flash(m);
+  // Android "Back": close what is open, then the menu's home; false lets
+  // the app go to the background.
+  window.VodMaxNativeBack = () => {
+    if ($("picker") || !$("player").hidden || !$("detail").hidden || state.query) {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      return true;
+    }
+    if (state.view !== "home") { state.view = "home"; render(); return true; }
+    return false;
+  };
 
   // ---- Audio and subtitles ----
   // The chosen languages are remembered per profile; a file without them
@@ -912,6 +956,10 @@
   async function playRecording(r) {
     let url;
     try { url = (await api("POST", "/api/v1/recordings/" + r.id + "/ticket")).url; } catch (e) { flash(e.message); return; }
+    if (window.VodMax.native) {
+      playNative({ media: "recording", id: r.id, title: r.title + " · " + r.channel, sess: { mode: "direct", url }, startAt: 0, live: r.status === "recording" });
+      return;
+    }
     stopPlayback(false);
     state.play = { recording: r, title: r.title, sess: { mode: "direct", url }, offset: 0, duration: r.stop - r.start };
     $("player-audio").hidden = $("player-subs").hidden = true;

@@ -2,6 +2,8 @@
 // categories. Secrets are written, never read back.
 "use strict";
 
+const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o; }, {});
+
 (() => {
   const { store, api, hhmm } = window.VodMax;
   const $ = (id) => document.getElementById(id);
@@ -44,7 +46,7 @@
   // ---- Subscriptions ----
   async function renderSubscriptions(main) {
     const [subs, vpns] = await Promise.all([api("GET", "/api/v1/subscriptions"), api("GET", "/api/v1/vpn")]);
-    const vpnName = Object.fromEntries(vpns.map((v) => [v.id, v.name]));
+    const vpnName = fromEntries(vpns.map((v) => [v.id, v.name]));
     const parts = [el("h2", {}, "Abbonamenti"),
       el("p", { className: "note" }, "Playlist dei provider (Xtream Codes o M3U). Ogni abbonamento passa dalla sua VPN: senza VPN il provider non viene mai contattato.")];
     for (const s of subs) parts.push(subscriptionBox(s, vpns, vpnName));
@@ -381,6 +383,10 @@
     parts.push(el("h2", {}, "Aggiornamenti automatici"),
       el("p", { className: "note" }, "Il catalogo di ogni abbonamento (con la guida) si aggiorna ogni notte; se non riesce riprova ogni ora. La guida si aggiorna anche tra una notte e l'altra." +
         (status.next_catalog ? " Prossimo aggiornamento del catalogo: " + when(status.next_catalog) + "." : "")), form);
+    if (window.VodMax.native) {
+      parts.push(el("h2", {}, "App"), el("p", { className: "note" }, "VodMax per Android " + window.VodMax.native.version() + ", collegata a " + location.origin + "."),
+        el("div", { className: "buttons" }, button("Cambia server", () => window.VodMax.native.changeServer())));
+    }
     parts.push(...await liveSection(), ...await recordingLimits(), ...(await metadataSection()).filter(Boolean), ...await backupSection());
     main.replaceChildren(...parts);
   }
@@ -628,7 +634,7 @@
   // ---- Devices ----
   async function renderDevices(main) {
     const [devices, profiles] = await Promise.all([api("GET", "/api/v1/devices"), api("GET", "/api/v1/profiles")]);
-    const profileName = Object.fromEntries(profiles.map((p) => [p.id, p.name]));
+    const profileName = fromEntries(profiles.map((p) => [p.id, p.name]));
     const lockSelect = (value) => {
       const s = el("select", { className: "focusable" }, el("option", { value: "" }, "Tutti i profili (si sceglie all'avvio)"),
         ...profiles.map((p) => el("option", { value: p.id }, "Solo " + p.name)));
@@ -685,4 +691,6 @@
     }
     render();
   });
+
+  window.VodMaxNativeBack = () => { location.href = "/"; return true; };
 })();

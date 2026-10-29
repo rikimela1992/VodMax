@@ -386,5 +386,8 @@ window.VodMax = (() => {
     el.replaceChildren(...parts);
   }
 
-  return { label, store, viewer, token, withToken, askToken, showProfiles, me, api, keyOf, clock, hhmm, tsPlayer, hlsPlayer, watchStatus };
+  // The Android app's native player (window.VodMaxNative), if present.
+  const native = window.VodMaxNative || null;
+
+  return { native, label, store, viewer, token, withToken, askToken, showProfiles, me, api, keyOf, clock, hhmm, tsPlayer, hlsPlayer, watchStatus };
 })();

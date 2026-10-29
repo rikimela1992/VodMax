@@ -1,0 +1,13 @@
+{
+  "id": "app.vodmax.client",
+  "version": "0.1.0",
+  "vendor": "VodMax",
+  "type": "web",
+  "main": "index.html",
+  "title": "VodMax",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "bgColor": "#0b0c10",
+  "resolution": "1920x1080",
+  "disableBackHistoryAPI": true
+}

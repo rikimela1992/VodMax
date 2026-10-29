@@ -191,4 +191,10 @@
     state.me = await window.VodMax.me().catch(() => null);
     load();
   });
+
+  // Android "Back" goes through the page's own Back handling.
+  window.VodMaxNativeBack = () => {
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    return true;
+  };
 })();

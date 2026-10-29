@@ -25,6 +25,7 @@ Una decisione approvata si cambia solo con una nuova scheda che la sostituisce.
 | [0017](0017-film-serie-registrazioni.md) | Film, serie, "Continua a guardare" e registrazioni | **Approvata** |
 | [0018](0018-player-e-formati.md) | Player e formati: browser, APK (Media3), EXE (WebView2 + libmpv), diretta con pausa | Diretta con pausa **approvata e fatta**; resto proposta |
 | [0019](0019-profili-e-dispositivi.md) | Profili (anche bambini), dispositivi abbinati con codice | **Approvata** |
+| [0020](0020-app-android-e-webos.md) | App Android (WebView + player Media3) e webOS | **Approvata** |
 
 ## Ordine consigliato per decidere
 

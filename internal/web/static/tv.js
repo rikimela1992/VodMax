@@ -537,4 +537,10 @@
   }
 
   window.VodMax.withToken(start);
+
+  // Android "Back" goes through the page's own Back handling.
+  window.VodMaxNativeBack = () => {
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    return true;
+  };
 })();

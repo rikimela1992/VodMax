@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>VodMax</title>
+<link rel="stylesheet" href="launcher.css">
+</head>
+<body>
+<main id="launcher">
+  <h1>VodMax</h1>
+  <p id="message">Avvio…</p>
+  <form id="form" hidden>
+    <input id="server" type="text" autocomplete="off" spellcheck="false" placeholder="http://indirizzo:8095">
+    <div class="buttons">
+      <button id="connect" type="submit">Collega</button>
+      <button id="retry" type="button" hidden>Riprova</button>
+    </div>
+  </form>
+  <p class="hint">L'indirizzo del server VodMax di casa, per esempio http://192.168.1.10:8095. Poi la TV si abbina con un codice.</p>
+</main>
+<script src="launcher.js"></script>
+</body>
+</html>

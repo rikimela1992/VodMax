@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setup_title">VodMax</string>
+    <string name="setup_text">Indirizzo del server VodMax di casa (per esempio http://192.168.1.10:8095).</string>
+    <string name="setup_hint">http://indirizzo:8095</string>
+    <string name="setup_connect">Collega</string>
+    <string name="setup_checking">Controllo il server…</string>
+    <string name="setup_unreachable">Il server non risponde a questo indirizzo: controlla che sia acceso e nella stessa rete.</string>
+    <string name="error_title">Server non raggiungibile</string>
+    <string name="error_retry">Riprova</string>
+    <string name="error_change">Cambia indirizzo</string>
+</resources>

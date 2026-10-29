@@ -26,7 +26,7 @@ che può diventare il **Server** della casa per gli altri dispositivi.
 >   guida e disco.
 >
 > Pagine: menu `/`, TV `/tv.html`, guida `/guide.html`, impostazioni
-> `/settings.html`.
+> `/settings.html`. App: Android (telefono e TV) e LG webOS in `clients/`.
 
 ## L'idea in breve
 

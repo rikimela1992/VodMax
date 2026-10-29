@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android TV launcher banner (320x180 dp). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp" android:height="180dp" android:viewportWidth="320" android:viewportHeight="180">
+    <path android:fillColor="#0B0C10" android:pathData="M0,0 h320 v180 h-320 z" />
+    <path android:fillColor="#FF4D4F" android:pathData="M36,58 h56 a8,8 0 0 1 8,8 v48 a8,8 0 0 1 -8,8 h-56 a8,8 0 0 1 -8,-8 v-48 a8,8 0 0 1 8,-8 z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M54,74 L80,90 L54,106 Z" />
+    <!-- "VodMax" in simple strokes -->
+    <path android:strokeColor="#F5F5F7" android:strokeWidth="7" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M120,72 L134,108 L148,72 M160,96 a10,12 0 1 0 20,0 a10,12 0 1 0 -20,0 M206,72 L206,108 M206,96 a10,12 0 1 0 -0.1,0 M220,108 L220,72 L234,94 L248,72 L248,108 M262,96 a9,11 0 1 0 18,0 a9,11 0 1 0 -18,0 M280,85 L280,108 M290,85 L306,108 M306,85 L290,108" />
+</vector>
