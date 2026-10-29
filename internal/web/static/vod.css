@@ -356,3 +356,9 @@ video::cue { font-size: 1.6rem; background: rgba(0, 0, 0, 0.65); }
 .channels .what span { display: block; color: var(--soft); font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .channels .what .bar { height: 3px; margin-top: 0.3rem; background: var(--bg); border-radius: 2px; overflow: hidden; }
 .channels .what .bar div { height: 100%; background: var(--accent); }
+
+/* Seek bar: a taller area to click or drag, the time under the pointer. */
+.player-seek { position: relative; padding: 0.7rem 0; cursor: pointer; touch-action: none; }
+.player-seek:hover .player-progress, .player-seek.dragging .player-progress { height: 10px; }
+.player-hover { position: absolute; bottom: 1.6rem; padding: 0.15rem 0.5rem; font-size: 0.85rem; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 6px; transform: translateX(-50%); pointer-events: none; }

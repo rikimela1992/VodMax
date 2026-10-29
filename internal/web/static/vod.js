@@ -421,6 +421,7 @@
   let saveTimer, idleTimer;
 
   async function play(media, id, title, startAt, mode, keep) {
+    diagCount = 0;
     let sess;
     flash(mode === "remux" ? "Preparazione della conversione…" : "Avvio…");
     try {
@@ -602,11 +603,60 @@
     showBar();
   }
 
+  // ---- Seek bar: click or drag ----
+  function seekTo(target) {
+    const p = state.play;
+    if (!p) return;
+    const d = duration();
+    target = Math.max(0, Math.min(target, (d || Infinity) - 3));
+    if (p.ts) p.ts.seek(target - position());
+    else if (p.sess.mode === "direct") video.currentTime = target;
+    else load(target);
+    showBar();
+  }
+  {
+    const bar = $("player-seek");
+    let dragging = false;
+    const at = (e) => {
+      const r = bar.getBoundingClientRect();
+      return Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    };
+    const preview = (e) => {
+      const d = duration();
+      if (!d) return;
+      const f = at(e);
+      $("player-hover").textContent = clock(f * d);
+      $("player-hover").style.left = f * 100 + "%";
+      $("player-hover").hidden = false;
+      if (dragging) $("player-fill").style.width = f * 100 + "%";
+      showBar();
+    };
+    bar.addEventListener("pointerdown", (e) => {
+      if (!duration()) return;
+      dragging = true;
+      bar.classList.add("dragging");
+      bar.setPointerCapture(e.pointerId);
+      preview(e);
+    });
+    bar.addEventListener("pointermove", preview);
+    bar.addEventListener("pointerleave", () => { if (!dragging) $("player-hover").hidden = true; });
+    const finish = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      bar.classList.remove("dragging");
+      $("player-hover").hidden = true;
+      seekTo(at(e) * duration());
+    };
+    bar.addEventListener("pointerup", finish);
+    bar.addEventListener("pointercancel", () => { dragging = false; bar.classList.remove("dragging"); $("player-hover").hidden = true; });
+    state.seekDragging = () => dragging;
+  }
+
   video.addEventListener("timeupdate", () => {
     const d = duration();
     $("player-pos").textContent = clock(position());
     $("player-dur").textContent = d ? clock(d) : "";
-    $("player-fill").style.width = d ? Math.min(100, (position() / d) * 100) + "%" : "0";
+    if (!(state.seekDragging && state.seekDragging())) $("player-fill").style.width = d ? Math.min(100, (position() / d) * 100) + "%" : "0";
   });
 
   video.addEventListener("error", async () => {
@@ -629,6 +679,24 @@
   });
 
   video.addEventListener("ended", () => { saveProgress(); stopPlayback(true); });
+
+  // ---- Diagnostics: what the player does, sent to the server log ----
+  let diagCount = 0;
+  function diag(event, extra) {
+    const p = state.play;
+    if (!p || diagCount++ > 300) return;
+    const b = video.buffered;
+    const ranges = [];
+    for (let i = 0; i < b.length && i < 4; i++) ranges.push(b.start(i).toFixed(1) + "-" + b.end(i).toFixed(1));
+    api("POST", "/api/v1/debug/player", { event, detail: {
+      media: p.media, id: p.id, mode: p.sess && p.sess.mode, t: Number(video.currentTime.toFixed(2)), ready: video.readyState,
+      net: video.networkState, paused: video.paused, buffered: ranges.join(" "),
+      error: video.error ? video.error.code + " " + (video.error.message || "") : "", ...extra } }).catch(() => {});
+  }
+  for (const ev of ["loadstart", "loadedmetadata", "canplay", "playing", "waiting", "stalled", "pause", "play", "seeking", "seeked", "error", "emptied", "abort"]) {
+    video.addEventListener(ev, () => diag(ev));
+  }
+  setInterval(() => { if (state.play && !video.paused) diag("tick"); }, 10000);
 
   function saveProgress() {
     const p = state.play;

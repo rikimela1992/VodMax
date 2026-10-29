@@ -42,7 +42,10 @@
   <video id="video" playsinline></video>
   <div id="player-bar" class="player-bar">
     <div id="player-title" class="player-title"></div>
-    <div class="player-progress"><div id="player-fill"></div></div>
+    <div id="player-seek" class="player-seek" role="slider" aria-label="Posizione" tabindex="-1">
+      <div class="player-progress"><div id="player-fill"></div></div>
+      <span id="player-hover" class="player-hover" hidden></span>
+    </div>
     <div class="player-time"><span id="player-pos">0:00</span><span id="player-dur"></span></div>
     <div class="player-buttons">
       <button class="focusable" data-action="close">✕ Chiudi</button>

@@ -133,14 +133,23 @@ func (s *Store) SaveProgress(ctx context.Context, profileID int64, media string,
 		ON CONFLICT (profile_id, media, media_id) DO UPDATE SET position = excluded.position,
 			duration = excluded.duration, completed = excluded.completed, updated_at = excluded.updated_at`,
 		profileID, media, mediaID, position, duration, completed, now)
+	if err == nil && media == "movie" {
+		// One progress per film, whatever version is watched.
+		_, err = s.w.ExecContext(ctx, `DELETE FROM progress WHERE profile_id = ? AND media = 'movie' AND media_id <> ?
+			AND media_id IN (SELECT v.id FROM item v JOIN item i ON i.group_key = v.group_key AND i.group_key <> '' WHERE i.id = ?)`,
+			profileID, mediaID, mediaID)
+	}
 	return Progress{Position: position, Duration: duration, Completed: completed, UpdatedAt: now}, err
 }
 
 // GetProgress returns the progress of one film or episode, nil if none.
 func (s *Store) GetProgress(ctx context.Context, profileID int64, media string, mediaID int64) (*Progress, error) {
 	var p Progress
-	err := s.r.QueryRowContext(ctx, `SELECT position, duration, completed, updated_at FROM progress
-		WHERE profile_id = ? AND media = ? AND media_id = ?`, profileID, media, mediaID).
+	// A film's progress may have been saved on another version of it.
+	err := s.r.QueryRowContext(ctx, `SELECT p.position, p.duration, p.completed, p.updated_at FROM progress p
+		WHERE p.profile_id = ? AND p.media = ? AND (p.media_id = ? OR (p.media = 'movie' AND p.media_id IN
+			(SELECT v.id FROM item v JOIN item i ON i.group_key = v.group_key AND i.group_key <> '' WHERE i.id = ?)))
+		ORDER BY p.updated_at DESC LIMIT 1`, profileID, media, mediaID, mediaID).
 		Scan(&p.Position, &p.Duration, &p.Completed, &p.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -172,13 +181,17 @@ func (s *Store) Continue(ctx context.Context, profileID int64, noAdult bool, lim
 		SELECT 'movie', i.id, i.display_title, 0, '', 0, 0, i.year, p.position, p.duration, p.updated_at, i.id, i.image <> ''
 		FROM progress p JOIN item i ON i.id = p.media_id
 		WHERE p.profile_id = ? AND p.media = 'movie' AND p.completed = 0 AND i.available = 1 AND (? = 0 OR i.adult = 0)
+			AND (i.group_key = '' OR p.updated_at = (SELECT max(p2.updated_at) FROM progress p2 JOIN item i2 ON i2.id = p2.media_id
+				WHERE p2.profile_id = p.profile_id AND p2.media = 'movie' AND i2.group_key = i.group_key))
 		UNION ALL
 		SELECT 'episode', e.id, e.title, i.id, i.display_title, e.season, e.number, i.year, p.position, p.duration, p.updated_at,
 			i.id, i.image <> ''
 		FROM progress p JOIN episode e ON e.id = p.media_id JOIN item i ON i.id = e.series_item_id
 		WHERE p.profile_id = ? AND p.media = 'episode' AND p.completed = 0 AND i.available = 1 AND (? = 0 OR i.adult = 0)
 			AND p.updated_at = (SELECT max(p2.updated_at) FROM progress p2 JOIN episode e2 ON e2.id = p2.media_id
-				WHERE p2.profile_id = p.profile_id AND p2.media = 'episode' AND e2.series_item_id = e.series_item_id)
+				JOIN item i2 ON i2.id = e2.series_item_id
+				WHERE p2.profile_id = p.profile_id AND p2.media = 'episode'
+					AND (e2.series_item_id = e.series_item_id OR (i.group_key <> '' AND i2.group_key = i.group_key)))
 		ORDER BY 11 DESC LIMIT ?`, profileID, noAdult, profileID, noAdult, limit)
 	if err != nil {
 		return nil, err

@@ -73,6 +73,7 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	route("PUT /api/v1/items/{id}/hidden", levelAdmin, a.putHidden)
 	route("GET /api/v1/items/{id}/variants", levelViewer, a.variants)
 	route("GET /api/v1/items/{id}/details", levelViewer, a.details)
+	route("POST /api/v1/debug/player", levelViewer, a.playerLog)
 	route("GET /api/v1/settings/metadata", levelAdmin, a.getMetadataSettings)
 	route("PUT /api/v1/settings/metadata", levelAdmin, a.putMetadataSettings)
 	route("GET /api/v1/catalog/{kind}", levelViewer, a.catalog)
@@ -748,11 +749,20 @@ func (a *api) vodSession(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) vodDirect(w http.ResponseWriter, r *http.Request) {
+	started := time.Now()
 	stream, err := a.svc.OpenDirect(r.Context(), r.PathValue("session"), r.Header.Get("Range"), r.URL.Query().Get("force") == "1")
 	if err != nil {
+		a.log.Info("film diretto: richiesta rifiutata", "range", r.Header.Get("Range"), "err", err)
 		a.fail(w, r, err)
 		return
 	}
+	// What each browser request got, to diagnose playback.
+	counted := &countingReader{ReadCloser: stream.ReadCloser}
+	stream.ReadCloser = counted
+	defer func() {
+		a.log.Info("film diretto: richiesta", "range", r.Header.Get("Range"), "risposta", stream.ContentRange,
+			"inviati_mb", float64(counted.n)/1e6, "durata_s", time.Since(started).Seconds(), "fine", counted.end())
+	}()
 	h := w.Header()
 	h.Set("Accept-Ranges", "bytes")
 	if stream.ContentLength >= 0 {
@@ -1535,4 +1545,46 @@ func (a *api) catchupSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, sess)
+}
+
+type countingReader struct {
+	io.ReadCloser
+	n   int64
+	err error
+}
+
+func (c *countingReader) Read(p []byte) (int, error) {
+	n, err := c.ReadCloser.Read(p)
+	c.n += int64(n)
+	if err != nil {
+		c.err = err
+	}
+	return n, err
+}
+
+func (c *countingReader) end() string {
+	switch {
+	case c.err == nil:
+		return "chiusa dal browser"
+	case c.err == io.EOF:
+		return "completa"
+	default:
+		return c.err.Error()
+	}
+}
+
+// playerLog records what a player reports (events of the video element),
+// to diagnose playback problems on devices the server cannot see.
+func (a *api) playerLog(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Event  string         `json:"event"`
+		Detail map[string]any `json:"detail"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&in); err != nil || len(in.Event) > 40 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	id := identity(r)
+	a.log.Info("player", "dispositivo", id.DeviceID, "evento", in.Event, "dettagli", in.Detail)
+	w.WriteHeader(http.StatusNoContent)
 }

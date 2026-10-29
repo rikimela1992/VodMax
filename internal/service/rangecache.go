@@ -309,6 +309,13 @@ func (c *rangeCache) fetch() {
 		if slotCtx == nil || slotCtx.Err() != nil {
 			if release != nil {
 				release()
+				release = nil
+			}
+			c.mu.Lock()
+			closed := c.closed
+			c.mu.Unlock()
+			if closed { // a replaced session must not take the connection back
+				return
 			}
 			var err error
 			if slotCtx, release, err = c.acquire(); err != nil {

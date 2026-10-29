@@ -117,9 +117,10 @@ func newTVProvider() *tvProvider {
 				w.Write([]byte(`[{"category_id":"10","category_name":"Horror"}]`))
 			case "get_vod_streams":
 				w.Write([]byte(`[{"name":"1408 (2007)","stream_id":555,"category_id":"10","container_extension":"mp4","tmdb":"3021"},
+					{"name":"1408 (2007) 4K","stream_id":557,"category_id":"10","container_extension":"mp4","tmdb":"3021"},
 					{"name":"Psycho (1960)","stream_id":556,"category_id":"10","container_extension":"mkv","tmdb":"539"}]`))
 			case "get_vod_info":
-				if r.URL.Query().Get("vod_id") == "555" {
+				if id := r.URL.Query().Get("vod_id"); id == "555" || id == "557" {
 					w.Write([]byte(`{"info":{"plot":"Uno scrittore scettico...","cast":"John Cusack","director":"Mikael Håfström",
 						"genre":"Horror","rating":"6.9","duration_secs":6240,"youtube_trailer":"abcDEF12345",
 						"backdrop_path":["http://` + r.Host + `/logo/rai1.png"]},"movie_data":{"stream_id":555}}`))

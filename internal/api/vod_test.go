@@ -51,7 +51,7 @@ func TestFilmDirectPlaybackAndProgress(t *testing.T) {
 		t.Fatalf("range: %d %q %d", resp.StatusCode, resp.Header.Get("Content-Range"), len(got))
 	}
 	// The server reads the provider file in chunks through one connection.
-	if !strings.Contains(strings.Join(p.ranges, ","), "555.mp4 bytes=0-") {
+	if !strings.Contains(strings.Join(p.ranges, ","), ".mp4 bytes=0-") {
 		t.Fatalf("provider requests: %v", p.ranges)
 	}
 
@@ -183,5 +183,35 @@ func TestRecordingWatchWhileRecordingAndDelete(t *testing.T) {
 	}
 	if files, _ := os.ReadDir(e.recordings); len(files) != 0 {
 		t.Fatalf("file not deleted: %v", files)
+	}
+}
+
+func TestOneProgressPerFilmAcrossVersions(t *testing.T) {
+	e, _ := tvSetup(t)
+	_, body := e.do(t, "GET", "/api/v1/items/"+strconv.FormatInt(findItem(t, e, "movie", "1408"), 10)+"/variants", nil, true)
+	var vars []struct{ ID int64 }
+	if json.Unmarshal(body, &vars) != nil || len(vars) != 2 {
+		t.Fatalf("variants: %s", body)
+	}
+	a, b := strconv.FormatInt(vars[0].ID, 10), strconv.FormatInt(vars[1].ID, 10)
+	e.do(t, "PUT", "/api/v1/progress/movie/"+a, map[string]int{"position": 600, "duration": 6000}, true)
+	// The other version resumes from there.
+	if _, body := e.do(t, "GET", "/api/v1/progress/movie/"+b, nil, true); !strings.Contains(string(body), `"position":600`) {
+		t.Fatalf("resume on the other version: %s", body)
+	}
+	e.do(t, "PUT", "/api/v1/progress/movie/"+b, map[string]int{"position": 900, "duration": 6000}, true)
+	_, body = e.do(t, "GET", "/api/v1/continue", nil, true)
+	if strings.Count(string(body), `"title":"1408"`) != 1 || !strings.Contains(string(body), `"position":900`) {
+		t.Fatalf("continue: %s", body)
+	}
+	if _, body := e.do(t, "GET", "/api/v1/progress/movie/"+a, nil, true); !strings.Contains(string(body), `"position":900`) {
+		t.Fatalf("first version: %s", body)
+	}
+	// Even when an older progress of the opened version is still there
+	// (saved before this rule), the most recent one wins.
+	time.Sleep(1100 * time.Millisecond)
+	e.do(t, "PUT", "/api/v1/progress/movie/"+a, map[string]int{"position": 1500, "duration": 6000}, true)
+	if _, body := e.do(t, "GET", "/api/v1/progress/movie/"+b, nil, true); !strings.Contains(string(body), `"position":1500`) {
+		t.Fatalf("most recent: %s", body)
 	}
 }
