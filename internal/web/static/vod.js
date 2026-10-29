@@ -238,19 +238,135 @@
   const video = $("video");
   let saveTimer, idleTimer;
 
-  async function play(media, id, title, startAt, mode) {
+  async function play(media, id, title, startAt, mode, keep) {
     let sess;
     flash(mode === "remux" ? "Preparazione della conversione…" : "Avvio…");
     try {
       sess = await api("POST", "/api/v1/vod/" + media + "/" + id + "/session", { viewer, mode: mode || "" });
     } catch (e) { flash(e.message); return; }
     stopPlayback(false);
-    state.play = { media, id, title, sess, offset: 0, duration: sess.duration || 0, fellBack: mode === "remux" };
+    const tracks = chooseTracks(sess, keep);
+    state.play = { media, id, title, sess, offset: 0, duration: sess.duration || 0, fellBack: mode === "remux", ...tracks };
     $("player-title").textContent = title || sess.title;
     $("player-live").hidden = true;
+    $("player-audio").hidden = sess.audio.length < 2;
+    $("player-subs").hidden = sess.subtitles.length === 0;
     $("player").hidden = false;
+    // The remembered language needs another track than the direct file plays.
+    if (sess.mode === "direct" && (tracks.audio !== 0 || tracks.sub >= 0)) {
+      play(media, id, title, startAt, "remux", tracks);
+      return;
+    }
     load(startAt || 0);
     saveTimer = setInterval(saveProgress, 15000);
+  }
+
+  // ---- Audio and subtitles ----
+  // The chosen languages are remembered per profile; a file without them
+  // falls back to the server's suggestion (Italian audio, no subtitles).
+  const langKey = () => "lang." + (store.get("profile", "") || "").split(".")[0];
+  function chooseTracks(sess, keep) {
+    if (keep) return keep;
+    const pref = store.get(langKey(), {});
+    let audio = sess.default_audio || 0, sub = -1;
+    const a = pref.audio && sess.audio.find((t) => t.language === pref.audio);
+    if (a) audio = a.index;
+    const t = pref.sub && sess.subtitles.find((t) => t.language === pref.sub && t.supported);
+    if (t) sub = t.index;
+    return { audio, sub };
+  }
+
+  const LANG = { ita: "Italiano", it: "Italiano", eng: "Inglese", en: "Inglese", spa: "Spagnolo", fre: "Francese", fra: "Francese",
+    ger: "Tedesco", deu: "Tedesco", por: "Portoghese", jpn: "Giapponese", kor: "Coreano", rus: "Russo", ara: "Arabo", alb: "Albanese" };
+  function trackLabel(t, kind) {
+    const lang = LANG[t.language] || (t.language ? t.language.toUpperCase() : "Traccia " + (t.index + 1));
+    const extra = [t.title && t.title !== lang ? t.title : "", kind === "audio" && t.channels > 2 ? t.channels === 6 ? "5.1" : t.channels + " canali" : "",
+      t.forced ? "forzati" : "", kind === "sub" && !t.supported ? "immagine, non nel browser" : ""].filter(Boolean);
+    return lang + (extra.length ? " (" + extra.join(", ") + ")" : "");
+  }
+
+  function openMenu(kind) {
+    const p = state.play;
+    if (!p) return;
+    const menu = $("player-menu");
+    if (!menu.hidden && menu.dataset.kind === kind) { closeMenu(); return; }
+    menu.dataset.kind = kind;
+    const items = kind === "audio"
+      ? p.sess.audio.map((t) => ({ label: trackLabel(t, "audio"), on: t.index === p.audio, ok: true, pick: () => switchTracks(t.index, p.sub, { audio: t.language }) }))
+      : [{ label: "Nessuno", on: p.sub < 0, ok: true, pick: () => switchTracks(p.audio, -1, { sub: "" }) },
+        ...p.sess.subtitles.map((t) => ({ label: trackLabel(t, "sub"), on: t.index === p.sub, ok: t.supported, pick: () => switchTracks(p.audio, t.index, { sub: t.language }) }))];
+    const buttons = items.map((it) => {
+      const b = document.createElement("button");
+      b.className = "focusable" + (it.on ? " on" : "");
+      b.textContent = (it.on ? "✓ " : "") + it.label;
+      b.disabled = !it.ok;
+      b.onclick = () => { closeMenu(); it.pick(); };
+      return b;
+    });
+    const title = Object.assign(document.createElement("div"), { className: "menu-title", textContent: kind === "audio" ? "Lingua dell'audio" : "Sottotitoli" });
+    menu.replaceChildren(title, ...buttons);
+    menu.hidden = false;
+    showBar();
+    (buttons.find((b) => b.classList.contains("on")) || buttons[0]).focus();
+  }
+  function closeMenu() { $("player-menu").hidden = true; }
+
+  function switchTracks(audio, sub, remember) {
+    const p = state.play;
+    if (!p || (audio === p.audio && sub === p.sub)) return;
+    store.set(langKey(), { ...store.get(langKey(), {}), ...remember });
+    const at = position();
+    if (p.sess.mode === "direct") {
+      // Another audio track or subtitles: the server converts the file.
+      play(p.media, p.id, p.title, at, "remux", { audio, sub });
+      return;
+    }
+    p.audio = audio;
+    p.sub = sub;
+    load(at);
+  }
+
+  // Subtitles: the remux writes WebVTT as it goes; new cues are added to
+  // a text track every two seconds. Cue times start with the remux, like
+  // the video element's clock.
+  let subTimer, subTrack;
+  function startSubtitles() {
+    clearInterval(subTimer);
+    if (!subTrack) { subTrack = video.addTextTrack("subtitles", "Sottotitoli", "it"); }
+    while (subTrack.cues && subTrack.cues.length) subTrack.removeCue(subTrack.cues[0]);
+    const p = state.play;
+    if (!p || p.sub < 0 || p.sess.mode !== "remux") { subTrack.mode = "disabled"; return; }
+    subTrack.mode = "showing";
+    let added = 0;
+    const url = p.sess.subtitles_url;
+    const pull = async () => {
+      if (state.play !== p) { clearInterval(subTimer); return; }
+      const text = await fetch(url, { cache: "no-store" }).then((r) => (r.ok ? r.text() : "")).catch(() => "");
+      const cues = parseVTT(text);
+      for (; added < cues.length; added++) {
+        const c = cues[added];
+        try { subTrack.addCue(new VTTCue(c.start, c.end, c.text)); } catch { /* bad cue */ }
+      }
+    };
+    pull();
+    subTimer = setInterval(pull, 2000);
+  }
+
+  function parseVTT(text) {
+    const out = [];
+    const time = (t) => { const p = t.trim().split(":").map(Number); return p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p[0] * 60 + p[1]; };
+    for (const block of text.replace(/\r/g, "").split(/\n\n+/)) {
+      const lines = block.split("\n");
+      const i = lines.findIndex((l) => l.includes("-->"));
+      if (i < 0) continue;
+      const [a, b] = lines[i].split("-->");
+      const end = time(b.trim().split(/\s+/)[0]);
+      const textLines = lines.slice(i + 1).join("\n").trim();
+      // The last block may still be being written.
+      if (!textLines || !isFinite(end)) continue;
+      out.push({ start: time(a), end, text: textLines.replace(/<[^>]+>/g, "") });
+    }
+    return out;
   }
 
   function load(position, force) {
@@ -258,7 +374,8 @@
     const extra = force ? "force=1" : "";
     if (p.sess.mode === "remux") {
       p.offset = position;
-      video.src = p.sess.url + "?t=" + Math.floor(position) + (extra ? "&" + extra : "");
+      video.src = p.sess.url + "?t=" + Math.floor(position) + "&audio=" + p.audio + "&sub=" + p.sub + (extra ? "&" + extra : "");
+      startSubtitles();
     } else {
       p.offset = 0;
       video.src = p.sess.url + (extra ? "?" + extra : "");
@@ -339,6 +456,9 @@
   function stopPlayback(save) {
     if (save) saveProgress();
     clearInterval(saveTimer);
+    clearInterval(subTimer);
+    if (subTrack) subTrack.mode = "disabled";
+    closeMenu();
     if (state.play && state.play.ts) state.play.ts.destroy();
     video.pause();
     video.removeAttribute("src");
@@ -365,6 +485,7 @@
     try { url = (await api("POST", "/api/v1/recordings/" + r.id + "/ticket")).url; } catch (e) { flash(e.message); return; }
     stopPlayback(false);
     state.play = { recording: r, title: r.title, sess: { mode: "direct", url }, offset: 0, duration: r.stop - r.start };
+    $("player-audio").hidden = $("player-subs").hidden = true;
     $("player-title").textContent = r.title + " · " + r.channel;
     $("player").hidden = false;
     // Finished recordings are MP4 (seekable); recordings in progress, or
@@ -422,6 +543,18 @@
   document.addEventListener("keydown", (e) => {
     const key = keyOf(e);
     if (!$("player").hidden) {
+      // Moving among the on-screen buttons and track menu.
+      const inBar = document.activeElement && $("player-bar").contains(document.activeElement);
+      if (inBar) {
+        if (key.startsWith("Arrow")) { moveFocus(key); showBar(); e.preventDefault(); return; }
+        if (key === "OK") { document.activeElement.click(); showBar(); e.preventDefault(); return; }
+        if (key === "Back" || key === "Backspace") {
+          if (!$("player-menu").hidden) { closeMenu(); $("player-toggle").focus(); } else document.activeElement.blur();
+          e.preventDefault();
+          return;
+        }
+      }
+      if (key === "ArrowDown") { showBar(); $("player-toggle").focus(); e.preventDefault(); return; }
       const handled = {
         OK: toggle, PlayPause: toggle, " ": toggle,
         Play: () => { if (state.play && (state.play.ts ? state.play.ts.paused : video.paused)) toggle(); },
@@ -468,6 +601,7 @@
     if (!b) return;
     ({
       close: () => stopPlayback(true), back10: () => seek(-10), fwd30: () => seek(30), toggle,
+      audio: () => openMenu("audio"), subs: () => openMenu("subs"),
       live: () => { if (state.play && state.play.ts) { state.play.ts.goLive(); showBar(); } },
     })[b.dataset.action]();
   });

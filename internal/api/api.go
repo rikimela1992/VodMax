@@ -97,6 +97,7 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	mux.HandleFunc("GET /img/logo/{id}", a.logo)
 	mux.HandleFunc("GET /stream/vod/{session}", a.vodDirect)
 	mux.HandleFunc("GET /stream/vod/{session}/remux", a.vodRemux)
+	mux.HandleFunc("GET /stream/vod/{session}/subtitles", a.vodSubtitles)
 	mux.HandleFunc("GET /stream/recording/{ticket}", a.recordingStream)
 	mux.Handle("/", web.Handler())
 	return mux
@@ -719,8 +720,16 @@ func (a *api) vodDirect(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) vodRemux(w http.ResponseWriter, r *http.Request) {
-	t, _ := strconv.ParseFloat(r.URL.Query().Get("t"), 64)
-	stream, err := a.svc.OpenRemux(r.Context(), r.PathValue("session"), max(t, 0), r.URL.Query().Get("force") == "1")
+	q := r.URL.Query()
+	t, _ := strconv.ParseFloat(q.Get("t"), 64)
+	audio, sub := -1, -1
+	if v, err := strconv.Atoi(q.Get("audio")); err == nil {
+		audio = v
+	}
+	if v, err := strconv.Atoi(q.Get("sub")); err == nil {
+		sub = v
+	}
+	stream, err := a.svc.OpenRemux(r.Context(), r.PathValue("session"), max(t, 0), q.Get("force") == "1", audio, sub)
 	if err != nil {
 		a.fail(w, r, err)
 		return
@@ -1133,4 +1142,15 @@ func (a *api) pairingResult(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"token": token, "device_id": device})
+}
+
+func (a *api) vodSubtitles(w http.ResponseWriter, r *http.Request) {
+	data, err := a.svc.Subtitles(r.PathValue("session"))
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Write(data)
 }

@@ -10,7 +10,9 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -164,6 +166,15 @@ type vodSession struct {
 	probe    *probeResult
 	expires  time.Time
 	internal string // loopback token for ffmpeg
+	subDir   string // temporary folder of extracted subtitles
+	subFile  string // WebVTT being written by the current remux
+}
+
+// drop removes what a session left on disk.
+func (v *vodSession) drop() {
+	if v.subDir != "" {
+		os.RemoveAll(v.subDir)
+	}
 }
 
 type vodState struct {
@@ -189,6 +200,26 @@ type PlaybackSession struct {
 	Title    string          `json:"title"`
 	Duration int             `json:"duration,omitempty"` // seconds, when known
 	Resume   *store.Progress `json:"resume,omitempty"`
+	// Tracks found in the file (empty if it could not be analysed), and
+	// the suggested choice: Italian audio when present, no subtitles.
+	Audio        []Track `json:"audio"`
+	Subtitles    []Track `json:"subtitles"`
+	DefaultAudio int     `json:"default_audio"`
+	// SubtitlesURL returns the WebVTT of the chosen subtitles, written
+	// while the remux runs (?sub=N on the remux URL).
+	SubtitlesURL string `json:"subtitles_url,omitempty"`
+}
+
+// Track is an audio or subtitle stream; Index counts within its type.
+type Track struct {
+	Index     int    `json:"index"`
+	Language  string `json:"language,omitempty"`
+	Title     string `json:"title,omitempty"`
+	Codec     string `json:"codec"`
+	Channels  int    `json:"channels,omitempty"`
+	Default   bool   `json:"default,omitempty"`
+	Forced    bool   `json:"forced,omitempty"`
+	Supported bool   `json:"supported"` // subtitles: text, so the browser can show them
 }
 
 // NewPlaybackSession prepares a film or episode for a viewer. mode may
@@ -233,6 +264,7 @@ func (s *Service) NewPlaybackSession(ctx context.Context, media string, id int64
 		return PlaybackSession{}, err
 	}
 	ext := strings.ToLower(it.Extension)
+	auto := mode == ""
 	if mode == "" {
 		mode = "remux"
 		if ext == "mp4" || ext == "m4v" {
@@ -253,22 +285,41 @@ func (s *Service) NewPlaybackSession(ctx context.Context, media string, id int64
 		if old.viewer == viewer || time.Now().After(old.expires) {
 			delete(s.vod.sessions, k)
 			delete(s.vod.byToken, old.internal)
+			old.drop()
 		}
 	}
 	s.vod.sessions[sess.id] = sess
 	s.vod.byToken[sess.internal] = sess
 	s.vod.mu.Unlock()
 
-	out := PlaybackSession{ID: sess.id, Mode: mode, Title: title, Duration: duration, URL: "/stream/vod/" + sess.id}
-	if mode == "remux" {
-		probe, err := s.probe(ctx, sess)
-		if err != nil {
-			return PlaybackSession{}, err
-		}
+	out := PlaybackSession{ID: sess.id, Mode: mode, Title: title, Duration: duration, URL: "/stream/vod/" + sess.id,
+		Audio: []Track{}, Subtitles: []Track{}}
+	// The analysis lists the tracks; a direct file can still play without
+	// it, so it does not wait long (an MP4 with its index at the end needs
+	// several requests).
+	probeCtx, cancel := ctx, context.CancelFunc(func() {})
+	if mode == "direct" {
+		probeCtx, cancel = context.WithTimeout(ctx, directProbeLimit)
+	}
+	probe, err := s.probe(probeCtx, sess)
+	cancel()
+	if err != nil && mode == "remux" {
+		return PlaybackSession{}, err
+	}
+	if err == nil {
 		sess.probe = probe
 		if probe.Duration > 0 {
 			out.Duration = int(probe.Duration)
 		}
+		out.Audio, out.Subtitles, out.DefaultAudio = probe.Audio, probe.Subtitles, probe.preferredAudio()
+		out.SubtitlesURL = "/stream/vod/" + sess.id + "/subtitles"
+		// A browser plays the first audio track of a direct file: when
+		// the preferred one is another, convert with it.
+		if mode == "direct" && auto && out.DefaultAudio != 0 {
+			mode, sess.mode, out.Mode = "remux", "remux", "remux"
+		}
+	}
+	if mode == "remux" {
 		out.URL += "/remux"
 	}
 	if p, err := s.st.GetProgress(ctx, viewerOf(ctx).ProfileID, media, id); err == nil && p != nil && !p.Completed && p.Position > 30 {
@@ -318,10 +369,73 @@ func (s *Service) OpenDirect(ctx context.Context, sessionID, rangeHeader string,
 		Status: resp.StatusCode, ContentLength: resp.ContentLength, ContentRange: resp.Header.Get("Content-Range")}, nil
 }
 
+const directProbeLimit = 4 * time.Second
+
 type probeResult struct {
 	Duration   float64
 	VideoCodec string
-	AudioCodec string
+	Audio      []Track
+	Subtitles  []Track
+}
+
+// textSubtitles can be converted to WebVTT; image subtitles (PGS, DVD,
+// DVB) cannot be shown by browsers.
+var textSubtitles = map[string]bool{"subrip": true, "ass": true, "ssa": true, "mov_text": true, "webvtt": true, "text": true}
+
+// parseProbe reads ffprobe's JSON.
+func parseProbe(out []byte) (*probeResult, error) {
+	var raw struct {
+		Format struct {
+			Duration string `json:"duration"`
+		} `json:"format"`
+		Streams []struct {
+			Type        string            `json:"codec_type"`
+			Codec       string            `json:"codec_name"`
+			Channels    int               `json:"channels"`
+			Tags        map[string]string `json:"tags"`
+			Disposition map[string]int    `json:"disposition"`
+		} `json:"streams"`
+	}
+	if err := json.Unmarshal(out, &raw); err != nil {
+		return nil, err
+	}
+	p := &probeResult{Audio: []Track{}, Subtitles: []Track{}}
+	p.Duration, _ = strconv.ParseFloat(raw.Format.Duration, 64)
+	for _, st := range raw.Streams {
+		t := Track{Codec: st.Codec, Channels: st.Channels, Language: strings.ToLower(st.Tags["language"]), Title: st.Tags["title"],
+			Default: st.Disposition["default"] == 1, Forced: st.Disposition["forced"] == 1}
+		if t.Language == "und" {
+			t.Language = ""
+		}
+		switch st.Type {
+		case "video":
+			if p.VideoCodec == "" && st.Disposition["attached_pic"] == 0 {
+				p.VideoCodec = st.Codec
+			}
+		case "audio":
+			t.Index, t.Supported = len(p.Audio), true
+			p.Audio = append(p.Audio, t)
+		case "subtitle":
+			t.Index, t.Supported = len(p.Subtitles), textSubtitles[st.Codec]
+			p.Subtitles = append(p.Subtitles, t)
+		}
+	}
+	return p, nil
+}
+
+// preferredAudio: Italian, else the file's default, else the first.
+func (p *probeResult) preferredAudio() int {
+	for _, t := range p.Audio {
+		if t.Language == "ita" || t.Language == "it" {
+			return t.Index
+		}
+	}
+	for _, t := range p.Audio {
+		if t.Default {
+			return t.Index
+		}
+	}
+	return 0
 }
 
 // probe reads duration and codecs with ffprobe through the loopback relay.
@@ -345,29 +459,7 @@ func (s *Service) probe(ctx context.Context, sess *vodSession) (*probeResult, er
 	if err != nil {
 		return nil, fmt.Errorf("analisi del file non riuscita: %s", firstLine(stderr.String(), err))
 	}
-	var raw struct {
-		Format struct {
-			Duration string `json:"duration"`
-		} `json:"format"`
-		Streams []struct {
-			Type  string `json:"codec_type"`
-			Codec string `json:"codec_name"`
-		} `json:"streams"`
-	}
-	if err := json.Unmarshal(out, &raw); err != nil {
-		return nil, err
-	}
-	p := &probeResult{}
-	p.Duration, _ = strconv.ParseFloat(raw.Format.Duration, 64)
-	for _, st := range raw.Streams {
-		switch {
-		case st.Type == "video" && p.VideoCodec == "":
-			p.VideoCodec = st.Codec
-		case st.Type == "audio" && p.AudioCodec == "":
-			p.AudioCodec = st.Codec
-		}
-	}
-	return p, nil
+	return parseProbe(out)
 }
 
 func firstLine(s string, err error) string {
@@ -380,7 +472,8 @@ func firstLine(s string, err error) string {
 // OpenRemux starts ffmpeg at position (seconds) and returns fragmented
 // MP4. H.264 video and AAC audio are copied; other audio is converted to
 // AAC stereo, other video to H.264 (slow on small machines).
-func (s *Service) OpenRemux(ctx context.Context, sessionID string, position float64, force bool) (*Stream, error) {
+// audio and sub choose tracks by index (-1: first audio, no subtitles).
+func (s *Service) OpenRemux(ctx context.Context, sessionID string, position float64, force bool, audio, sub int) (*Stream, error) {
 	sess, err := s.session(sessionID)
 	if err != nil {
 		return nil, err
@@ -400,18 +493,40 @@ func (s *Service) OpenRemux(ctx context.Context, sessionID string, position floa
 	if position > 0 {
 		args = append(args, "-ss", strconv.FormatFloat(position, 'f', 1, 64))
 	}
-	args = append(args, "-i", "http://"+addr+"/internal/"+sess.internal, "-map", "0:v:0", "-map", "0:a:0?", "-sn", "-dn")
+	p := sess.probe
+	audioCodec := ""
+	if audio < 0 || audio >= len(p.Audio) {
+		audio = 0
+	}
+	if len(p.Audio) > 0 {
+		audioCodec = p.Audio[audio].Codec
+	}
+	args = append(args, "-i", "http://"+addr+"/internal/"+sess.internal,
+		"-map", "0:v:0", "-map", "0:a:"+strconv.Itoa(audio)+"?", "-sn", "-dn")
 	if sess.probe.VideoCodec == "h264" {
 		args = append(args, "-c:v", "copy")
 	} else {
 		args = append(args, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p")
 	}
-	if sess.probe.AudioCodec == "aac" {
+	if audioCodec == "aac" {
 		args = append(args, "-c:a", "copy")
 	} else {
 		args = append(args, "-c:a", "aac", "-ac", "2", "-b:a", "192k")
 	}
 	args = append(args, "-f", "mp4", "-movflags", "frag_keyframe+empty_moov+default_base_moof", "pipe:1")
+	// Text subtitles go to a second output, read by the player as it grows.
+	subFile := ""
+	if sub >= 0 && sub < len(p.Subtitles) && p.Subtitles[sub].Supported {
+		var err error
+		if subFile, err = s.subtitleFile(sess, sub, position); err != nil {
+			release()
+			return nil, err
+		}
+		args = append(args, "-map", "0:s:"+strconv.Itoa(sub), "-c:s", "webvtt", "-flush_packets", "1", "-f", "webvtt", subFile)
+	}
+	s.vod.mu.Lock()
+	sess.subFile = subFile
+	s.vod.mu.Unlock()
 	cmd := exec.CommandContext(streamCtx, s.ffmpegBin(), args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -530,4 +645,43 @@ func (s *Service) serveLoopback(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
+}
+
+func (s *Service) subtitleFile(sess *vodSession, sub int, position float64) (string, error) {
+	s.vod.mu.Lock()
+	defer s.vod.mu.Unlock()
+	if sess.subDir == "" {
+		dir, err := os.MkdirTemp("", "vodmax-subs-")
+		if err != nil {
+			return "", err
+		}
+		sess.subDir = dir
+	} else {
+		// One file at a time per session.
+		old, _ := filepath.Glob(filepath.Join(sess.subDir, "*.vtt"))
+		for _, f := range old {
+			os.Remove(f)
+		}
+	}
+	return filepath.Join(sess.subDir, fmt.Sprintf("%d-%d.vtt", sub, int(position))), nil
+}
+
+// Subtitles returns the WebVTT written so far by the session's remux (cue
+// times start from the remux position).
+func (s *Service) Subtitles(sessionID string) ([]byte, error) {
+	sess, err := s.session(sessionID)
+	if err != nil {
+		return nil, err
+	}
+	s.vod.mu.Lock()
+	file := sess.subFile
+	s.vod.mu.Unlock()
+	if file == "" {
+		return []byte("WEBVTT\n"), nil
+	}
+	data, err := os.ReadFile(file)
+	if errors.Is(err, os.ErrNotExist) {
+		return []byte("WEBVTT\n"), nil
+	}
+	return data, err
 }

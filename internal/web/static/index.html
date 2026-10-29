@@ -41,13 +41,16 @@
     <div class="player-progress"><div id="player-fill"></div></div>
     <div class="player-time"><span id="player-pos">0:00</span><span id="player-dur"></span></div>
     <div class="player-buttons">
-      <button data-action="close">✕ Chiudi</button>
-      <button data-action="back10">⏪ 10 s</button>
-      <button data-action="toggle" id="player-toggle">⏸ Pausa</button>
-      <button data-action="fwd30">30 s ⏩</button>
-      <button data-action="live" id="player-live" hidden>⏭ Torna in diretta</button>
+      <button class="focusable" data-action="close">✕ Chiudi</button>
+      <button class="focusable" data-action="back10">⏪ 10 s</button>
+      <button class="focusable" data-action="toggle" id="player-toggle">⏸ Pausa</button>
+      <button class="focusable" data-action="fwd30">30 s ⏩</button>
+      <button class="focusable" data-action="live" id="player-live" hidden>⏭ Torna in diretta</button>
+      <button class="focusable" data-action="audio" id="player-audio" hidden>🔊 Audio</button>
+      <button class="focusable" data-action="subs" id="player-subs" hidden>💬 Sottotitoli</button>
     </div>
-    <div class="hint">OK o Spazio pausa · ◀ −10 s · ▶ +30 s · Indietro chiude</div>
+    <div id="player-menu" class="player-menu" hidden></div>
+    <div class="hint">OK o Spazio pausa · ◀ −10 s · ▶ +30 s · ▼ comandi · Indietro chiude</div>
   </div>
 </section>
 

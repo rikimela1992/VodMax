@@ -303,3 +303,11 @@ h2 { font-size: 1.15rem; margin: 1.6rem 0 0.7rem; color: var(--soft); font-weigh
 .profile-kind { color: var(--soft); font-size: 0.85rem; min-height: 1em; }
 .setup-panel button.profile-choice { color: var(--text); background: var(--raised); border: 2px solid transparent; }
 .setup-panel button.profile-choice:focus { border-color: var(--text); }
+
+.player-menu { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.4rem 0 0.6rem; padding: 0.6rem; background: var(--raised); border-radius: 10px; }
+.player-menu .menu-title { width: 100%; color: var(--soft); font-size: 0.9rem; }
+.player-menu button { padding: 0.45em 0.9em; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 9px; cursor: pointer; }
+.player-menu button.on { border-color: var(--fav); color: var(--fav); }
+.player-menu button:disabled { opacity: 0.45; cursor: default; }
+.player-menu button:focus, .player-menu button:hover { border-color: var(--text); outline: none; }
+video::cue { font-size: 1.6rem; background: rgba(0, 0, 0, 0.65); }
