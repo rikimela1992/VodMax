@@ -101,7 +101,19 @@ window.VodMax = (() => {
       pairingTimer = setTimeout(poll, 3000);
     };
     pairingTimer = setTimeout(poll, 3000);
+    // Back in the foreground (the code was sent from another app): check now.
+    if (!pairingVisible) {
+      pairingVisible = true;
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible" && document.getElementById("pairing") && pairingPoll) {
+          clearTimeout(pairingTimer);
+          pairingPoll();
+        }
+      });
+    }
+    pairingPoll = poll;
   }
+  let pairingVisible = false, pairingPoll = null;
 
   const KIND = { admin: "amministratore", standard: "", kids: "bambini" };
 

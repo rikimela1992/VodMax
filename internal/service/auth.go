@@ -40,6 +40,7 @@ const (
 	pinMaxFails      = 5
 	pinLockFor       = 5 * time.Minute
 	pairingTTL       = 10 * time.Minute
+	pairingCollect   = 30 * time.Minute
 	pairingMax       = 50
 	pairingPerClient = 5
 	pairingAlphabet  = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // no 0/O, 1/I
@@ -462,7 +463,9 @@ func (s *Service) ApprovePairing(ctx context.Context, code, name string, lock *i
 	}
 	s.auth.mu.Lock()
 	found.token, found.device = token, id
-	found.expires = time.Now().Add(2 * time.Minute) // time to collect it
+	// Time to collect it: the app may be in the background while the
+	// user sends the code from another app.
+	found.expires = time.Now().Add(pairingCollect)
 	s.auth.mu.Unlock()
 	return store.Device{ID: id, Name: name, ProfileLock: lock, CreatedAt: time.Now().Unix()}, nil
 }
