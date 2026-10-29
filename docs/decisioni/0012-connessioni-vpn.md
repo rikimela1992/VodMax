@@ -1,47 +1,63 @@
-# 0012 — Connessioni VPN registrate
+# 0012 — VPN interna obbligatoria per il provider
 
-Stato: **Proposta**
+Stato: **Approvata** (29 ottobre 2026) per il principio; dettagli tecnici
+in **Proposta**
 
-## L'idea
+## Decisione
 
-L'utente registra una o più **connessioni VPN** e le associa agli
-abbonamenti. Tutto il traffico di un abbonamento associato passa **solo**
-dalla sua VPN.
+**Né il Server né l'app possono contattare un provider se la VPN interna di
+VodMax non è collegata.** Non esiste un'impostazione per disattivare questo
+comportamento.
 
-## Proposta
-
-- **Protocollo**: WireGuard come primo supporto (file `.conf` importabile o
-  QR code, come lo forniscono Proton, Mullvad, NordVPN, Surfshark…).
-  OpenVPN in seguito, se serve.
-- **Associazione**: una VPN può servire più abbonamenti; un abbonamento ha al
-  massimo una VPN. Abbonamenti senza VPN usano la connessione normale.
-- **Blocco di sicurezza (kill switch) per abbonamento**: se la VPN associata
-  non è attiva, quell'abbonamento non si collega affatto. Mai ripiego sulla
+- Ogni abbonamento (0011) ha una **connessione VPN obbligatoria**. Senza VPN
+  l'abbonamento si può salvare, ma resta "in attesa della VPN" e non scarica
+  playlist, EPG, copertine del provider né flussi.
+- Se la VPN cade durante una visione, il flusso si ferma. Mai ripiego sulla
   connessione normale.
-- **Stato visibile**: per ogni VPN, connessa/non connessa, IP di uscita,
-  ultimo handshake; per ogni abbonamento, "via VPN X".
+- Una VPN può servire più abbonamenti.
 
-## Dove e come
+## "Interna": cosa vuol dire
 
-| | Server | Agent Android |
-|---|---|---|
-| Meccanismo | Interfaccia WireGuard dedicata in un *network namespace* (o container affiancato), usata solo dai processi che parlano con quell'abbonamento | `VpnService` di Android con libreria WireGuard ufficiale, limitato alla sola app VodMax (`addAllowedApplication`) |
-| Più VPN insieme | Sì, una per namespace | **No**: Android ammette una sola VPN attiva per volta |
-| Altre VPN del dispositivo | Indipendenti | VodMax prende il posto di un'altra VPN attiva; va segnalato |
-| Riproduzione | Il Server fa da passaggio, così i client non hanno bisogno della VPN | Il player dell'app passa dal tunnel |
+La VPN vive **dentro il processo di VodMax**, non nel sistema operativo:
 
-Conseguenza pratica: con abbonamenti su VPN diverse, il dispositivo giusto
-per gestirli è il **Server**, e gli Agent collegati riproducono attraverso di
-lui.
+- **non** usa la VPN di Android (`VpnService`) né interfacce di rete del
+  server;
+- solo il traffico verso i provider passa dal tunnel; il resto del
+  dispositivo (e le altre VPN che l'utente usa) non viene toccato;
+- funziona uguale su Server e app, e più VPN possono essere attive insieme
+  anche sul telefono.
 
-## Sicurezza
+Tecnicamente: client **WireGuard in user space** con uno stack TCP/IP
+proprio (lo stesso schema usato da Tailscale `tsnet` e da `wireproxy`:
+`wireguard-go` + stack di rete gVisor). Il client HTTP e il player di VodMax
+aprono le connessioni verso il provider **attraverso questo stack**; non
+esiste un altro percorso nel codice.
 
-- Chiavi private WireGuard cifrate a riposo, mai nei log né nelle API.
-- Il traffico verso la VPN non deve mai uscire dalla connessione normale per
-  errore: test automatici sul blocco di sicurezza.
+## Garanzie da verificare con test automatici
+
+1. Il modulo che parla col provider non ha accesso a socket normali: può
+   aprire connessioni solo tramite il tunnel.
+2. Con VPN spenta o in errore: zero pacchetti verso gli host del provider
+   (test con rete simulata).
+3. Anche la risoluzione DNS dei nomi del provider passa dal tunnel.
+4. Player: i segmenti video arrivano dal tunnel o dal Server, mai dalla
+   rete normale.
+
+## Cosa non passa dalla VPN
+
+Servizi che non sono il provider, se configurati: metadati e copertine TMDB,
+aggiornamenti dell'app, comunicazione fra app e Server in casa.
+
+## Configurazione
+
+- Import di file WireGuard `.conf` o QR code (Proton, Mullvad, NordVPN…).
+- Chiave privata cifrata a riposo, mai nei log o nelle API.
+- Stato visibile: collegata / non collegata, IP di uscita, ultimo handshake;
+  per ogni abbonamento "via VPN X" oppure "bloccato: VPN non collegata".
 
 ## Domande aperte
 
-- Serve anche OpenVPN fin dall'inizio?
-- La VPN deve proteggere solo gli abbonamenti, o anche aggiornamenti di
-  catalogo e copertine (TMDB)?
+- OpenVPN serve? In user space è molto più complesso di WireGuard.
+- Il traffico TMDB deve passare anch'esso da una VPN?
+- Nell'impianto di casa il Server va comunque nella rete dedicata al
+  provider, come oggi, o la VPN interna basta a soddisfare la regola attuale?

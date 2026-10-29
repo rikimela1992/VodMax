@@ -32,6 +32,20 @@ due linguaggi da mantenere.
 Massime prestazioni, nucleo incluso via FFI. Contro: curva di apprendimento
 e tempi di sviluppo più alti.
 
+## Vincolo aggiunto dalla 0012 (VPN interna)
+
+La VPN interna richiede WireGuard in user space con stack di rete proprio.
+Le implementazioni mature sono in **Go** (`wireguard-go` + gVisor, usate da
+Tailscale e `wireproxy`). Conseguenze:
+
+- con l'opzione A (Kotlin) il tunnel diventa una piccola libreria Go inclusa
+  sia nel Server sia nell'app (gomobile), che espone al resto del codice solo
+  "apri una connessione verso questo host";
+- l'opzione B (Go per nucleo e server) diventa più interessante, perché il
+  tunnel sarebbe nello stesso linguaggio del nucleo.
+
+La scelta fra A e B va rivalutata alla luce di questo vincolo.
+
 ## Interfaccia web
 
 Separata dal nucleo e servita da Server e Agent promosso: TypeScript con

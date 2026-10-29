@@ -27,8 +27,11 @@ diventano condivisi.
 
 Solo **playlist**: M3U / M3U8 (URL o file) e Xtream Codes, con guida TV
 XMLTV. Dettagli nella
-[decisione 0011](docs/decisioni/0011-abbonamenti-e-tipi-di-account.md);
-VPN nella [decisione 0012](docs/decisioni/0012-connessioni-vpn.md).
+[decisione 0011](docs/decisioni/0011-abbonamenti-e-tipi-di-account.md).
+
+**Nessun contatto col provider senza VPN.** Server e app hanno una VPN
+WireGuard interna: se non è collegata, gli abbonamenti restano bloccati.
+Dettagli nella [decisione 0012](docs/decisioni/0012-connessioni-vpn.md).
 
 ## Principi
 
