@@ -1,6 +1,7 @@
 # 0014 — Contenuti per adulti
 
-Stato: **Proposta**
+Stato: **Proposta** · Esclusione predefinita già realizzata dalla selezione del
+catalogo ([0015](0015-selezione-del-catalogo.md)); restano da fare il PIN e il profilo che le abilita.
 
 ## Contesto
 

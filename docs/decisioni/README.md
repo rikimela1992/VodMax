@@ -19,7 +19,8 @@ Una decisione approvata si cambia solo con una nuova scheda che la sostituisce.
 | [0011](0011-abbonamenti-e-tipi-di-account.md) | Abbonamenti: solo playlist (M3U, Xtream Codes) | **Approvata** |
 | [0012](0012-connessioni-vpn.md) | VPN interna obbligatoria per contattare il provider | **Approvata** (principio) |
 | [0013](0013-migrazione-affiancata.md) | Migrazione affiancata dell'impianto di casa | **Approvata** |
-| [0014](0014-contenuti-per-adulti.md) | Contenuti per adulti nascosti per impostazione predefinita | Proposta |
+| [0014](0014-contenuti-per-adulti.md) | Contenuti per adulti nascosti per impostazione predefinita | Proposta (predefinito già attivo, vedi 0015) |
+| [0015](0015-selezione-del-catalogo.md) | Selezione del catalogo: regole, correzioni manuali, una scheda per titolo | **Approvata** nel principio |
 
 ## Ordine consigliato per decidere
 

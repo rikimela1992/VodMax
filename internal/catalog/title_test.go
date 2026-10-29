@@ -30,11 +30,16 @@ func TestCleanTitle(t *testing.T) {
 }
 
 func TestChannelHelpers(t *testing.T) {
-	if got := ChannelTitle(`",US: ACC Network HD`); got != "US: ACC Network HD" {
+	if got := ChannelTitle(`",US: ACC Network HD`); got != "US: ACC Network" {
 		t.Errorf("ChannelTitle: %q", got)
 	}
-	if got := ChannelTitle("Rai 1"); got != "Rai 1" {
-		t.Errorf("ChannelTitle changed a clean name: %q", got)
+	for raw, want := range map[string]string{
+		"Rai 1": "Rai 1", "Canale 5 4K": "Canale 5", "Canale 5 +1 HD": "Canale 5 +1", "Cielo FHD": "Cielo",
+		"Adriano Celentano Channel ᴴᴰ": "Adriano Celentano Channel", "Sky Sport 24 HD": "Sky Sport 24", "HD": "HD",
+	} {
+		if got := ChannelTitle(raw); got != want {
+			t.Errorf("ChannelTitle(%q) = %q, atteso %q", raw, got, want)
+		}
 	}
 	for _, s := range []string{"----Italia----", "===== EAGLE CINEMA FULL HD =====", "## SPORT ##"} {
 		if !IsSeparator(s) {

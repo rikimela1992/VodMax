@@ -29,13 +29,20 @@ type Item struct {
 	CatchupDays  int
 	AddedAt      int64
 	Locator      []byte // sealed stream URL, M3U only
+	Quality      int    // 1 SD … 4 UHD
+	GroupKey     string // identifies variants of the same title or channel
 }
 
-// Category groups items of one kind inside a subscription.
+// Category groups items of one kind inside a subscription, with what
+// VodMax inferred from its name.
 type Category struct {
 	Kind     string `json:"kind"`
 	SourceID string `json:"id"`
 	Name     string `json:"name"`
+	Country  string `json:"country,omitempty"`
+	Adult    bool   `json:"adult,omitempty"`
+	LowRes   bool   `json:"low_res,omitempty"`
+	Section  string `json:"section,omitempty"`
 }
 
 // ImportResult summarises a catalog replacement.
@@ -89,15 +96,16 @@ func (s *Store) ReplaceCatalog(ctx context.Context, subID int64, kinds []string,
 	now := time.Now().UnixNano() // unique per import: identifies rows seen now
 	stmt, err := tx.PrepareContext(ctx, `
 		INSERT INTO item (subscription_id, kind, source_id, title, display_title, year, category_id, image, epg_id,
-			number, rating, tmdb_id, extension, catchup_days, added_at, locator, first_seen_at, last_seen_at, available)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+			number, rating, tmdb_id, extension, catchup_days, added_at, locator, first_seen_at, last_seen_at, available,
+			quality, group_key)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
 		ON CONFLICT (subscription_id, kind, source_id) DO UPDATE SET
 			title = excluded.title, display_title = excluded.display_title, year = excluded.year,
 			category_id = excluded.category_id, image = excluded.image, epg_id = excluded.epg_id,
 			number = excluded.number, rating = excluded.rating, tmdb_id = excluded.tmdb_id,
 			extension = excluded.extension, catchup_days = excluded.catchup_days, added_at = excluded.added_at,
 			locator = excluded.locator, last_seen_at = excluded.last_seen_at,
-			available = 1
+			available = 1, quality = excluded.quality, group_key = excluded.group_key
 		RETURNING first_seen_at`)
 	if err != nil {
 		return res, err
@@ -107,7 +115,7 @@ func (s *Store) ReplaceCatalog(ctx context.Context, subID int64, kinds []string,
 		var first int64
 		err := stmt.QueryRowContext(ctx, subID, it.Kind, it.SourceID, it.Title, it.DisplayTitle, zeroNull(it.Year),
 			it.CategoryID, it.Image, it.EPGID, zeroNull(it.Number), zeroNullF(it.Rating), it.TMDBID, it.Extension,
-			it.CatchupDays, zeroNull64(it.AddedAt), it.Locator, now, now).Scan(&first)
+			it.CatchupDays, zeroNull64(it.AddedAt), it.Locator, now, now, max(it.Quality, 1), it.GroupKey).Scan(&first)
 		if err != nil {
 			return res, fmt.Errorf("titolo %q: %w", it.Title, err)
 		}
@@ -132,7 +140,8 @@ func (s *Store) ReplaceCatalog(ctx context.Context, subID int64, kinds []string,
 		if !covered[c.Kind] {
 			continue
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT OR REPLACE INTO category VALUES (?, ?, ?, ?)`, subID, c.Kind, c.SourceID, c.Name); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT OR REPLACE INTO category (subscription_id, kind, source_id, name, country, adult, low_res, section)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, subID, c.Kind, c.SourceID, c.Name, c.Country, c.Adult, c.LowRes, c.Section); err != nil {
 			return res, err
 		}
 	}
@@ -189,6 +198,11 @@ type CatalogItem struct {
 	CatchupDays    int      `json:"catchup_days,omitempty"`
 	FirstSeenAt    int64    `json:"first_seen_at"`
 	Available      bool     `json:"available"`
+	Quality        int      `json:"quality"`
+	Section        string   `json:"section,omitempty"`
+	Visible        bool     `json:"visible"`
+	VariantCount   int      `json:"variant_count"`
+	GroupKey       string   `json:"-"`
 }
 
 // Query selects a page of the catalog.
@@ -198,8 +212,12 @@ type Query struct {
 	SubscriptionID int64
 	CategoryID     string
 	Sort           string // "title" (default) or "recent"
-	Cursor         string
-	Limit          int
+	Section        string // live only: tv, sport, radio
+	// All lists every available variant, including what the user's
+	// selection hides (for the selection editor).
+	All    bool
+	Cursor string
+	Limit  int
 }
 
 // Page is a slice of results with an opaque cursor for the next one.
@@ -216,7 +234,8 @@ type cursor struct {
 }
 
 const itemColumns = `i.id, i.subscription_id, i.kind, i.source_id, i.title, i.display_title, i.year, i.category_id,
-	i.image, i.epg_id, i.number, i.rating, i.tmdb_id, i.extension, i.catchup_days, i.first_seen_at, i.available`
+	i.image, i.epg_id, i.number, i.rating, i.tmdb_id, i.extension, i.catchup_days, i.first_seen_at, i.available,
+	i.quality, i.section, i.visible, i.variant_count, i.group_key`
 
 func scanItem(rows *sql.Rows) (CatalogItem, error) {
 	var it CatalogItem
@@ -224,7 +243,7 @@ func scanItem(rows *sql.Rows) (CatalogItem, error) {
 	var rating sql.NullFloat64
 	err := rows.Scan(&it.ID, &it.SubscriptionID, &it.Kind, &it.SourceID, &it.Title, &it.DisplayTitle, &year,
 		&it.CategoryID, &it.Image, &it.EPGID, &number, &rating, &it.TMDBID, &it.Extension, &it.CatchupDays,
-		&it.FirstSeenAt, &it.Available)
+		&it.FirstSeenAt, &it.Available, &it.Quality, &it.Section, &it.Visible, &it.VariantCount, &it.GroupKey)
 	if year.Valid {
 		y := int(year.Int64)
 		it.Year = &y
@@ -257,7 +276,13 @@ func (s *Store) Catalog(ctx context.Context, q Query) (Page, error) {
 		}
 	}
 	where := []string{"i.kind = ?", "i.available = 1"}
+	if !q.All {
+		where = append(where, "i.visible = 1", "i.primary_variant = 1")
+	}
 	args := []any{q.Kind}
+	if q.Section != "" {
+		where, args = append(where, "i.section = ?"), append(args, q.Section)
+	}
 	if q.SubscriptionID != 0 {
 		where, args = append(where, "i.subscription_id = ?"), append(args, q.SubscriptionID)
 	}
@@ -350,7 +375,7 @@ func ftsQuery(text string) string {
 
 // Categories lists the categories of a kind, optionally for one subscription.
 func (s *Store) Categories(ctx context.Context, kind string, subID int64) ([]Category, error) {
-	rows, err := s.r.QueryContext(ctx, `SELECT kind, source_id, name FROM category
+	rows, err := s.r.QueryContext(ctx, `SELECT kind, source_id, name, country, adult, low_res, section FROM category
 		WHERE kind = ? AND (? = 0 OR subscription_id = ?) ORDER BY name COLLATE NOCASE`, kind, subID, subID)
 	if err != nil {
 		return nil, err
@@ -359,7 +384,7 @@ func (s *Store) Categories(ctx context.Context, kind string, subID int64) ([]Cat
 	var out []Category
 	for rows.Next() {
 		var c Category
-		if err := rows.Scan(&c.Kind, &c.SourceID, &c.Name); err != nil {
+		if err := rows.Scan(&c.Kind, &c.SourceID, &c.Name, &c.Country, &c.Adult, &c.LowRes, &c.Section); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
@@ -367,9 +392,11 @@ func (s *Store) Categories(ctx context.Context, kind string, subID int64) ([]Cat
 	return out, rows.Err()
 }
 
-// Counts returns available items per kind for a subscription.
+// Counts returns, per kind, the titles shown after the user's selection
+// (one per group of variants).
 func (s *Store) Counts(ctx context.Context, subID int64) (map[string]int, error) {
-	rows, err := s.r.QueryContext(ctx, `SELECT kind, count(*) FROM item WHERE subscription_id = ? AND available = 1 GROUP BY kind`, subID)
+	rows, err := s.r.QueryContext(ctx, `SELECT kind, count(*) FROM item WHERE subscription_id = ? AND available = 1
+		AND visible = 1 AND primary_variant = 1 GROUP BY kind`, subID)
 	if err != nil {
 		return nil, err
 	}

@@ -9,9 +9,10 @@ Un'unica applicazione che funziona da sola su un dispositivo (**Agent**) e
 che può diventare il **Server** della casa per gli altri dispositivi.
 
 > Stato: **sviluppo iniziale**. Funzionano: VPN interna, abbonamenti Xtream
-> e M3U, sincronizzazione del catalogo solo tramite VPN, catalogo con
-> ricerca e paginazione via API. Non c'è ancora un'interfaccia né la
-> riproduzione.
+> e M3U, sincronizzazione del catalogo solo tramite VPN, **selezione del
+> catalogo** (paesi, adulti, anno minimo, categorie, una scheda per titolo),
+> catalogo con ricerca e paginazione via API. Non c'è ancora un'interfaccia
+> né la riproduzione.
 
 ## L'idea in breve
 
@@ -85,8 +86,15 @@ API, tranne `/api/v1/health`, richiede `Authorization: Bearer <token>`.
 | `POST /api/v1/vpn/{id}/connect` · `/disconnect` | Collega o scollega il tunnel |
 | `POST /api/v1/subscriptions` `{name, kind, vpn_id, server, username, password}` o `{…, url}` | Aggiunge un abbonamento Xtream o M3U |
 | `POST /api/v1/subscriptions/{id}/sync` | Sincronizza il catalogo (`?allow_drop=true` per accettare un calo anomalo) |
-| `GET /api/v1/catalog/{live\|movie\|series}` | Catalogo: `q`, `category`, `subscription`, `sort=recent`, `cursor`, `limit` |
+| `GET /api/v1/catalog/{live\|movie\|series}` | Catalogo selezionato, una scheda per titolo: `q`, `section` (tv, sport, radio), `category`, `subscription`, `sort=recent`, `cursor`, `limit`, `all=true` per vedere anche l'escluso |
 | `GET /api/v1/categories/{kind}` | Categorie |
+| `GET` · `PUT /api/v1/subscriptions/{id}/rules` | Regole di selezione (paesi, adulti, SD, anno minimo) |
+| `POST /api/v1/subscriptions/{id}/rules/preview` | Effetto di nuove regole senza salvarle |
+| `GET /api/v1/subscriptions/{id}/selection` | Conteggi: offerti, visibili, schede, per sezione |
+| `GET /api/v1/subscriptions/{id}/categories?kind=` | Categorie con classificazione, correzioni e motivo dell'esclusione |
+| `PUT /api/v1/subscriptions/{id}/categories/{kind}/{categoria}` | Correzione manuale: `enabled`, `section`, `country`, `adult` (`null` = automatico) |
+| `PUT /api/v1/items/{id}/hidden` | Nasconde o ripristina un singolo titolo o canale |
+| `GET /api/v1/items/{id}/variants` | Le versioni dello stesso titolo, migliore per prima |
 
 ## Sviluppo
 

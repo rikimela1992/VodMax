@@ -118,6 +118,36 @@ var migrations = []string{
 		display_title, content = 'item', content_rowid = 'id',
 		tokenize = 'unicode61 remove_diacritics 2', prefix = '2 3'
 	);`,
+	// 2: catalog selection. Classification is recomputed at every import;
+	// user choices live in separate tables so they survive re-imports.
+	`ALTER TABLE subscription ADD COLUMN rules TEXT NOT NULL DEFAULT '{}';
+	ALTER TABLE category ADD COLUMN country TEXT NOT NULL DEFAULT '';
+	ALTER TABLE category ADD COLUMN adult INTEGER NOT NULL DEFAULT 0;
+	ALTER TABLE category ADD COLUMN low_res INTEGER NOT NULL DEFAULT 0;
+	ALTER TABLE category ADD COLUMN section TEXT NOT NULL DEFAULT '';
+	CREATE TABLE category_override (
+		subscription_id INTEGER NOT NULL REFERENCES subscription(id) ON DELETE CASCADE,
+		kind            TEXT NOT NULL,
+		source_id       TEXT NOT NULL,
+		enabled         INTEGER,             -- NULL: decided by the rules
+		section         TEXT,
+		country         TEXT,
+		adult           INTEGER,
+		PRIMARY KEY (subscription_id, kind, source_id)
+	);
+	ALTER TABLE item ADD COLUMN quality INTEGER NOT NULL DEFAULT 2;
+	ALTER TABLE item ADD COLUMN group_key TEXT NOT NULL DEFAULT '';
+	ALTER TABLE item ADD COLUMN section TEXT NOT NULL DEFAULT '';
+	ALTER TABLE item ADD COLUMN visible INTEGER NOT NULL DEFAULT 1;
+	ALTER TABLE item ADD COLUMN primary_variant INTEGER NOT NULL DEFAULT 1;
+	ALTER TABLE item ADD COLUMN variant_count INTEGER NOT NULL DEFAULT 1;
+	CREATE TABLE item_override (
+		item_id INTEGER PRIMARY KEY REFERENCES item(id) ON DELETE CASCADE,
+		hidden  INTEGER NOT NULL
+	);
+	CREATE INDEX item_browse ON item (kind, visible, primary_variant, display_title COLLATE NOCASE, id);
+	CREATE INDEX item_browse_recent ON item (kind, visible, primary_variant, first_seen_at DESC, id);
+	CREATE INDEX item_variants ON item (kind, group_key, visible);`,
 }
 
 func (s *Store) migrate(ctx context.Context) error {

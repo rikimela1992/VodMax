@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rikimela1992/vodmax/internal/catalog"
 	"github.com/rikimela1992/vodmax/internal/service"
 	"github.com/rikimela1992/vodmax/internal/store"
 )
@@ -35,6 +36,14 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	protected.HandleFunc("POST /api/v1/subscriptions", a.addSubscription)
 	protected.HandleFunc("POST /api/v1/subscriptions/{id}/sync", a.syncSubscription)
 	protected.HandleFunc("DELETE /api/v1/subscriptions/{id}", a.deleteSubscription)
+	protected.HandleFunc("GET /api/v1/subscriptions/{id}/rules", a.getRules)
+	protected.HandleFunc("PUT /api/v1/subscriptions/{id}/rules", a.putRules)
+	protected.HandleFunc("POST /api/v1/subscriptions/{id}/rules/preview", a.previewRules)
+	protected.HandleFunc("GET /api/v1/subscriptions/{id}/selection", a.selectionStats)
+	protected.HandleFunc("GET /api/v1/subscriptions/{id}/categories", a.selectionCategories)
+	protected.HandleFunc("PUT /api/v1/subscriptions/{id}/categories/{kind}/{category}", a.putCategory)
+	protected.HandleFunc("PUT /api/v1/items/{id}/hidden", a.putHidden)
+	protected.HandleFunc("GET /api/v1/items/{id}/variants", a.variants)
 	protected.HandleFunc("GET /api/v1/catalog/{kind}", a.catalog)
 	protected.HandleFunc("GET /api/v1/categories/{kind}", a.categories)
 	mux.Handle("/api/", requireToken(token, protected))
@@ -221,7 +230,7 @@ func (a *api) catalog(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	query := store.Query{
 		Kind: r.PathValue("kind"), Text: q.Get("q"), CategoryID: q.Get("category"),
-		Sort: q.Get("sort"), Cursor: q.Get("cursor"),
+		Sort: q.Get("sort"), Section: q.Get("section"), All: q.Get("all") == "true", Cursor: q.Get("cursor"),
 	}
 	query.Limit, _ = strconv.Atoi(q.Get("limit"))
 	query.SubscriptionID, _ = strconv.ParseInt(q.Get("subscription"), 10, 64)
@@ -251,6 +260,130 @@ func (a *api) categories(w http.ResponseWriter, r *http.Request) {
 	}
 	if list == nil {
 		list = []store.Category{}
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+func (a *api) getRules(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	rules, err := a.svc.Rules(r.Context(), id)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if rules.Countries == nil {
+		rules.Countries = []string{}
+	}
+	writeJSON(w, http.StatusOK, rules)
+}
+
+func (a *api) putRules(w http.ResponseWriter, r *http.Request) {
+	a.rules(w, r, a.svc.SetRules)
+}
+
+func (a *api) previewRules(w http.ResponseWriter, r *http.Request) {
+	a.rules(w, r, a.svc.PreviewRules)
+}
+
+func (a *api) rules(w http.ResponseWriter, r *http.Request, apply func(context.Context, int64, catalog.Rules) (catalog.Stats, error)) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	var rules catalog.Rules
+	if err := decode(r, &rules); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	stats, err := apply(r.Context(), id, rules)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, stats)
+}
+
+func (a *api) selectionStats(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	stats, err := a.svc.SubscriptionStats(r.Context(), id, nil)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, stats)
+}
+
+func (a *api) selectionCategories(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	list, err := a.svc.SelectionCategories(r.Context(), id, r.URL.Query().Get("kind"))
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+func (a *api) putCategory(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	var o store.CategoryOverride
+	if err := decode(r, &o); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if err := a.svc.SetCategoryOverride(r.Context(), id, r.PathValue("kind"), r.PathValue("category"), o); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) putHidden(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	var in struct {
+		Hidden bool `json:"hidden"`
+	}
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if err := a.svc.SetItemHidden(r.Context(), id, in.Hidden); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) variants(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	list, err := a.svc.Variants(r.Context(), id)
+	if err != nil {
+		a.fail(w, r, err)
+		return
 	}
 	writeJSON(w, http.StatusOK, list)
 }

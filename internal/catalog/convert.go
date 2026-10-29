@@ -57,12 +57,14 @@ func FromXtream(ctx context.Context, c *xtream.Client) (*Snapshot, error) {
 			return nil, err
 		}
 		for _, cat := range cats {
-			snap.Categories = append(snap.Categories, store.Category{Kind: kind, SourceID: cat.ID.String(), Name: cat.Name.String()})
+			snap.Categories = append(snap.Categories, newCategory(kind, cat.ID.String(), cat.Name.String()))
 		}
 	}
+	infos := categoryInfos(snap.Categories)
 
 	seen := map[string]bool{}
 	add := func(it store.Item) {
+		finish(&it, infos[it.Kind+"\x00"+it.CategoryID])
 		key := it.Kind + "\x00" + it.SourceID
 		if it.SourceID == "" || seen[key] {
 			snap.Skipped++
@@ -128,6 +130,30 @@ func FromXtream(ctx context.Context, c *xtream.Client) (*Snapshot, error) {
 	return snap, nil
 }
 
+func newCategory(kind, id, name string) store.Category {
+	info := ClassifyCategory(kind, name)
+	return store.Category{Kind: kind, SourceID: id, Name: name, Country: info.Country,
+		Adult: info.Adult, LowRes: info.LowRes, Section: string(info.Section)}
+}
+
+func categoryInfos(cats []store.Category) map[string]CategoryInfo {
+	out := make(map[string]CategoryInfo, len(cats))
+	for _, c := range cats {
+		out[c.Kind+"\x00"+c.SourceID] = CategoryInfo{Country: c.Country, Adult: c.Adult, LowRes: c.LowRes, Section: Section(c.Section)}
+	}
+	return out
+}
+
+// finish computes the fields used by the catalog selection.
+func finish(it *store.Item, info CategoryInfo) {
+	it.Quality = Quality(it.Title, info)
+	year := it.Year
+	if it.Kind == "live" {
+		year = 0
+	}
+	it.GroupKey = GroupKey(it.Kind, it.DisplayTitle, year)
+}
+
 var trailingID = regexp.MustCompile(`^(\d+)\.[A-Za-z0-9]{1,5}$`)
 
 // FromM3U converts a parsed playlist. Stream URLs often embed credentials,
@@ -157,11 +183,12 @@ func FromM3U(p *m3u.Playlist, seal func(plain []byte, owner string) []byte, subI
 		if kind == "movie" {
 			it.DisplayTitle, it.Year = CleanTitle(e.Name)
 		}
+		finish(&it, ClassifyCategory(kind, e.Group))
 		it.Locator = seal([]byte(e.URL), fmt.Sprintf("locator:%d:%s:%s", subID, kind, sourceID))
 		snap.Items = append(snap.Items, it)
 		if e.Group != "" && !groups[kind][e.Group] {
 			groups[kind][e.Group] = true
-			snap.Categories = append(snap.Categories, store.Category{Kind: kind, SourceID: e.Group, Name: e.Group})
+			snap.Categories = append(snap.Categories, newCategory(kind, e.Group, e.Group))
 		}
 	}
 	return snap

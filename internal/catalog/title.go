@@ -16,13 +16,18 @@ var (
 	separator    = regexp.MustCompile(`^\s*[-=#*_~+]{2,}.*[-=#*_~+]{2,}\s*$`)
 )
 
-// ChannelTitle trims stray punctuation that some providers leave at the
-// start of channel names (e.g. "\",US: ESPN").
+// ChannelTitle is the name shown for a channel: stray punctuation some
+// providers leave at the start ("\",US: ESPN") and trailing quality tags
+// ("Canale 5 4K", "Cielo ᴴᴰ") are removed; quality is shown separately.
+// "+1" timeshift markers are kept.
 func ChannelTitle(raw string) string {
-	if t := strings.TrimSpace(leadingJunk.ReplaceAllString(raw, "")); t != "" {
-		return t
+	t := strings.TrimSpace(leadingJunk.ReplaceAllString(raw, ""))
+	t = strings.TrimSpace(strings.ReplaceAll(t, "ᴴᴰ", ""))
+	t = strings.TrimSpace(edgeJunk.ReplaceAllString(trailingTags.ReplaceAllString(t, ""), ""))
+	if t == "" {
+		return strings.TrimSpace(raw)
 	}
-	return strings.TrimSpace(raw)
+	return t
 }
 
 // IsSeparator reports fake channels used by providers as list headings,

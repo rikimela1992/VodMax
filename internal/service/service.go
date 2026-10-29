@@ -43,6 +43,8 @@ type Service struct {
 	mu      sync.Mutex
 	tunnels map[int64]Tunnel
 	syncing map[int64]bool
+
+	selMu sync.Mutex // serialises selection recomputation
 }
 
 func New(st *store.Store, box *secret.Box, start StartTunnel) *Service {
@@ -272,7 +274,13 @@ func (s *Service) Subscriptions(ctx context.Context) ([]SubscriptionView, error)
 }
 
 func (s *Service) DeleteSubscription(ctx context.Context, id int64) error {
-	return s.st.DeleteSubscription(ctx, id)
+	if err := s.st.DeleteSubscription(ctx, id); err != nil {
+		return err
+	}
+	// Variants of removed items may have been primary for other
+	// subscriptions' groups.
+	_, err := s.ApplySelection(ctx)
+	return err
 }
 
 // ErrBusy means a synchronisation of the same subscription is running.
@@ -281,8 +289,9 @@ var ErrBusy = errors.New("sincronizzazione già in corso")
 // SyncResult reports a completed synchronisation.
 type SyncResult struct {
 	store.ImportResult
-	Skipped  int           `json:"skipped"`
-	Duration time.Duration `json:"duration_ms"`
+	Skipped   int           `json:"skipped"`
+	Selection catalog.Stats `json:"selection"`
+	Duration  time.Duration `json:"duration_ms"`
 }
 
 // Sync reads the full catalog of a subscription through its VPN and
@@ -320,7 +329,14 @@ func (s *Service) Sync(ctx context.Context, id int64, allowDrop bool) (SyncResul
 	if err := s.st.SetSyncResult(ctx, id, "ok", "", snap.Account); err != nil {
 		return SyncResult{}, err
 	}
-	return SyncResult{ImportResult: res, Skipped: snap.Skipped, Duration: time.Since(started) / time.Millisecond}, nil
+	if _, err := s.ApplySelection(ctx); err != nil {
+		return SyncResult{}, err
+	}
+	stats, err := s.SubscriptionStats(ctx, id, nil)
+	if err != nil {
+		return SyncResult{}, err
+	}
+	return SyncResult{ImportResult: res, Skipped: snap.Skipped, Selection: stats, Duration: time.Since(started) / time.Millisecond}, nil
 }
 
 func (s *Service) fetch(ctx context.Context, id int64) (*catalog.Snapshot, error) {

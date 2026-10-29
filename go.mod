@@ -4,6 +4,7 @@ go 1.27.3
 
 require (
 	golang.org/x/crypto v0.37.0
+	golang.org/x/text v0.24.0
 	golang.zx2c4.com/wireguard v0.0.0-20261006164505-2631ce99a06f
 	modernc.org/sqlite v1.60.1
 )
