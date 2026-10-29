@@ -506,7 +506,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       });
     };
     const list = await api("GET", "/api/v1/backups");
-    const rows = list.map((b) => el("tr", {}, el("td", {}, when(b.created)), el("td", { className: "n" }, Math.max(1, Math.round(b.size / 1024)) + " kB"),
+    const rows = list.map((b) => el("tr", {}, el("td", {}, when(b.created)), el("td", { className: "n size" }, Math.max(1, Math.round(b.size / 1024)) + " kB"),
       el("td", {}, button("Scarica", () => download("GET", "/api/v1/backups/" + b.name).catch((e) => flash(e.message))),
         " ", button("Ripristina", () => restoreFrom(() => api("POST", "/api/v1/backups/" + b.name + "/restore"))))));
     const now = button("Crea una copia adesso", async () => {

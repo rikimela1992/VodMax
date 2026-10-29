@@ -60,3 +60,29 @@
 .cats tr.off td.name { color: var(--soft); text-decoration: line-through; }
 .cats .why { color: var(--soft); font-size: 0.85rem; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin: 1rem 0; }
+
+/* Settings menu: all entries visible, wrapping on narrow screens. */
+#tabs.settings-nav { flex-wrap: wrap; overflow: visible; }
+@media (max-width: 700px) { #tabs.settings-nav { flex-wrap: wrap; } #tabs.settings-nav .tab { padding: 0.45em 0.75em; } }
+.form > * { min-width: 0; }
+.form input, .form select, .form textarea { width: 100%; }
+.settings button.small { border-radius: 999px; padding: 0.5em 1.1em; }
+.settings button.small:focus { color: #0b0c10; background: var(--focus); border-color: var(--focus); }
+
+@media (max-width: 700px) {
+  /* Label above the field. */
+  .form { grid-template-columns: 1fr; gap: 0.3rem; }
+  .form label { margin-top: 0.6rem; }
+  .form .check { margin-top: 0; }
+  .box { padding: 1rem; }
+  /* Categories: one compact card per row. */
+  .cats tr:first-child { display: none; }
+  .cats tr { display: grid; grid-template-columns: 1fr auto; gap: 0.3rem 0.6rem; padding: 0.7rem 0; border-bottom: 1px solid var(--line); }
+  .cats td { padding: 0; border: 0; }
+  .cats td.name { grid-column: 1 / -1; font-weight: 600; }
+  .cats td.n { text-align: left; }
+  .cats td.n:not(.size)::after { content: " titoli"; }
+  .cats select { width: 100%; }
+  .countries { grid-template-columns: 1fr; }
+  .toolbar .pick { flex: 1 1 100%; }
+}

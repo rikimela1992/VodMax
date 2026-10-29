@@ -5,9 +5,11 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.webkit.JavascriptInterface;
@@ -18,6 +20,7 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.EditText;
 import android.widget.TextView;
 
@@ -60,7 +63,8 @@ public class MainActivity extends Activity {
             web.destroy();
             web = null;
         }
-        setContentView(R.layout.setup);
+        View setup = getLayoutInflater().inflate(R.layout.setup, null);
+        setContentView(insetted(setup));
         EditText field = findViewById(R.id.server);
         TextView text = findViewById(R.id.setup_text);
         Button connect = findViewById(R.id.connect);
@@ -151,9 +155,32 @@ public class MainActivity extends Activity {
             }
         });
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        setContentView(web);
+        setContentView(insetted(web));
         web.requestFocus(View.FOCUS_DOWN);
         web.loadUrl(server + "/");
+    }
+
+    /**
+     * Android 15 draws apps under the status and navigation bars: the
+     * content is kept clear of them (and of a camera cutout).
+     */
+    private View insetted(View content) {
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(0xFF0B0C10);
+        root.addView(content, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            if (Build.VERSION.SDK_INT >= 30) {
+                android.graphics.Insets i = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()
+                    | WindowInsets.Type.ime());
+                v.setPadding(i.left, i.top, i.right, i.bottom);
+                return WindowInsets.CONSUMED;
+            }
+            v.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(),
+                insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
+            return insets.consumeSystemWindowInsets();
+        });
+        root.setFitsSystemWindows(false);
+        return root;
     }
 
     private void showOffline() {
