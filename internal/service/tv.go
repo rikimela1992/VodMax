@@ -33,7 +33,7 @@ type GuideResult struct {
 
 // Guide window kept locally.
 const (
-	guidePast   = 6 * time.Hour
+	guidePast   = store.GuideHistory // for catch-up
 	guideFuture = 72 * time.Hour
 )
 

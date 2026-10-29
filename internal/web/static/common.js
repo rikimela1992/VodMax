@@ -266,6 +266,90 @@ window.VodMax = (() => {
     };
   }
 
+  // ---- HLS playback (live TV with pause and rewind) ----
+  //
+  // The server keeps the channel as HLS segments; hls.js (or the
+  // device's own HLS, e.g. webOS) plays it with the same controls as
+  // tsPlayer, plus moving to a wall-clock time inside the buffer.
+  function hlsPlayer(video, url, { onError, onStart } = {}) {
+    let userPaused = false, destroyed = false, recoveries = 0;
+    let hls = null;
+    const tryPlay = () => { const p = video.play(); if (p && p.catch) p.catch(() => {}); };
+    if (window.Hls && Hls.isSupported()) {
+      hls = new Hls({
+        enableWorker: true,
+        liveSyncDurationCount: 3,          // about 6 s behind the newest segment
+        liveMaxLatencyDurationCount: Infinity, // paused or rewound: never pulled back to live
+        backBufferLength: 120,             // the browser keeps 2 minutes; older parts are reloaded from the server
+        maxBufferLength: 30,
+      });
+      hls.on(Hls.Events.MANIFEST_PARSED, () => { if (!destroyed) { tryPlay(); if (onStart) onStart(); } });
+      hls.on(Hls.Events.ERROR, (_, data) => {
+        if (destroyed || !data.fatal) return;
+        const status = data.response && data.response.code;
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR && (status === 403 || status === 404) && data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR) {
+          if (onError) onError("ended", status);
+        } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR && recoveries < 5) {
+          recoveries++;
+          hls.startLoad();
+        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR && recoveries < 5) {
+          recoveries++;
+          hls.recoverMediaError();
+        } else if (onError) onError(data.type, data.details);
+      });
+      hls.loadSource(url);
+      hls.attachMedia(video);
+    } else {
+      video.src = url; // native HLS
+      video.addEventListener("loadedmetadata", () => { tryPlay(); if (onStart) onStart(); }, { once: true });
+    }
+    const range = () => {
+      const s = video.seekable;
+      return s.length ? [s.start(0), s.end(s.length - 1)] : null;
+    };
+    return {
+      pause() { userPaused = true; video.pause(); },
+      play() { userPaused = false; tryPlay(); },
+      toggle() { if (userPaused || video.paused) this.play(); else this.pause(); },
+      get paused() { return userPaused || video.paused; },
+      resumeIfBlocked() { if (!userPaused && video.paused) tryPlay(); },
+      behind() {
+        const live = hls && hls.liveSyncPosition != null ? hls.liveSyncPosition : (range() || [0, 0])[1];
+        return Math.max(0, live - video.currentTime);
+      },
+      // Seconds that can be rewound from here.
+      back() { const r = range(); return r ? Math.max(0, video.currentTime - r[0]) : 0; },
+      goLive() {
+        const live = hls && hls.liveSyncPosition != null ? hls.liveSyncPosition : (range() || [0, 0])[1] - 6;
+        video.currentTime = live;
+        this.play();
+      },
+      seek(delta) {
+        const r = range();
+        if (!r) return;
+        video.currentTime = Math.min(Math.max(video.currentTime + delta, r[0] + 0.5), r[1] - 1);
+      },
+      // The wall-clock time of the frame on screen (Date), if known.
+      clockTime() { return hls && hls.playingDate ? hls.playingDate : null; },
+      // Moves to a wall-clock moment (unix seconds) if it is in the buffer.
+      seekToTime(unix) {
+        const now = this.clockTime(), r = range();
+        if (!now || !r) return false;
+        const target = video.currentTime + (unix * 1000 - now.getTime()) / 1000;
+        if (target < r[0] || target > r[1]) return false;
+        video.currentTime = target;
+        this.play();
+        return true;
+      },
+      destroy() {
+        destroyed = true;
+        if (hls) hls.destroy();
+        video.removeAttribute("src");
+        video.load();
+      },
+    };
+  }
+
   // ---- Server problems (VPN down, failed sync, expiring account) ----
   // A small notice in a corner, on every page, linking to the settings.
   let statusWatched = false;
@@ -290,5 +374,5 @@ window.VodMax = (() => {
     setInterval(check, 30000);
   }
 
-  return { store, viewer, token, withToken, askToken, showProfiles, me, api, keyOf, clock, hhmm, tsPlayer, watchStatus };
+  return { store, viewer, token, withToken, askToken, showProfiles, me, api, keyOf, clock, hhmm, tsPlayer, hlsPlayer, watchStatus };
 })();

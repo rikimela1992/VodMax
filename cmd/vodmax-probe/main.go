@@ -19,6 +19,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -134,9 +136,118 @@ func main() {
 		if err := vodCheck(client); err != nil {
 			fail(err)
 		}
+	case "xtream-catchup-check":
+		password := os.Getenv("VODMAX_XTREAM_PASSWORD")
+		if *server == "" || *user == "" || password == "" {
+			fail(errors.New("servono -server, -user e VODMAX_XTREAM_PASSWORD"))
+		}
+		tun := up(cfg, *wait)
+		defer tun.Close()
+		client, err := xtream.New(*server, *user, password, provider.NewHTTPClient(tun, 2*time.Minute))
+		if err != nil {
+			fail(err)
+		}
+		if err := catchupCheck(client, *channels); err != nil {
+			fail(err)
+		}
 	default:
 		usage()
 	}
+}
+
+// catchupCheck reports the archive: how many channels have it, the server
+// time zone, and whether an archive request returns MPEG-TS with each time
+// zone interpretation. No URLs or credentials are printed.
+func catchupCheck(c *xtream.Client, want string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	_, info, err := c.LoginInfo(ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("fuso del server: %q, ora del server: %s\n", info.Timezone, info.TimeNow)
+	live, err := c.LiveStreams(ctx)
+	if err != nil {
+		return err
+	}
+	days := map[int]int{}
+	var pick *xtream.LiveStream
+	for i, s := range live {
+		if s.TVArchive.Int() == 1 {
+			days[int(s.TVArchiveDuration.Int())]++
+			if pick == nil && (want == "" || strings.Contains(strings.ToLower(s.Name.String()), strings.ToLower(want))) {
+				pick = &live[i]
+			}
+		}
+	}
+	fmt.Printf("canali con archivio: %v (giorni → numero di canali) su %d\n", days, len(live))
+	if pick == nil {
+		return errors.New("nessun canale con archivio")
+	}
+	var names []string
+	var picks []xtream.LiveStream
+	for _, s := range live {
+		if s.TVArchive.Int() == 1 {
+			names = append(names, s.Name.String())
+			if len(picks) < 3 {
+				picks = append(picks, s)
+			}
+		}
+	}
+	fmt.Printf("con archivio: %s\n", strings.Join(names, " | "))
+	start := time.Now().Add(-90 * time.Minute).Truncate(time.Minute)
+	get := func(label, u string) {
+		t0 := time.Now()
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+		req.Header.Set("User-Agent", "VodMax")
+		resp, err := c.HTTP().Do(req)
+		if err != nil {
+			fmt.Printf("  %-40s errore: %v\n", label, provider.Redact(err))
+			return
+		}
+		buf := make([]byte, 188*20)
+		n, _ := io.ReadFull(resp.Body, buf)
+		resp.Body.Close()
+		// The archive may start in the middle of a packet: look for the
+		// sync byte repeating every 188 bytes.
+		ts := -1
+		for off := 0; off < 188 && off+188*3 < n; off++ {
+			if buf[off] == 0x47 && buf[off+188] == 0x47 && buf[off+376] == 0x47 {
+				ts = off
+				break
+			}
+		}
+		fmt.Printf("  %-40s HTTP %d, %s, %d byte, MPEG-TS %v (da +%d), %.1f s\n", label, resp.StatusCode,
+			resp.Header.Get("Content-Type"), n, ts >= 0, max(ts, 0), time.Since(t0).Seconds())
+		time.Sleep(3 * time.Second) // one connection: let the provider close it
+	}
+	get("diretta "+pick.Name.String(), c.StreamURL(xtream.KindLive, pick.StreamID.String(), "ts"))
+	for _, p := range picks {
+		get("archivio "+p.Name.String(), c.CatchupURL(p.StreamID.String(), start, 30*time.Minute, info.Location()))
+	}
+	get("archivio (vecchio formato .php) "+pick.Name.String(), c.CatchupPHPURL(pick.StreamID.String(), start, 30*time.Minute, info.Location()))
+	rome, _ := time.LoadLocation("Europe/Rome")
+	for _, z := range []struct {
+		name string
+		loc  *time.Location
+	}{{"server", info.Location()}, {"UTC", time.UTC}, {"Europe/Rome", rome}} {
+		u := c.CatchupURL(pick.StreamID.String(), start, 30*time.Minute, z.loc)
+		t0 := time.Now()
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+		req.Header.Set("User-Agent", "VodMax")
+		resp, err := c.HTTP().Do(req)
+		if err != nil {
+			fmt.Printf("  %-12s errore: %v\n", z.name, provider.Redact(err))
+			continue
+		}
+		buf := make([]byte, 188*20)
+		n, _ := io.ReadFull(resp.Body, buf)
+		resp.Body.Close()
+		ts := n >= 188*2 && buf[0] == 0x47 && buf[188] == 0x47
+		fmt.Printf("  %-12s HTTP %d, %d byte, MPEG-TS %v, %.1f s\n", z.name, resp.StatusCode, n, ts, time.Since(t0).Seconds())
+		time.Sleep(2 * time.Second) // one connection: let the provider close it
+	}
+	return nil
 }
 
 func dump(c *xtream.Client) error {

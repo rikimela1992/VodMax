@@ -32,3 +32,7 @@
 .programme-panel h2 { margin: 0 0 0.3rem; }
 .programme-panel p { margin: 0.4rem 0; }
 .programme-panel .buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
+.prog.past { opacity: 0.55; }
+.prog.past.replay { opacity: 0.85; }
+.prog.past.replay small::after { content: " · ↺ riguarda"; }
+.guide-row .name .archive { color: var(--soft); margin-left: 0.3rem; }

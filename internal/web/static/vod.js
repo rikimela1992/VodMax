@@ -385,7 +385,9 @@
     let sess;
     flash(mode === "remux" ? "Preparazione della conversione…" : "Avvio…");
     try {
-      sess = await api("POST", "/api/v1/vod/" + media + "/" + id + "/session", { viewer, mode: mode || "" });
+      sess = media === "catchup"
+        ? await api("POST", "/api/v1/catchup/" + id + "/session", { viewer, ...state.catchup })
+        : await api("POST", "/api/v1/vod/" + media + "/" + id + "/session", { viewer, mode: mode || "" });
     } catch (e) { flash(e.message); return; }
     stopPlayback(false);
     const tracks = chooseTracks(sess, keep);
@@ -591,13 +593,18 @@
 
   function saveProgress() {
     const p = state.play;
-    if (!p || p.recording || !duration()) return;
+    if (!p || p.recording || p.media === "catchup" || !duration()) return;
     api("PUT", "/api/v1/progress/" + p.media + "/" + p.id, { position: Math.floor(position()), duration: Math.floor(duration()) })
       .catch(() => {});
   }
 
   function stopPlayback(save) {
     if (save) saveProgress();
+    // An archive opened from the TV or the guide: closing goes back there.
+    if (save && state.play && state.play.media === "catchup" && state.catchupBack) {
+      location.href = state.catchupBack;
+      return;
+    }
     clearInterval(saveTimer);
     clearInterval(subTimer);
     if (subTrack) subTrack.mode = "disabled";
@@ -757,5 +764,17 @@
   $("player").addEventListener("mousemove", showBar);
 
   addEventListener("pagehide", () => saveProgress());
-  window.VodMax.withToken(render);
+  // From the TV ("from the start") or the guide ("watch again"):
+  // /?catchup=CHANNEL&start=…&stop=…&title=…&back=…
+  const asked = new URLSearchParams(location.search);
+  window.VodMax.withToken(() => {
+    render();
+    if (asked.get("catchup")) {
+      state.catchup = { start: Number(asked.get("start")), stop: Number(asked.get("stop")), title: asked.get("title") || "" };
+      const back = asked.get("back") || "";
+      state.catchupBack = back.startsWith("/") && !back.startsWith("//") ? back : "";
+      history.replaceState(null, "", "/");
+      play("catchup", Number(asked.get("catchup")), state.catchup.title, 0, "remux");
+    }
+  });
 })();

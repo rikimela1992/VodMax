@@ -165,16 +165,48 @@ type SeriesInfo struct {
 
 // Login checks the credentials and returns the account state.
 func (c *Client) Login(ctx context.Context) (Account, error) {
+	a, _, err := c.LoginInfo(ctx)
+	return a, err
+}
+
+// ServerInfo is the server_info block of the login response.
+type ServerInfo struct {
+	Timezone Flex `json:"timezone"`
+	TimeNow  Flex `json:"time_now"` // "2006-01-02 15:04:05" in Timezone
+}
+
+// Location is the server's time zone (catch-up times are written in it);
+// UTC when unknown.
+func (s ServerInfo) Location() *time.Location {
+	if loc, err := time.LoadLocation(s.Timezone.String()); err == nil && s.Timezone.String() != "" {
+		return loc
+	}
+	return time.UTC
+}
+
+// CatchupPHPURL is the older form of the archive URL
+// (streaming/timeshift.php), which some panels use instead.
+func (c *Client) CatchupPHPURL(streamID string, start time.Time, duration time.Duration, loc *time.Location) string {
+	minutes := max(1, int(duration.Round(time.Minute)/time.Minute))
+	u := c.base.JoinPath("streaming", "timeshift.php")
+	u.RawQuery = url.Values{"username": {c.username}, "password": {c.password}, "stream": {streamID},
+		"start": {start.In(loc).Format("2006-01-02:15-04")}, "duration": {strconv.Itoa(minutes)}}.Encode()
+	return u.String()
+}
+
+// LoginInfo is Login with the server information.
+func (c *Client) LoginInfo(ctx context.Context) (Account, ServerInfo, error) {
 	var resp struct {
-		UserInfo Account `json:"user_info"`
+		UserInfo   Account    `json:"user_info"`
+		ServerInfo ServerInfo `json:"server_info"`
 	}
 	if err := c.get(ctx, "", nil, &resp); err != nil {
-		return Account{}, err
+		return Account{}, ServerInfo{}, err
 	}
 	if resp.UserInfo.Auth.Int() != 1 {
-		return resp.UserInfo, errors.New("credenziali Xtream rifiutate dal provider")
+		return resp.UserInfo, resp.ServerInfo, errors.New("credenziali Xtream rifiutate dal provider")
 	}
-	return resp.UserInfo, nil
+	return resp.UserInfo, resp.ServerInfo, nil
 }
 
 func (c *Client) LiveCategories(ctx context.Context) ([]Category, error) {
@@ -263,10 +295,12 @@ func (c *Client) XMLTVURL() string {
 func (c *Client) HTTP() *http.Client { return c.http }
 
 // CatchupURL builds a timeshift URL for a programme of a live channel.
-func (c *Client) CatchupURL(streamID string, start time.Time, duration time.Duration) string {
-	minutes := int(duration.Round(time.Minute) / time.Minute)
+// CatchupURL is the archive of a live channel from start, for duration;
+// loc is the server's time zone (ServerInfo.Location).
+func (c *Client) CatchupURL(streamID string, start time.Time, duration time.Duration, loc *time.Location) string {
+	minutes := max(1, int(duration.Round(time.Minute)/time.Minute))
 	return c.base.JoinPath("timeshift", c.username, c.password, strconv.Itoa(minutes),
-		start.UTC().Format("2006-01-02:15-04"), streamID+".ts").String()
+		start.In(loc).Format("2006-01-02:15-04"), streamID+".ts").String()
 }
 
 func (c *Client) get(ctx context.Context, action string, extra url.Values, out any) error {

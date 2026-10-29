@@ -396,3 +396,20 @@ func (s *Store) SetRecordingProtected(ctx context.Context, id int64, protected b
 func (s *Store) CompletedRecordings(ctx context.Context) ([]Recording, error) {
 	return s.queryRecordings(ctx, `SELECT `+recordingColumns+` FROM recording WHERE status IN ('completed', 'failed') ORDER BY stop`)
 }
+
+// CatchupVariant returns the variant of a channel that has the longest
+// archive (often only one quality has it), and its days (0: none).
+func (s *Store) CatchupVariant(ctx context.Context, itemID int64) (PlaybackItem, int, error) {
+	var id int64
+	var days int
+	err := s.r.QueryRowContext(ctx, `SELECT v.id, v.catchup_days FROM item i JOIN item v ON v.group_key = i.group_key AND v.kind = 'live'
+		WHERE i.id = ? AND v.available = 1 AND coalesce(v.catchup_days, 0) > 0 ORDER BY v.catchup_days DESC, v.quality DESC LIMIT 1`, itemID).Scan(&id, &days)
+	if errors.Is(err, sql.ErrNoRows) {
+		return PlaybackItem{}, 0, nil
+	}
+	if err != nil {
+		return PlaybackItem{}, 0, err
+	}
+	it, err := s.PlaybackItem(ctx, id)
+	return it, days, err
+}

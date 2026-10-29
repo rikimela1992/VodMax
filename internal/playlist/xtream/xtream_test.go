@@ -108,7 +108,7 @@ func TestURLsAndErrorsHideCredentials(t *testing.T) {
 		t.Fatalf("stream url: %s", u)
 	}
 	start := time.Date(2026, 10, 28, 19, 45, 0, 0, time.UTC)
-	if cu := c.CatchupURL("101", start, 2*time.Hour); !strings.HasSuffix(cu, "/timeshift/mario/p@ss%20word/120/2026-10-28:19-45/101.ts") {
+	if cu := c.CatchupURL("101", start, 2*time.Hour, time.UTC); !strings.HasSuffix(cu, "/timeshift/mario/p@ss%20word/120/2026-10-28:19-45/101.ts") {
 		t.Fatalf("catchup url: %s", cu)
 	}
 

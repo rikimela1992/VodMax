@@ -110,7 +110,7 @@ func newTVProvider() *tvProvider {
 					{"category_id":"3","category_name":"Dazn Locale"}]`))
 			case "get_live_streams":
 				logo := "http://" + r.Host + "/logo/"
-				w.Write([]byte(`[{"name":"Canale 5 HD","stream_id":105,"category_id":"1"},{"name":"Rai 1 HD","stream_id":101,"category_id":"1","epg_channel_id":"Rai1.it","stream_icon":"` + logo + `rai1.png"},
+				w.Write([]byte(`[{"name":"Canale 5 HD","stream_id":105,"category_id":"1"},{"name":"Rai 1 HD","stream_id":101,"category_id":"1","epg_channel_id":"Rai1.it","stream_icon":"` + logo + `rai1.png","tv_archive":1,"tv_archive_duration":3},
 					{"name":"Cielo HD","stream_id":126,"category_id":"2","stream_icon":"` + logo + `cielo.svg"},{"name":"Alma Tv","stream_id":300,"category_id":"2"},
 					{"name":"DAZN Calcio 1 HD","stream_id":400,"category_id":"3"}]`))
 			case "get_vod_categories":
@@ -314,7 +314,7 @@ func TestLiveRelaySingleConnection(t *testing.T) {
 
 func TestWebInterfaceServedWithStrictCSP(t *testing.T) {
 	e := setup(t, true)
-	for _, path := range []string{"/", "/tv.html", "/tv.js", "/tv.css", "/vod.js", "/vod.css", "/common.js", "/settings.html", "/settings.js", "/settings.css", "/guide.html", "/guide.js", "/guide.css", "/vendor/mpegts-1.8.2.min.js"} {
+	for _, path := range []string{"/", "/tv.html", "/tv.js", "/tv.css", "/vod.js", "/vod.css", "/common.js", "/settings.html", "/settings.js", "/settings.css", "/guide.html", "/guide.js", "/guide.css", "/vendor/mpegts-1.8.2.min.js", "/vendor/hls-1.7.3.min.js"} {
 		resp, err := http.Get(e.srv.URL + path)
 		if err != nil {
 			t.Fatal(err)

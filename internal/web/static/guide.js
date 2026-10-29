@@ -49,7 +49,8 @@
     const rows = state.rows.map((r, ri) => {
       const line = el("div", { className: "line" });
       r.programmes.forEach((p, pi) => {
-        const b = el("button", { className: "prog focusable" + (p.start <= now && p.stop > now ? " on-air" : "") + (p.recording ? " rec" : "") },
+        const b = el("button", { className: "prog focusable" + (p.start <= now && p.stop > now ? " on-air" : "") + (p.stop <= now ? " past" : "") +
+          (p.recording ? " rec" : "") + (p.stop <= now && r.channel.catchup_days ? " replay" : "") },
           p.title, el("small", {}, hhmm(p.start) + "–" + hhmm(p.stop)));
         // Provider guides overlap at times: drawn up to the next start, so
         // no programme hides another.
@@ -69,7 +70,8 @@
         line.append(n);
       }
       const name = el("div", { className: "name" }, el("b", {}, r.channel.number || ""),
-        r.channel.logo ? el("img", { src: r.channel.logo, alt: "", loading: "lazy" }) : null, r.channel.name);
+        r.channel.logo ? el("img", { src: r.channel.logo, alt: "", loading: "lazy" }) : null, r.channel.name,
+        r.channel.catchup_days ? el("small", { className: "archive", title: "Archivio di " + r.channel.catchup_days + " giorni" }, "↺") : null);
       return el("div", { className: "guide-row" }, name, line);
     });
     $("guide").replaceChildren(head, ...(rows.length ? rows : [el("p", { className: "empty" },
@@ -84,8 +86,15 @@
     const now = Date.now() / 1000;
     const kids = state.me && state.me.profile && state.me.profile.kind === "kids";
     const buttons = [];
+    const archive = row.channel.catchup_days && p.start >= now - row.channel.catchup_days * 86400 && p.start < now;
+    const replay = () => {
+      location.href = "/?" + new URLSearchParams({ catchup: row.channel.id, start: p.start, stop: p.stop, title: p.title, back: "/guide.html" });
+    };
     if (p.start <= now && p.stop > now) {
       buttons.push(el("button", { className: "button focusable", onclick: () => { location.href = "/tv.html?channel=" + row.channel.id; } }, "▶ Guarda"));
+      if (archive) buttons.push(el("button", { className: "button secondary focusable", onclick: replay }, "⏮ Dall'inizio"));
+    } else if (archive) {
+      buttons.push(el("button", { className: "button focusable", onclick: replay }, "▶ Riguarda"));
     }
     if (p.recording && !kids) {
       buttons.push(el("button", { className: "button secondary focusable", onclick: async () => {
@@ -168,7 +177,12 @@
     b.onclick = () => {
       const m = b.dataset.move;
       if (m === "now") state.from = slot(Date.now() / 1000);
-      else if (m === "day") { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(20, 30, 0, 0); state.from = d.getTime() / 1000; }
+      else if (m === "day" || m === "yesterday") {
+        const d = new Date();
+        d.setDate(d.getDate() + (m === "day" ? 1 : -1));
+        d.setHours(20, 30, 0, 0);
+        state.from = d.getTime() / 1000;
+      }
       else state.from += Number(m) * 3600;
       load();
     };

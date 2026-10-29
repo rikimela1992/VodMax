@@ -168,6 +168,25 @@ type vodSession struct {
 	internal string // loopback token for ffmpeg
 	subDir   string // temporary folder of extracted subtitles
 	subFile  string // WebVTT being written by the current remux
+	catchup  *catchupInfo
+}
+
+// addVODSession registers a session, replacing the viewer's previous one.
+func (s *Service) addVODSession(sess *vodSession) {
+	s.vod.mu.Lock()
+	defer s.vod.mu.Unlock()
+	if s.vod.sessions == nil {
+		s.vod.sessions, s.vod.byToken = map[string]*vodSession{}, map[string]*vodSession{}
+	}
+	for k, old := range s.vod.sessions {
+		if old.viewer == sess.viewer || time.Now().After(old.expires) {
+			delete(s.vod.sessions, k)
+			delete(s.vod.byToken, old.internal)
+			old.drop()
+		}
+	}
+	s.vod.sessions[sess.id] = sess
+	s.vod.byToken[sess.internal] = sess
 }
 
 // drop removes what a session left on disk.
@@ -228,6 +247,7 @@ func (s *Service) NewPlaybackSession(ctx context.Context, media string, id int64
 	if !viewerID.MatchString(viewer) {
 		return PlaybackSession{}, invalid("identificativo del player non valido")
 	}
+	s.stopViewerTimeshift(viewer)
 	var it store.PlaybackItem
 	var duration int
 	title := ""
@@ -277,20 +297,7 @@ func (s *Service) NewPlaybackSession(ctx context.Context, media string, id int64
 	sess := &vodSession{id: randomToken(), viewer: viewer, media: media, mediaID: id, subID: it.SubscriptionID,
 		url: client.StreamURL(kind, it.SourceID, ext), title: title, mode: mode, internal: randomToken(),
 		expires: time.Now().Add(8 * time.Hour)}
-	s.vod.mu.Lock()
-	if s.vod.sessions == nil {
-		s.vod.sessions, s.vod.byToken = map[string]*vodSession{}, map[string]*vodSession{}
-	}
-	for k, old := range s.vod.sessions {
-		if old.viewer == viewer || time.Now().After(old.expires) {
-			delete(s.vod.sessions, k)
-			delete(s.vod.byToken, old.internal)
-			old.drop()
-		}
-	}
-	s.vod.sessions[sess.id] = sess
-	s.vod.byToken[sess.internal] = sess
-	s.vod.mu.Unlock()
+	s.addVODSession(sess)
 
 	out := PlaybackSession{ID: sess.id, Mode: mode, Title: title, Duration: duration, URL: "/stream/vod/" + sess.id,
 		Audio: []Track{}, Subtitles: []Track{}}
@@ -490,6 +497,18 @@ func (s *Service) OpenRemux(ctx context.Context, sessionID string, position floa
 		return nil, err
 	}
 	args := []string{"-nostdin", "-hide_banner", "-loglevel", "error"}
+	// Catch-up: the archive is asked from the minute of the position and
+	// cannot be seeked, so the remaining seconds are skipped by reading.
+	skip := 0.0
+	if c := sess.catchup; c != nil {
+		minute := time.Duration(position*float64(time.Second)) / time.Minute * time.Minute
+		from := c.start.Add(minute)
+		s.vod.mu.Lock()
+		sess.url = c.client.CatchupURL(c.streamID, from, c.stop.Sub(from)+time.Minute, c.loc)
+		s.vod.mu.Unlock()
+		skip, position = position-minute.Seconds(), 0
+		args = append(args, "-fflags", "+genpts+discardcorrupt", "-f", "mpegts")
+	}
 	if position > 0 {
 		args = append(args, "-ss", strconv.FormatFloat(position, 'f', 1, 64))
 	}
@@ -501,8 +520,11 @@ func (s *Service) OpenRemux(ctx context.Context, sessionID string, position floa
 	if len(p.Audio) > 0 {
 		audioCodec = p.Audio[audio].Codec
 	}
-	args = append(args, "-i", "http://"+addr+"/internal/"+sess.internal,
-		"-map", "0:v:0", "-map", "0:a:"+strconv.Itoa(audio)+"?", "-sn", "-dn")
+	args = append(args, "-i", "http://"+addr+"/internal/"+sess.internal)
+	if skip > 0 {
+		args = append(args, "-ss", strconv.FormatFloat(skip, 'f', 1, 64))
+	}
+	args = append(args, "-map", "0:v:0", "-map", "0:a:"+strconv.Itoa(audio)+"?", "-sn", "-dn")
 	if sess.probe.VideoCodec == "h264" {
 		args = append(args, "-c:v", "copy")
 	} else {
@@ -627,12 +649,16 @@ func (s *Service) serveLoopback(w http.ResponseWriter, r *http.Request) {
 	token := strings.TrimPrefix(r.URL.Path, "/internal/")
 	s.vod.mu.Lock()
 	sess := s.vod.byToken[token]
+	var target string
+	if sess != nil {
+		target = sess.url
+	}
 	s.vod.mu.Unlock()
 	if sess == nil || r.Method != http.MethodGet && r.Method != http.MethodHead {
 		http.NotFound(w, r)
 		return
 	}
-	resp, err := s.upstream(r.Context(), sess.subID, sess.url, r.Header.Get("Range"))
+	resp, err := s.upstream(r.Context(), sess.subID, target, r.Header.Get("Range"))
 	if err != nil {
 		http.Error(w, "upstream", http.StatusBadGateway)
 		return

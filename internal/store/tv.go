@@ -41,7 +41,13 @@ func (s *Store) ReplaceGuide(ctx context.Context, source string, channels []Guid
 		return err
 	}
 	defer tx.Rollback()
-	if err := deleteGuide(ctx, tx, source); err != nil {
+	// Programmes already over stay (catch-up needs them; a new guide
+	// usually starts today); everything else is replaced.
+	now := time.Now().Unix()
+	if err := deleteGuide(ctx, tx, source, now-3600); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM epg_programme WHERE stop < ?`, now-int64(GuideHistory/time.Second)); err != nil {
 		return err
 	}
 	for _, c := range channels {
@@ -103,7 +109,8 @@ const FirstFreeNumber = 100
 // channel keeps its number in every section and in the favourites.
 func (s *Store) TVChannels(ctx context.Context, profileID int64, noAdult bool, section string, favoritesOnly bool, now time.Time) ([]TVChannel, error) {
 	rows, err := s.r.QueryContext(ctx, `
-		SELECT i.id, coalesce(i.lcn, 0), i.display_title, i.image, i.section, i.quality, i.variant_count, i.catchup_days,
+		SELECT i.id, coalesce(i.lcn, 0), i.display_title, i.image, i.section, i.quality, i.variant_count,
+			(SELECT coalesce(max(v.catchup_days), 0) FROM item v WHERE v.group_key = i.group_key AND v.kind = 'live' AND v.available = 1),
 			i.group_key, f.position IS NOT NULL, coalesce(f.position, 0),
 			`+guideIDExpr+`
 		FROM item i
@@ -360,13 +367,18 @@ func (s *Store) GuideWindow(ctx context.Context, guides []string, from, to time.
 	return out, nil
 }
 
+// GuideHistory is how long programmes are kept after they end (archives
+// of the providers go back a week).
+const GuideHistory = 7 * 24 * time.Hour
+
 // deleteGuide removes a source's channels and programmes: the programmes
 // it added (also to other sources' channels) and those of its channels,
-// unless another source has a channel with the same id.
-func deleteGuide(ctx context.Context, tx *sql.Tx, source string) error {
-	if _, err := tx.ExecContext(ctx, `DELETE FROM epg_programme WHERE source = ?
-		OR (channel IN (SELECT id FROM epg_channel WHERE source = ?) AND channel NOT IN (SELECT id FROM epg_channel WHERE source <> ?))`,
-		source, source, source); err != nil {
+// unless another source has a channel with the same id. Programmes that
+// ended before keepBefore stay (0: none).
+func deleteGuide(ctx context.Context, tx *sql.Tx, source string, keepBefore int64) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM epg_programme WHERE stop >= ? AND (source = ?
+		OR (channel IN (SELECT id FROM epg_channel WHERE source = ?) AND channel NOT IN (SELECT id FROM epg_channel WHERE source <> ?)))`,
+		keepBefore, source, source, source); err != nil {
 		return err
 	}
 	_, err := tx.ExecContext(ctx, `DELETE FROM epg_channel WHERE source = ?`, source)
@@ -380,7 +392,7 @@ func (s *Store) DeleteGuide(ctx context.Context, source string) error {
 		return err
 	}
 	defer tx.Rollback()
-	if err := deleteGuide(ctx, tx, source); err != nil {
+	if err := deleteGuide(ctx, tx, source, 0); err != nil {
 		return err
 	}
 	return tx.Commit()

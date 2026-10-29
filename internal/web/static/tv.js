@@ -70,6 +70,7 @@
     store.set("last", channel.id);
     showBanner(channel, false);
     stopPlayer();
+    if (await tuneTimeshift(channel, force)) return;
     let url;
     try {
       url = (await api("POST", "/api/v1/live/" + channel.id + "/ticket", { viewer })).url;
@@ -114,11 +115,61 @@
 
   function stopPlayer() {
     clearTimeout(state.timers.retry);
+    clearInterval(state.timers.keepalive);
     if (state.player) {
       state.player.destroy();
       state.player = null;
     }
+    if (state.buffer) {
+      navigator.sendBeacon(state.buffer.stop);
+      state.buffer = null;
+    }
   }
+
+  // ---- Live with pause and rewind (server buffer, HLS) ----
+  let liveSettings;
+  const canHLS = () => (window.Hls && Hls.isSupported()) || $("video").canPlayType("application/vnd.apple.mpegurl") !== "";
+  // Returns false when the direct stream must be used instead.
+  async function tuneTimeshift(channel, force) {
+    if (!liveSettings) liveSettings = await api("GET", "/api/v1/settings/live").catch(() => ({ mode: "direct" }));
+    if (liveSettings.mode !== "timeshift" || !canHLS()) return false;
+    flash("Sintonizzazione…");
+    let buf;
+    try {
+      buf = await api("POST", "/api/v1/live/" + channel.id + "/timeshift", { viewer, force: Boolean(force) });
+    } catch (e) {
+      if (e.status === 409) {
+        confirmDialog("Tutte le connessioni dell'abbonamento sono in uso su un altro dispositivo.\n\nPrendere il controllo?",
+          () => tune(channel, true));
+        return true;
+      }
+      if (e.status === 503) return false; // no buffer on this server now: direct stream
+      flash(e.message);
+      return true;
+    }
+    if (state.current !== channel) { navigator.sendBeacon(buf.stop); return true; } // zapped meanwhile
+    $("status").hidden = true;
+    state.buffer = buf;
+    const player = window.VodMax.hlsPlayer($("video"), buf.url, {
+      onError: (type) => {
+        if (state.player !== player) return;
+        if (type === "ended") {
+          // The server dropped the buffer (another device took the
+          // connection, or a recording): open the channel again.
+          stopPlayer();
+          flash("Diretta interrotta: riapro il canale…");
+          state.timers.retry = setTimeout(() => state.current === channel && tune(channel), 2000);
+          return;
+        }
+        flash("Riproduzione non riuscita (" + type + ")");
+      },
+    });
+    state.player = player;
+    state.timers.keepalive = setInterval(() => { fetch(buf.keepalive, { method: "POST" }).catch(() => {}); }, 30000);
+    showControls();
+    return true;
+  }
+  addEventListener("pagehide", () => { if (state.buffer) navigator.sendBeacon(state.buffer.stop); });
 
   function step(delta) {
     const list = state.channels;
@@ -261,6 +312,21 @@
     flash(state.favoritesOnly ? "P+/P− scorrono solo i preferiti" : "P+/P− scorrono tutti i canali");
   }
 
+  // From the start of the programme on air: in the buffer if it is
+  // there, otherwise from the provider's archive.
+  function startOver() {
+    const c = state.current;
+    const p = c && c.now;
+    if (!p) { flash("Nessun programma in guida per questo canale"); return; }
+    if (state.player && state.player.seekToTime && state.player.seekToTime(p.start - 30)) { showControls(); return; }
+    if (c.catchup_days) {
+      stopPlayer();
+      location.href = "/?" + new URLSearchParams({ catchup: c.id, start: p.start, stop: p.stop, title: p.title, back: "/tv.html?channel=" + c.id });
+      return;
+    }
+    flash("L'inizio non è più nel buffer e questo canale non ha l'archivio del provider");
+  }
+
   // ---- On-screen controls ----
   function showControls() {
     const ctl = $("controls");
@@ -269,8 +335,8 @@
     $("ctl-toggle").textContent = p && p.paused ? "▶ Riprendi" : "⏸ Pausa";
     const behind = p ? p.behind() : 0;
     const live = $("ctl-live");
-    live.classList.toggle("behind", behind > 4);
-    live.textContent = behind > 4 ? "⏭ Torna in diretta (−" + VodMax.clock(behind) + ")" : "● In diretta";
+    live.classList.toggle("behind", behind > 12);
+    live.textContent = behind > 12 ? "⏭ Torna in diretta (−" + VodMax.clock(behind) + ")" : "● In diretta";
     const fav = $("ctl-fav");
     fav.classList.toggle("on", Boolean(c && c.favorite));
     fav.textContent = c && c.favorite ? "★ Preferito" : "☆ Preferito";
@@ -287,6 +353,7 @@
     fwd30: () => { state.player && state.player.seek(30); showControls(); },
     toggle: () => { state.player && state.player.toggle(); showControls(); },
     live: () => { state.player && state.player.goLive(); showControls(); },
+    startOver: () => startOver(),
     fav: () => toggleFavorite(state.current).then(showControls),
     rec: () => record(state.current),
   };
@@ -299,8 +366,8 @@
   // Keep the "behind live" label current while visible.
   setInterval(() => { if (!$("controls").hidden) {
     const p = state.player, behind = p ? p.behind() : 0;
-    $("ctl-live").classList.toggle("behind", behind > 4);
-    $("ctl-live").textContent = behind > 4 ? "⏭ Torna in diretta (−" + VodMax.clock(behind) + ")" : "● In diretta";
+    $("ctl-live").classList.toggle("behind", behind > 12);
+    $("ctl-live").textContent = behind > 12 ? "⏭ Torna in diretta (−" + VodMax.clock(behind) + ")" : "● In diretta";
   } }, 1000);
 
   // ---- Recording ----

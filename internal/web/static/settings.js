@@ -361,8 +361,28 @@
     parts.push(el("h2", {}, "Aggiornamenti automatici"),
       el("p", { className: "note" }, "Il catalogo di ogni abbonamento (con la guida) si aggiorna ogni notte; se non riesce riprova ogni ora. La guida si aggiorna anche tra una notte e l'altra." +
         (status.next_catalog ? " Prossimo aggiornamento del catalogo: " + when(status.next_catalog) + "." : "")), form);
-    parts.push(...await recordingLimits(), ...(await metadataSection()).filter(Boolean), ...await backupSection());
+    parts.push(...await liveSection(), ...await recordingLimits(), ...(await metadataSection()).filter(Boolean), ...await backupSection());
     main.replaceChildren(...parts);
+  }
+
+  // ---- Live TV ----
+  async function liveSection() {
+    const ls = await api("GET", "/api/v1/settings/live");
+    const mode = el("select", { className: "focusable" }, el("option", { value: "timeshift" }, "Pausa e riavvolgimento, come Sky (consigliato)"),
+      el("option", { value: "direct" }, "Ritardo minimo, senza pausa"));
+    mode.value = ls.mode;
+    const win = el("select", { className: "focusable" }, ...[30, 60, 120, 180, 240, 360].map((m) => el("option", { value: m }, m < 60 ? m + " minuti" : m / 60 + (m === 60 ? " ora" : " ore"))));
+    win.value = ls.window_minutes;
+    const save = el("button", { className: "small primary focusable full", type: "submit" }, "Salva");
+    const form = el("form", { className: "form" }, ...field("Diretta", mode), ...field("Si torna indietro fino a", win), save);
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      try { await api("PUT", "/api/v1/settings/live", { mode: mode.value, window_minutes: Number(win.value) }); flash("Salvato: vale dal prossimo cambio di canale"); }
+      catch (err) { flash(err.message); }
+    };
+    return [el("h2", {}, "Diretta TV"),
+      el("p", { className: "note" }, "Con pausa e riavvolgimento il server tiene il canale che stai guardando su disco (circa 3 GB all'ora in HD; " +
+        "si cancella cambiando canale): la diretta è 6–8 secondi indietro e il cambio canale richiede 2–4 secondi. Con ritardo minimo si torna al flusso diretto."), form];
   }
 
   // ---- Recording space ----

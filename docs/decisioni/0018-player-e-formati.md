@@ -1,6 +1,6 @@
 # 0018 — Player e formati di consegna (browser, APK, EXE)
 
-Stato: **Proposta** (29 ottobre 2026)
+Stato: **In parte approvata** (29 ottobre 2026): diretta con pausa (punto 2) scelta dall'utente e fatta; APK ed EXE da decidere
 
 ## Contesto
 
@@ -74,3 +74,21 @@ piattaforme.
 1. Diretta con **pausa e riavvolgimento** (HLS con buffer sul server) o
    flusso diretto con latenza minima?
 2. EXE: **WebView2 + libmpv** (consigliato) o solo WebView2?
+
+## Diretta con pausa e catch-up: com'è stata fatta
+
+- Il server apre il canale una volta (stessa connessione e stesse regole
+  della diretta) e ffmpeg lo scrive in segmenti HLS da 2 s (video
+  copiato, audio AAC), con l'ora di ogni segmento. Finestra predefinita
+  2 ore (10–360 minuti, Impostazioni → Sistema → Diretta TV). Un buffer
+  per dispositivo: cambiando canale, aprendo un film o lasciando la
+  pagina si cancella. Player: hls.js 1.7.3 (o l'HLS del dispositivo).
+- Misure sul gateway (Rai 1 HD): pronto in 0,9–1,4 s, ffmpeg ~42 MB di
+  memoria e CPU trascurabile, circa 1,8 GB di disco all'ora.
+- "Ritardo minimo" resta disponibile (flusso diretto, mpegts.js).
+- Catch-up: archivio del provider (50 canali di B, quasi tutti 7 giorni)
+  con l'ora nel fuso del server Xtream (server_info.timezone); si usa
+  la variante del canale che ha l'archivio. Riprodotto come un film
+  (remux in MP4, salti chiedendo l'archivio dal minuto giusto): circa
+  3 s per partire. La guida conserva 7 giorni di programmi passati.
+- "Dall'inizio" in TV: dentro il buffer se c'è, altrimenti archivio.

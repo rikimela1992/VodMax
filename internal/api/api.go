@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -87,6 +88,10 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	route("PUT /api/v1/tv/favorites/{id}", levelViewer, a.putFavorite)
 	route("POST /api/v1/subscriptions/{id}/guide/sync", levelAdmin, a.syncGuide)
 	route("POST /api/v1/live/{id}/ticket", levelViewer, a.liveTicket)
+	route("POST /api/v1/live/{id}/timeshift", levelViewer, a.startTimeshift)
+	route("POST /api/v1/catchup/{id}/session", levelViewer, a.catchupSession)
+	route("GET /api/v1/settings/live", levelViewer, a.getLiveSettings)
+	route("PUT /api/v1/settings/live", levelAdmin, a.putLiveSettings)
 	route("GET /api/v1/series/{id}/episodes", levelViewer, a.episodes)
 	route("PUT /api/v1/progress/{media}/{id}", levelViewer, a.putProgress)
 	route("GET /api/v1/progress/{media}/{id}", levelViewer, a.getProgress)
@@ -111,6 +116,10 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	// The stream is authorised by its single-use ticket: video players
 	// cannot send an Authorization header.
 	mux.HandleFunc("GET /stream/live/{ticket}", a.liveStream)
+	// Timeshift buffers: the session id is the capability, like tickets.
+	mux.HandleFunc("GET /stream/timeshift/{session}/{file}", a.timeshiftFile)
+	mux.HandleFunc("POST /stream/timeshift/{session}/keepalive", a.timeshiftKeepAlive)
+	mux.HandleFunc("POST /stream/timeshift/{session}/stop", a.timeshiftStop)
 	mux.HandleFunc("GET /img/logo/{id}", a.logo)
 	mux.HandleFunc("GET /img/meta/{id}/{which}", a.metaImage)
 	mux.HandleFunc("GET /stream/vod/{session}", a.vodDirect)
@@ -196,8 +205,11 @@ func (a *api) fail(w http.ResponseWriter, r *http.Request, err error) {
 		errors.Is(err, service.ErrBusyRecording),
 		errors.As(err, new(service.ConnectionBusy)):
 		status = http.StatusConflict
-	case errors.Is(err, service.ErrTicket), errors.Is(err, service.ErrBadSignature), errors.Is(err, service.ErrSession):
+	case errors.Is(err, service.ErrTicket), errors.Is(err, service.ErrBadSignature), errors.Is(err, service.ErrSession),
+		errors.Is(err, service.ErrTimeshift):
 		status = http.StatusForbidden
+	case errors.Is(err, service.ErrNoTimeshift):
+		status = http.StatusServiceUnavailable
 	case errors.Is(err, service.ErrPIN):
 		status = http.StatusForbidden
 	case errors.Is(err, service.ErrPINLocked):
@@ -592,6 +604,7 @@ func (a *api) liveTicket(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, r, err)
 		return
 	}
+	a.svc.StopViewerTimeshift(in.Viewer) // the direct stream replaces the buffer
 	writeJSON(w, http.StatusOK, map[string]string{"url": "/stream/live/" + t})
 }
 
@@ -1412,4 +1425,114 @@ func (a *api) deleteRecordingRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) startTimeshift(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	var in struct {
+		Viewer string `json:"viewer"`
+		Force  bool   `json:"force"`
+	}
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
+	defer cancel()
+	sess, err := a.svc.StartTimeshift(ctx, id, in.Viewer, in.Force)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, sess)
+}
+
+func (a *api) timeshiftFile(w http.ResponseWriter, r *http.Request) {
+	path, err := a.svc.TimeshiftFile(r.PathValue("session"), r.PathValue("file"))
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		http.NotFound(w, r) // a segment already out of the window
+		return
+	}
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if strings.HasSuffix(path, ".m3u8") {
+		w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+		w.Header().Set("Cache-Control", "no-store")
+	} else {
+		w.Header().Set("Content-Type", "video/mp2t")
+		w.Header().Set("Cache-Control", "private, max-age=3600")
+	}
+	w.Write(data)
+}
+
+func (a *api) timeshiftKeepAlive(w http.ResponseWriter, r *http.Request) {
+	if err := a.svc.KeepTimeshift(r.PathValue("session")); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) timeshiftStop(w http.ResponseWriter, r *http.Request) {
+	a.svc.StopTimeshift(r.PathValue("session"))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) getLiveSettings(w http.ResponseWriter, r *http.Request) {
+	ls, err := a.svc.LiveSettings(r.Context())
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, ls)
+}
+
+func (a *api) putLiveSettings(w http.ResponseWriter, r *http.Request) {
+	var in service.LiveSettings
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if err := a.svc.SetLiveSettings(r.Context(), in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) catchupSession(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	var in struct {
+		Viewer string `json:"viewer"`
+		Start  int64  `json:"start"`
+		Stop   int64  `json:"stop"`
+		Title  string `json:"title"`
+	}
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
+	defer cancel()
+	sess, err := a.svc.NewCatchupSession(ctx, id, time.Unix(in.Start, 0), time.Unix(in.Stop, 0), in.Viewer, in.Title)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, sess)
 }
