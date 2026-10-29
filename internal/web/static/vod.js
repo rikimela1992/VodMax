@@ -38,6 +38,7 @@
     const q = { 4: "4K", 3: "FHD" }[item.quality];
     if (q) card.append(el("span", { className: "badge" }, q));
     card.onclick = () => openDetail(item);
+    card.hero = heroFromItem(item);
     return card;
   }
 
@@ -50,6 +51,7 @@
       el("div", { className: "bar" }, el("div", { style: "width:" + pct + "%" })),
       el("span", { className: "label" }, title), el("span", { className: "sub" }, sub));
     card.onclick = () => play(c.media, c.id, title + (c.media === "episode" ? " · " + ep : ""), c.next ? 0 : c.progress.position);
+    card.hero = heroFromContinue(c);
     return card;
   }
 
@@ -110,19 +112,108 @@
         ? "Nessun preferito: in TV premi il tasto giallo (F) su un canale." : "Nessun canale."));
   }
 
+  // ---- Home: a featured title on top (it follows the focused card),
+  // then rows. ----
+  const detailCache = new Map();
+  function detailsOf(id) {
+    if (!detailCache.has(id)) detailCache.set(id, api("GET", "/api/v1/items/" + id + "/details").catch(() => ({})));
+    return detailCache.get(id);
+  }
+
+  function skeletonRow(wide) {
+    return el("div", { className: "row" }, ...Array.from({ length: 7 }, () => el("div", { className: "card" + (wide ? " wide" : "") },
+      el("div", { className: "poster skeleton" }))));
+  }
+
   async function renderHome(main) {
-    const [cont, films, series] = await Promise.all([
+    main.replaceChildren(el("section", { className: "hero skeleton" }), el("h2", {}, "Continua a guardare"), skeletonRow(true),
+      el("h2", {}, "Nuovi film"), skeletonRow(false));
+    const [cont, films, series, favorites, recordings] = await Promise.all([
       api("GET", "/api/v1/continue"),
       api("GET", "/api/v1/catalog/movie?sort=recent&limit=24"),
       api("GET", "/api/v1/catalog/series?sort=recent&limit=24"),
+      api("GET", "/api/v1/tv/channels?list=favorites").catch(() => []),
+      api("GET", "/api/v1/recordings").catch(() => []),
     ]);
-    const parts = [el("h2", {}, "Continua a guardare")];
+    const hero = el("section", { className: "hero" });
+    const parts = [hero, el("h2", {}, "Continua a guardare")];
     parts.push(cont.length ? el("div", { className: "row" }, ...cont.map(continueCard))
       : el("p", { className: "empty" }, "Qui compaiono i film e gli episodi iniziati e la prossima puntata delle serie che stai seguendo."));
+    if (favorites.length) parts.push(el("h2", {}, "In onda sui tuoi canali"), el("div", { className: "row" }, ...favorites.slice(0, 20).map(channelCard)));
     parts.push(el("h2", {}, "Nuovi film"), el("div", { className: "row" }, ...films.items.map(itemCard)));
     parts.push(el("h2", {}, "Nuove serie"), el("div", { className: "row" }, ...series.items.map(itemCard)));
+    const done = recordings.filter((r) => r.status === "completed").slice(0, 12);
+    if (done.length) parts.push(el("h2", {}, "Registrazioni recenti"), el("div", { className: "row" }, ...done.map(recordingCard)));
     main.replaceChildren(...parts);
+    // The featured title: the first thing to continue, else the newest film.
+    const first = cont[0] ? heroFromContinue(cont[0]) : films.items[0] ? heroFromItem(films.items[0]) : null;
+    if (first) showHero(hero, first);
+    let heroTimer;
+    main.addEventListener("focusin", (e) => {
+      const card = e.target.closest(".card");
+      if (!card || !card.hero) return;
+      clearTimeout(heroTimer);
+      heroTimer = setTimeout(() => showHero(hero, card.hero), 350);
+    });
   }
+
+  function heroFromItem(item) {
+    return { id: item.id, title: item.display_title, logo: item.logo,
+      meta: [item.year, { 4: "4K", 3: "Full HD" }[item.quality], item.rating ? "★ " + Number(item.rating).toLocaleString("it-IT", { maximumFractionDigits: 1 }) : ""],
+      actions: [["primary", "play", "Guarda", () => openDetail(item)], ["", "info", "Dettagli", () => openDetail(item)]] };
+  }
+  function heroFromContinue(c) {
+    const episode = c.media === "episode";
+    const title = episode ? c.series_title : c.title;
+    const ep = episode ? "S" + c.season + "E" + c.number + " · " + c.title : "";
+    return { id: episode ? c.series_id : c.id, title, logo: c.image,
+      meta: [c.next ? "Prossima puntata" : episode ? "Continua" : "Mancano " + clock(c.progress.duration - c.progress.position), ep],
+      actions: [["primary", "play", c.next ? "Guarda la puntata" : "Riprendi", () => play(c.media, c.id, title + (episode ? " · " + ep : ""), c.next ? 0 : c.progress.position)]] };
+  }
+
+  let heroShown = null;
+  async function showHero(hero, h) {
+    heroShown = h;
+    const buttons = h.actions.map(([kind, icon, text, fn]) => {
+      const b = el("button", { className: "button focusable " + kind });
+      window.VodMax.label(b, icon, text);
+      b.onclick = fn;
+      return b;
+    });
+    const plot = el("p", { className: "hero-plot" });
+    const art = el("div", { className: "hero-art" });
+    hero.replaceChildren(art, el("div", { className: "hero-text" }, el("h1", {}, h.title),
+      el("p", { className: "hero-meta" }, h.meta.filter(Boolean).join(" · ")), plot, el("div", { className: "hero-actions" }, ...buttons)));
+    if (h.logo) art.style.backgroundImage = "url(" + JSON.stringify(h.logo) + ")";
+    const d = await detailsOf(h.id);
+    if (heroShown !== h) return;
+    plot.textContent = d.plot || "";
+    if (d.backdrop) {
+      const img = new Image();
+      img.onload = () => { if (heroShown === h) { art.style.backgroundImage = "url(" + JSON.stringify(d.backdrop) + ")"; art.classList.add("wide"); } };
+      img.src = d.backdrop;
+    }
+  }
+
+  function channelCard(c) {
+    const p = c.now;
+    const pct = p ? Math.min(100, Math.max(0, ((Date.now() / 1000 - p.start) / (p.stop - p.start)) * 100)) : 0;
+    const art = el("div", { className: "poster channel-art" }, c.logo ? el("img", { src: c.logo, alt: "", loading: "lazy" }) : el("span", {}, c.name));
+    const card = el("button", { className: "card wide focusable" }, art,
+      p ? el("div", { className: "bar" }, el("div", { style: "width:" + pct + "%" })) : null,
+      el("span", { className: "label" }, c.number + " · " + c.name), el("span", { className: "sub" }, p ? p.title : "Nessuna informazione"));
+    card.onclick = () => { location.href = "/tv.html?channel=" + c.id; };
+    return card;
+  }
+
+  function recordingCard(r) {
+    const card = el("button", { className: "card wide focusable" }, el("div", { className: "poster rec-art" }, el("span", {}, r.channel)),
+      el("span", { className: "label" }, r.title),
+      el("span", { className: "sub" }, new Date(r.start * 1000).toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" }) + " " + hhmm(r.start)));
+    card.onclick = () => playRecording(r);
+    return card;
+  }
+
 
   async function renderGrid(main, kind, cursor, grid) {
     const page = await api("GET", "/api/v1/catalog/" + kind + "?limit=60" + (cursor ? "&cursor=" + encodeURIComponent(cursor) : ""));
@@ -308,8 +399,9 @@
       ["Titolo originale", d.original_title && d.original_title !== item.display_title ? d.original_title : ""]];
     for (const [k, v] of rows) if (v) $("detail-credits").append(el("dt", {}, k), el("dd", {}, v));
     if (d.trailer) {
-      const a = el("a", { className: "button secondary focusable", href: "https://www.youtube.com/watch?v=" + encodeURIComponent(d.trailer),
-        target: "_blank", rel: "noopener noreferrer" }, "▶ Trailer");
+      const a = el("a", { className: "button focusable trailer", href: "https://www.youtube.com/watch?v=" + encodeURIComponent(d.trailer),
+        target: "_blank", rel: "noopener noreferrer" });
+      window.VodMax.label(a, "circle-play", "Trailer");
       $("detail-actions").append(a);
     }
     if (d.backdrop) {
@@ -351,18 +443,25 @@
     const saved = await api("GET", "/api/v1/progress/movie/" + item.id).catch(() => null);
     const resume = saved && !saved.completed && saved.position > 30 ? saved : null;
     if (resume) {
-      const r = el("button", { className: "button focusable" }, "Riprendi da " + clock(resume.position));
+      const r = el("button", { className: "button primary focusable" });
+      window.VodMax.label(r, "play", "Riprendi da " + clock(resume.position));
       r.onclick = () => play("movie", item.id, item.display_title, resume.position);
       actions.append(r);
     }
-    const start = el("button", { className: "button focusable" + (resume ? " secondary" : "") }, resume ? "Dall'inizio" : "Guarda");
+    const start = el("button", { className: "button focusable" + (resume ? "" : " primary") });
+    window.VodMax.label(start, resume ? "undo-2" : "play", resume ? "Dall'inizio" : "Guarda");
     start.onclick = () => play("movie", item.id, item.display_title, 0);
     actions.append(start);
     if (item.variant_count > 1) {
-      const v = el("button", { className: "button secondary focusable" }, "Altre versioni");
+      const v = el("button", { className: "button focusable" });
+      v.dataset.variants = "1";
+      window.VodMax.label(v, "layers", "Altre versioni");
       v.onclick = () => showVariants(item);
       actions.append(v);
     }
+    // The trailer (added when the details arrive) always comes last.
+    const trailer = actions.querySelector(".trailer");
+    if (trailer) actions.append(trailer);
     focusFirst(actions);
   }
 
@@ -588,7 +687,7 @@
   function updateToggle() {
     const p = state.play;
     const paused = p && (p.ts ? p.ts.paused : video.paused);
-    $("player-toggle").textContent = paused ? "▶ Riprendi" : "⏸ Pausa";
+    window.VodMax.label($("player-toggle"), paused ? "play" : "pause", paused ? "Riprendi" : "Pausa");
   }
   video.addEventListener("play", updateToggle);
   video.addEventListener("pause", updateToggle);

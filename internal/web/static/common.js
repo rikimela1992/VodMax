@@ -147,8 +147,10 @@ window.VodMax = (() => {
     for (const a of document.querySelectorAll('a[href="/settings.html"]')) a.hidden = !who.admin;
     const nav = document.getElementById("tabs");
     if (nav && who.profile && !document.getElementById("profile-chip")) {
-      nav.append(el("button", { id: "profile-chip", className: "tab focusable", type: "button",
-        title: "Cambia profilo", onclick: () => { store.set("profile", ""); showProfiles(); } }, "👤 " + who.profile.name));
+      const chip = el("button", { id: "profile-chip", className: "tab focusable", type: "button",
+        title: "Cambia profilo (" + who.profile.name + ")", onclick: () => { store.set("profile", ""); showProfiles(); } });
+      chip.append(window.VodMaxIcons ? VodMaxIcons.icon("user") : "", el("span", { className: "tab-text" }, who.profile.name));
+      nav.append(chip);
     }
   }
 
@@ -376,5 +378,13 @@ window.VodMax = (() => {
     setInterval(check, 30000);
   }
 
-  return { store, viewer, token, withToken, askToken, showProfiles, me, api, keyOf, clock, hhmm, tsPlayer, hlsPlayer, watchStatus };
+  // A button's icon and text together (icons.js).
+  function label(el, iconName, text) {
+    const parts = [];
+    if (iconName && window.VodMaxIcons) parts.push(VodMaxIcons.icon(iconName));
+    parts.push(text);
+    el.replaceChildren(...parts);
+  }
+
+  return { label, store, viewer, token, withToken, askToken, showProfiles, me, api, keyOf, clock, hhmm, tsPlayer, hlsPlayer, watchStatus };
 })();

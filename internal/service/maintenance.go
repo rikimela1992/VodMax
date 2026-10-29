@@ -151,7 +151,7 @@ func (s *Service) checkVPNs(ctx context.Context, log *slog.Logger) {
 			continue
 		}
 		start, cancel := context.WithTimeout(ctx, 30*time.Second)
-		_, err := s.tunnel(start, id)
+		nt, err := s.tunnel(start, id)
 		cancel()
 		s.mu.Lock()
 		if t != nil {
@@ -170,6 +170,9 @@ func (s *Service) checkVPNs(ctx context.Context, log *slog.Logger) {
 			s.setVPNHealth(h, false, "collegamento non riuscito: "+err.Error(), now)
 			log.Warn("VPN non collegata", "vpn", id, "err", err)
 		} else {
+			if nt.Status().Connected { // a VPN outside VodMax, or an immediate handshake
+				s.setVPNHealth(h, true, "", now)
+			}
 			log.Info("VPN (ri)collegata", "vpn", id)
 		}
 	}
@@ -356,7 +359,7 @@ func (s *Service) Status(ctx context.Context) (SystemStatus, error) {
 	}
 	s.mu.Lock()
 	for id, h := range s.maint.vpn {
-		if h.OK || vpnName[id] == "" {
+		if h.OK || vpnName[id] == "" || h.Error == "" { // "" : not checked yet
 			continue
 		}
 		out.Problems = append(out.Problems, Problem{Level: "error", Area: "vpn",

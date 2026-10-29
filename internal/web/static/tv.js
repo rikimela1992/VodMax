@@ -332,14 +332,14 @@
     const ctl = $("controls");
     const p = state.player;
     const c = state.current;
-    $("ctl-toggle").textContent = p && p.paused ? "▶ Riprendi" : "⏸ Pausa";
+    VodMax.label($("ctl-toggle"), p && p.paused ? "play" : "pause", p && p.paused ? "Riprendi" : "Pausa");
     const behind = p ? p.behind() : 0;
     const live = $("ctl-live");
     live.classList.toggle("behind", behind > 12);
-    live.textContent = behind > 12 ? "⏭ Torna in diretta (−" + VodMax.clock(behind) + ")" : "● In diretta";
+    VodMax.label(live, behind > 12 ? "skip-forward" : "radio", behind > 12 ? "Torna in diretta (−" + VodMax.clock(behind) + ")" : "In diretta");
     const fav = $("ctl-fav");
     fav.classList.toggle("on", Boolean(c && c.favorite));
-    fav.textContent = c && c.favorite ? "★ Preferito" : "☆ Preferito";
+    VodMax.label(fav, "star", c && c.favorite ? "Preferito ✓" : "Preferito");
     ctl.hidden = false;
     clearTimeout(state.timers.controls);
     // They stay on screen only while the viewer has paused (the way back
@@ -371,7 +371,7 @@
   setInterval(() => { if (!$("controls").hidden) {
     const p = state.player, behind = p ? p.behind() : 0;
     $("ctl-live").classList.toggle("behind", behind > 12);
-    $("ctl-live").textContent = behind > 12 ? "⏭ Torna in diretta (−" + VodMax.clock(behind) + ")" : "● In diretta";
+    VodMax.label($("ctl-live"), behind > 12 ? "skip-forward" : "radio", behind > 12 ? "Torna in diretta (−" + VodMax.clock(behind) + ")" : "In diretta");
   } }, 1000);
 
   // ---- Recording ----

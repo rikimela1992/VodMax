@@ -1,22 +1,11 @@
-:root {
-  --bg: #08090b;
-  --panel: rgba(16, 17, 21, 0.92);
-  --raised: #1c1e24;
-  --text: #f7f7f8;
-  --soft: #b4b5bb;
-  --accent: #fd4b43;
-  --line: rgba(255, 255, 255, 0.14);
-  --fav: #f0c987;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  color-scheme: dark;
-}
+/* Full-screen TV. Colours and fonts: ui.css. */
 
 * { box-sizing: border-box; }
 
 html, body {
   margin: 0;
   height: 100%;
-  background: var(--bg);
+  background: #000;
   color: var(--text);
   overflow: hidden;
 }

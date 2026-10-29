@@ -1,0 +1,226 @@
+/* VodMax design base, shared by every page (before the page's own CSS).
+   Built for a TV seen from the sofa first (10-foot UI), then PC and
+   phone: large text that grows with the screen, safe margins, one strong
+   focus style everywhere, icons from icons.js. */
+
+:root {
+  --bg: #0b0c10;
+  --surface: #13151b;
+  --raised: #1d2028;
+  --panel: rgba(17, 19, 25, 0.96);
+  --text: #f5f5f7;
+  --soft: #a9abb5;
+  --faint: #6e717c;
+  --accent: #ff4d4f;
+  --accent-soft: rgba(255, 77, 79, 0.18);
+  --focus: #ffffff;
+  --line: rgba(255, 255, 255, 0.12);
+  --fav: #f2c879;
+  --ok: #7fd8ad;
+  --bad: #ff9a92;
+  --radius: 12px;
+  --gap: 1rem;
+  /* Margins: 5% on TV-sized screens (overscan), smaller elsewhere. */
+  --safe: clamp(16px, 4vw, 96px);
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  /* ~15 px on a phone, ~18 px on a laptop, ~24 px on a 1080p TV, more on 4K. */
+  font-size: clamp(15px, 0.95vw + 6px, 34px);
+  line-height: 1.4;
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+}
+@media (min-width: 1600px) { :root { --safe: 5vw; } }
+
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--text); }
+[hidden] { display: none !important; }
+
+.icon { width: 1.15em; height: 1.15em; flex: none; vertical-align: -0.2em; }
+
+/* ---- Focus: visible from across the room ---- */
+:focus { outline: none; }
+.focusable:focus-visible, .focusable:focus {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+button, a { -webkit-tap-highlight-color: transparent; }
+
+/* Buttons: filled when focused, like the big streaming apps. */
+.button, .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.7em 1.4em;
+  font: inherit;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.14);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.15s var(--ease), background 0.15s, color 0.15s;
+}
+.button.primary, .btn.primary { color: #0b0c10; background: var(--text); }
+.button.secondary { background: rgba(255, 255, 255, 0.1); }
+.button:hover, .btn:hover { background: rgba(255, 255, 255, 0.24); }
+.button.primary:hover { background: #fff; }
+.button:focus, .btn:focus, .button:focus-visible, .btn:focus-visible {
+  outline: none;
+  color: #0b0c10;
+  background: var(--focus);
+  transform: scale(1.06);
+  box-shadow: 0 0.6em 1.8em rgba(0, 0, 0, 0.55);
+}
+
+/* ---- Header with tabs ---- */
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem var(--safe);
+  background: linear-gradient(180deg, rgba(11, 12, 16, 0.95) 60%, rgba(11, 12, 16, 0));
+}
+#tabs { display: flex; gap: 0.2rem; flex-wrap: nowrap; min-width: 0; flex: 1 1 auto; overflow-x: auto; scrollbar-width: none; padding: 4px; }
+#tabs::-webkit-scrollbar { display: none; }
+.tab { flex: none; }
+.tab.icon-only .tab-text { display: none; }
+@media (max-width: 1500px) { #profile-chip .tab-text { display: none; } }
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.5em 1em;
+  font: inherit;
+  font-weight: 500;
+  color: var(--soft);
+  text-decoration: none;
+  background: none;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, transform 0.15s var(--ease);
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--text); background: var(--raised); }
+.tab:focus, .tab:focus-visible { outline: none; color: #0b0c10; background: var(--focus); transform: scale(1.05); }
+
+#search {
+  margin-left: auto;
+  flex: 0 1 18rem;
+  min-width: 8rem;
+  width: auto;
+  padding: 0.55em 1.1em;
+  font: inherit;
+  color: var(--text);
+  background: var(--raised);
+  border: 2px solid transparent;
+  border-radius: 999px;
+}
+#search:focus { border-color: var(--focus); outline: none; }
+
+main { padding: 0 var(--safe) 4rem; }
+h2 { margin: 1.8rem 0 0.8rem; font-size: 1.2rem; font-weight: 600; color: var(--text); letter-spacing: 0.01em; }
+.empty { color: var(--soft); }
+
+/* ---- Rows of cards (scroll sideways; focus scrolls them) ---- */
+.row {
+  display: flex;
+  gap: var(--gap);
+  padding: 0.7rem 0.4rem 1rem;
+  margin: 0 -0.4rem;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+.row::-webkit-scrollbar { display: none; }
+
+.card {
+  position: relative;
+  flex: 0 0 clamp(8.5rem, 11vw, 13rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.card .poster {
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  padding: 0.7rem;
+  overflow: hidden;
+  font-weight: 600;
+  object-fit: cover;
+  background: linear-gradient(160deg, #23262f, #14161c);
+  border-radius: var(--radius);
+  transition: transform 0.2s var(--ease), box-shadow 0.2s;
+}
+.card img.poster { padding: 0; }
+.card.wide { flex-basis: clamp(15rem, 20vw, 24rem); }
+.card.wide .poster { aspect-ratio: 16 / 9; }
+.card .label { font-size: 0.92rem; line-height: 1.25; max-height: 2.5em; overflow: hidden; color: var(--soft); transition: color 0.15s; }
+.card .sub { font-size: 0.8rem; color: var(--faint); }
+.card .bar { height: 4px; background: rgba(255, 255, 255, 0.15); border-radius: 2px; overflow: hidden; }
+.card .bar div { height: 100%; background: var(--accent); }
+.card:focus, .card:focus-visible { outline: none; }
+.card:focus .poster, .card:hover .poster {
+  transform: scale(1.06);
+  box-shadow: 0 0 0 3px var(--focus), 0 1rem 2.4rem rgba(0, 0, 0, 0.6);
+}
+.card:focus .label { color: var(--text); }
+.badge {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  padding: 0.1em 0.5em;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.72);
+  border-radius: 6px;
+}
+
+/* ---- Loading placeholders ---- */
+.skeleton {
+  background: linear-gradient(90deg, #171920 0%, #22252e 50%, #171920 100%);
+  background-size: 200% 100%;
+  border-radius: var(--radius);
+  animation: shimmer 1.4s linear infinite;
+}
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+  * { transition: none !important; scroll-behavior: auto !important; }
+}
+
+/* ---- Notices ---- */
+.status {
+  position: fixed;
+  top: 6vh;
+  left: 50%;
+  z-index: 20;
+  transform: translateX(-50%);
+  padding: 0.8rem 1.3rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 1rem 2.5rem rgba(0, 0, 0, 0.5);
+}
+
+/* ---- Phone ---- */
+@media (max-width: 700px) {
+  .top { flex-wrap: wrap; padding-top: 0.6rem; }
+  #tabs { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+  #search { width: 100%; margin: 0; }
+  .tab { padding: 0.45em 0.8em; }
+}

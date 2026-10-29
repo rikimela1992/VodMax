@@ -4,18 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VodMax</title>
+<link rel="stylesheet" href="ui.css">
 <link rel="stylesheet" href="vod.css">
 </head>
 <body>
 <header class="top">
   <nav id="tabs">
-    <button class="tab focusable" data-view="home">Home</button>
-    <button class="tab focusable" data-view="movie">Film</button>
-    <button class="tab focusable" data-view="series">Serie</button>
-    <button class="tab focusable" data-view="recordings">Registrazioni</button>
-    <button class="tab focusable" data-view="tv">TV</button>
-    <a class="tab focusable" href="/guide.html">Guida</a>
-    <a class="tab focusable" href="/settings.html">Impostazioni</a>
+    <button class="tab focusable" data-view="home" data-icon="house">Home</button>
+    <button class="tab focusable" data-view="movie" data-icon="film">Film</button>
+    <button class="tab focusable" data-view="series" data-icon="clapperboard">Serie</button>
+    <button class="tab focusable" data-view="recordings" data-icon="video">Registrazioni</button>
+    <button class="tab focusable" data-view="tv" data-icon="tv">TV</button>
+    <a class="tab focusable" href="/guide.html" data-icon="calendar-days">Guida</a>
+    <a class="tab focusable icon-only" href="/settings.html" data-icon="settings" title="Impostazioni" aria-label="Impostazioni"><span class="tab-text">Impostazioni</span></a>
   </nav>
   <input id="search" class="focusable" type="search" placeholder="Cerca film e serie" autocomplete="off" aria-label="Cerca">
 </header>
@@ -23,7 +24,7 @@
 <main id="content" aria-live="polite"></main>
 
 <section id="detail" class="detail" hidden>
-  <button id="detail-back" class="back-button focusable" type="button">← Indietro</button>
+  <button id="detail-back" class="back-button focusable" type="button" data-icon="arrow-left">Indietro</button>
   <div class="detail-head">
     <img id="detail-image" alt="" hidden>
     <div>
@@ -48,13 +49,13 @@
     </div>
     <div class="player-time"><span id="player-pos">0:00</span><span id="player-dur"></span></div>
     <div class="player-buttons">
-      <button class="focusable" data-action="close">✕ Chiudi</button>
-      <button class="focusable" data-action="back10">⏪ 10 s</button>
-      <button class="focusable" data-action="toggle" id="player-toggle">⏸ Pausa</button>
-      <button class="focusable" data-action="fwd30">30 s ⏩</button>
-      <button class="focusable" data-action="live" id="player-live" hidden>⏭ Torna in diretta</button>
-      <button class="focusable" data-action="audio" id="player-audio" hidden>🔊 Audio</button>
-      <button class="focusable" data-action="subs" id="player-subs" hidden>💬 Sottotitoli</button>
+      <button class="focusable" data-action="close" data-icon="x">Chiudi</button>
+      <button class="focusable" data-action="back10" data-icon="rotate-ccw">10 s</button>
+      <button class="focusable" data-action="toggle" data-icon="pause" id="player-toggle">Pausa</button>
+      <button class="focusable" data-action="fwd30" data-icon="rotate-cw">30 s</button>
+      <button class="focusable" data-action="live" data-icon="skip-forward" id="player-live" hidden>Torna in diretta</button>
+      <button class="focusable" data-action="audio" data-icon="volume-2" id="player-audio" hidden>Audio</button>
+      <button class="focusable" data-action="subs" data-icon="captions" id="player-subs" hidden>Sottotitoli</button>
     </div>
     <div id="player-menu" class="player-menu" hidden></div>
     <div class="hint">OK o Spazio pausa · ◀ −10 s · ▶ +30 s · ▼ comandi · Indietro chiude</div>
@@ -63,6 +64,7 @@
 
 <div id="status" class="status" hidden></div>
 <script src="vendor/mpegts-1.8.2.min.js"></script>
+<script src="icons.js"></script>
 <script src="common.js"></script>
 <script src="vod.js"></script>
 </body>
