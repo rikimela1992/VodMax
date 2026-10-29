@@ -1,5 +1,5 @@
-// Shared by the VodMax pages: settings in localStorage, the admin token
-// (from a link or asked on screen), the player id and API calls.
+// Shared by the VodMax pages: settings in localStorage, device pairing and
+// profile choice, the player id and API calls.
 "use strict";
 
 window.VodMax = (() => {
@@ -23,6 +23,7 @@ window.VodMax = (() => {
     const t = new URLSearchParams(location.hash.slice(1)).get("token");
     if (t) {
       store.set("token", t);
+      store.set("profile", "");
       history.replaceState(null, "", location.pathname + location.search);
     }
     return Boolean(t);
@@ -32,46 +33,148 @@ window.VodMax = (() => {
   addEventListener("hashchange", () => { if (tokenFromLink()) location.reload(); });
 
   function token() { return store.get("token", ""); }
+  function profileToken() { return store.get("profile", ""); }
+  const handled = (msg) => Object.assign(new Error(msg), { handled: true });
 
-  // Asks for the admin token when it is missing or refused, on any page.
+  // A full-screen panel (pairing, profile choice, token): one at a time.
+  function overlay(id, ...children) {
+    for (const old of document.querySelectorAll(".setup-panel")) old.remove();
+    const box = Object.assign(document.createElement("section"), { id, className: "panel setup-panel" });
+    box.append(...children);
+    document.body.append(box);
+    return box;
+  }
+  const el = (tag, props = {}, ...children) => {
+    const e = Object.assign(document.createElement(tag), props);
+    e.append(...children.filter((c) => c !== null && c !== undefined));
+    return e;
+  };
+
+  // Asks for the admin token (the server's master key, file admin.token).
   function askToken(message) {
-    if (document.getElementById("token-setup")) return;
-    const input = Object.assign(document.createElement("input"), { type: "password", autocomplete: "off", spellcheck: false });
+    const input = el("input", { type: "password", autocomplete: "off", spellcheck: false });
     input.setAttribute("aria-label", "Token di amministrazione");
-    const form = document.createElement("form");
-    const button = Object.assign(document.createElement("button"), { type: "submit", textContent: "Continua" });
-    form.append(input, button);
-    const box = Object.assign(document.createElement("section"), { id: "token-setup", className: "panel setup-panel" });
-    const title = Object.assign(document.createElement("h1"), { textContent: "VodMax" });
-    const text = Object.assign(document.createElement("p"), { textContent: message || "Inserisci il token di amministrazione del server (file admin.token)." });
-    box.append(title, text, form);
+    const form = el("form", {}, input, el("button", { type: "submit" }, "Continua"));
     form.addEventListener("submit", (e) => {
       e.preventDefault();
       store.set("token", input.value.trim());
+      store.set("profile", "");
       location.reload();
     });
-    document.body.append(box);
+    overlay("token-setup", el("h1", {}, "VodMax"),
+      el("p", {}, message || "Token di amministrazione del server (file admin.token)."), form,
+      el("button", { type: "button", className: "link", onclick: () => showPairing() }, "← Abbina con un codice"));
     input.focus();
   }
 
-  // Runs start() when a token is available, otherwise asks for it.
+  // Pairing: the device shows a code, an admin approves it elsewhere.
+  let pairingTimer;
+  async function showPairing() {
+    clearTimeout(pairingTimer);
+    let req;
+    try {
+      const res = await fetch("/api/v1/pair", { method: "POST" });
+      req = await res.json();
+      if (!res.ok) throw new Error(req.error || "errore " + res.status);
+    } catch (e) {
+      overlay("pairing", el("h1", {}, "VodMax"), el("p", {}, "Impossibile avviare l'abbinamento: " + e.message),
+        el("button", { type: "button", onclick: () => showPairing() }, "Riprova"));
+      return;
+    }
+    const code = el("p", { className: "pair-code" }, req.code);
+    const admin = el("button", { type: "button", className: "link", onclick: () => { clearTimeout(pairingTimer); askToken(); } }, "Ho il token di amministrazione");
+    overlay("pairing", el("h1", {}, "Abbina questo dispositivo"),
+      el("p", {}, "Su un dispositivo già abbinato, con un profilo amministratore, apri Impostazioni → Dispositivi → Abbina, e inserisci il codice:"),
+      code, el("p", { className: "hint" }, "Il codice vale 10 minuti, poi ne compare uno nuovo."), admin);
+    admin.focus();
+    const poll = async () => {
+      try {
+        const res = await fetch("/api/v1/pair/" + req.poll);
+        if (res.status === 200) {
+          store.set("token", (await res.json()).token);
+          store.set("profile", "");
+          location.reload();
+          return;
+        }
+        if (res.status === 404) { showPairing(); return; }
+      } catch { /* network hiccup: keep polling */ }
+      pairingTimer = setTimeout(poll, 3000);
+    };
+    pairingTimer = setTimeout(poll, 3000);
+  }
+
+  const KIND = { admin: "amministratore", standard: "", kids: "bambini" };
+
+  // "Who is watching?"
+  async function showProfiles() {
+    let list;
+    try { list = await api("GET", "/api/v1/profiles"); } catch { return; }
+    const buttons = list.map((p) => el("button", { type: "button", className: "profile-choice focusable", onclick: () => choose(p) },
+      el("span", { className: "profile-name" }, p.name), el("span", { className: "profile-kind" }, (KIND[p.kind] || "") + (p.has_pin ? " 🔒" : ""))));
+    const box = overlay("profiles", el("h1", {}, "Chi guarda?"), el("div", { className: "profile-grid" }, ...buttons));
+    if (buttons[0]) buttons[0].focus();
+    async function choose(p) {
+      if (!p.has_pin) return select(p, "");
+      const pin = el("input", { type: "password", inputMode: "numeric", autocomplete: "off", maxLength: 8 });
+      pin.setAttribute("aria-label", "PIN di " + p.name);
+      const msg = el("p", { className: "hint" }, "");
+      const form = el("form", {}, pin, el("button", { type: "submit" }, "Entra"));
+      form.addEventListener("submit", (e) => { e.preventDefault(); select(p, pin.value, msg); });
+      box.replaceChildren(el("h1", {}, p.name), el("p", {}, "PIN del profilo"), form, msg,
+        el("button", { type: "button", className: "link", onclick: () => showProfiles() }, "← Altri profili"));
+      pin.focus();
+    }
+    async function select(p, pin, msg) {
+      try {
+        const r = await api("POST", "/api/v1/profiles/" + p.id + "/select", { pin });
+        store.set("profile", r.profile_token);
+        location.reload();
+      } catch (e) {
+        if (msg) msg.textContent = e.message; else alert(e.message);
+      }
+    }
+  }
+
+  // Shows the profile in the page header and hides what it cannot use.
+  let meCache;
+  async function me() {
+    if (!meCache) meCache = api("GET", "/api/v1/me");
+    return meCache;
+  }
+  async function decorate() {
+    let who;
+    try { who = await me(); } catch { return; }
+    for (const a of document.querySelectorAll('a[href="/settings.html"]')) a.hidden = !who.admin;
+    const nav = document.getElementById("tabs");
+    if (nav && who.profile && !document.getElementById("profile-chip")) {
+      nav.append(el("button", { id: "profile-chip", className: "tab focusable", type: "button",
+        title: "Cambia profilo", onclick: () => { store.set("profile", ""); showProfiles(); } }, "👤 " + who.profile.name));
+    }
+  }
+
+  // Runs start() once the device is paired, otherwise pairs it.
   function withToken(start) {
-    if (!token()) { askToken(); return; }
+    if (!token()) { showPairing(); return; }
     start();
+    decorate();
     watchStatus();
   }
 
   async function api(method, path, body) {
-    const res = await fetch(path, {
-      method,
-      headers: { Authorization: "Bearer " + token(), "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-    if (res.status === 401) {
-      askToken("Il token salvato non è valido (forse è di un'altra installazione): inseriscilo di nuovo.");
-      throw new Error("token non valido");
-    }
+    const headers = { "Content-Type": "application/json" };
+    if (token()) headers.Authorization = "Bearer " + token();
+    if (profileToken()) headers["X-Profile"] = profileToken();
+    const res = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
     const data = res.status === 204 ? null : await res.json().catch(() => null);
+    if (res.status === 401) {
+      showPairing();
+      throw handled("dispositivo non abbinato");
+    }
+    if (res.status === 403 && data && data.code === "profile_required") {
+      store.set("profile", "");
+      showProfiles();
+      throw handled("scegli un profilo");
+    }
     if (!res.ok) throw Object.assign(new Error(data && data.error ? data.error : "errore " + res.status), { status: res.status });
     return data;
   }
@@ -175,16 +278,17 @@ window.VodMax = (() => {
       let box = document.getElementById("server-problems");
       if (!problems.length) { if (box) box.remove(); return; }
       if (!box) {
-        box = Object.assign(document.createElement("a"), { id: "server-problems", href: "/settings.html?view=system" });
+        box = Object.assign(document.createElement("a"), { id: "server-problems" });
         document.body.append(box);
       }
       const error = problems.some((p) => p.level === "error");
       box.className = error ? "error" : "warning";
+      box.href = "/settings.html?view=" + (problems[0].area === "profile" ? "profiles" : "system");
       box.textContent = "⚠ " + problems[0].text + (problems.length > 1 ? " (e altri " + (problems.length - 1) + ")" : "");
     };
     check();
     setInterval(check, 30000);
   }
 
-  return { store, viewer, token, withToken, askToken, api, keyOf, clock, hhmm, tsPlayer, watchStatus };
+  return { store, viewer, token, withToken, askToken, showProfiles, me, api, keyOf, clock, hhmm, tsPlayer, watchStatus };
 })();

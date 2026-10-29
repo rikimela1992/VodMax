@@ -20,7 +20,8 @@ import (
 	"github.com/rikimela1992/vodmax/internal/store"
 )
 
-// DefaultProfile is used until profiles exist.
+// DefaultProfile is created with the database (the first admin profile)
+// and used by internal work that has no viewer.
 const DefaultProfile = 1
 
 // GuideResult reports a guide synchronisation.
@@ -134,7 +135,8 @@ func (s *Service) TVChannels(ctx context.Context, section string, favorites bool
 	default:
 		return nil, invalid("sezione non valida")
 	}
-	list, err := s.st.TVChannels(ctx, DefaultProfile, section, favorites, time.Now())
+	v := viewerOf(ctx)
+	list, err := s.st.TVChannels(ctx, v.ProfileID, v.Kids, section, favorites, time.Now())
 	if list == nil {
 		list = []store.TVChannel{}
 	}
@@ -146,12 +148,18 @@ func (s *Service) ChannelGuide(ctx context.Context, itemID int64, hours int) ([]
 	if hours <= 0 || hours > 72 {
 		hours = 24
 	}
+	if err := s.allowItem(ctx, itemID); err != nil {
+		return nil, err
+	}
 	now := time.Now()
 	return s.st.ChannelGuide(ctx, itemID, now.Add(-2*time.Hour), now.Add(time.Duration(hours)*time.Hour))
 }
 
 func (s *Service) SetFavorite(ctx context.Context, itemID int64, favorite bool) error {
-	return s.st.SetFavorite(ctx, DefaultProfile, itemID, favorite)
+	if err := s.allowItem(ctx, itemID); err != nil {
+		return err
+	}
+	return s.st.SetFavorite(ctx, viewerOf(ctx).ProfileID, itemID, favorite)
 }
 
 // ---- Live streams ----
@@ -186,6 +194,9 @@ func (s *Service) LiveTicket(ctx context.Context, itemID int64, viewer string) (
 	}
 	if it.Kind != "live" {
 		return "", invalid("non è un canale in diretta")
+	}
+	if err := s.allowItem(ctx, itemID); err != nil {
+		return "", err
 	}
 	t := randomToken()
 	s.live.mu.Lock()

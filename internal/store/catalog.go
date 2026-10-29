@@ -219,9 +219,10 @@ type Query struct {
 	Section        string // live only: tv, sport, radio
 	// All lists every available variant, including what the user's
 	// selection hides (for the selection editor).
-	All    bool
-	Cursor string
-	Limit  int
+	All     bool
+	NoAdult bool // kids profiles
+	Cursor  string
+	Limit   int
 }
 
 // Page is a slice of results with an opaque cursor for the next one.
@@ -286,6 +287,9 @@ func (s *Store) Catalog(ctx context.Context, q Query) (Page, error) {
 	args := []any{q.Kind}
 	if q.Section != "" {
 		where, args = append(where, "i.section = ?"), append(args, q.Section)
+	}
+	if q.NoAdult {
+		where = append(where, "i.adult = 0")
 	}
 	if q.SubscriptionID != 0 {
 		where, args = append(where, "i.subscription_id = ?"), append(args, q.SubscriptionID)

@@ -35,6 +35,10 @@ func (s *Service) Episodes(ctx context.Context, seriesItemID int64) ([]store.Epi
 	if it.Kind != "series" {
 		return nil, invalid("non è una serie")
 	}
+	if err := s.allowItem(ctx, seriesItemID); err != nil {
+		return nil, err
+	}
+	profile := viewerOf(ctx).ProfileID
 	fetched, err := s.st.SeriesFetchedAt(ctx, seriesItemID)
 	if err != nil {
 		return nil, err
@@ -42,13 +46,13 @@ func (s *Service) Episodes(ctx context.Context, seriesItemID int64) ([]store.Epi
 	if time.Since(fetched) > episodesFreshFor {
 		if err := s.loadEpisodes(ctx, it); err != nil {
 			// Stale episodes are better than none.
-			if eps, serr := s.st.Episodes(ctx, DefaultProfile, seriesItemID); serr == nil && len(eps) > 0 {
+			if eps, serr := s.st.Episodes(ctx, profile, seriesItemID); serr == nil && len(eps) > 0 {
 				return eps, nil
 			}
 			return nil, err
 		}
 	}
-	return s.st.Episodes(ctx, DefaultProfile, seriesItemID)
+	return s.st.Episodes(ctx, profile, seriesItemID)
 }
 
 func (s *Service) loadEpisodes(ctx context.Context, it store.PlaybackItem) error {
@@ -99,14 +103,21 @@ func (s *Service) SaveProgress(ctx context.Context, media string, id int64, posi
 		if it.Kind != "movie" {
 			return store.Progress{}, invalid("non è un film")
 		}
+		if err := s.allowItem(ctx, id); err != nil {
+			return store.Progress{}, err
+		}
 	case "episode":
-		if _, _, err := s.st.EpisodePlayback(ctx, id); err != nil {
+		_, e, err := s.st.EpisodePlayback(ctx, id)
+		if err != nil {
+			return store.Progress{}, err
+		}
+		if err := s.allowItem(ctx, e.SeriesItemID); err != nil {
 			return store.Progress{}, err
 		}
 	default:
 		return store.Progress{}, invalid("tipo non valido: movie o episode")
 	}
-	p, err := s.st.SaveProgress(ctx, DefaultProfile, media, id, position, duration)
+	p, err := s.st.SaveProgress(ctx, viewerOf(ctx).ProfileID, media, id, position, duration)
 	if err != nil && !errors.Is(err, store.ErrNotFound) {
 		return p, invalid("%v", err)
 	}
@@ -118,11 +129,12 @@ func (s *Service) Progress(ctx context.Context, media string, id int64) (*store.
 	if media != "movie" && media != "episode" {
 		return nil, invalid("tipo non valido: movie o episode")
 	}
-	return s.st.GetProgress(ctx, DefaultProfile, media, id)
+	return s.st.GetProgress(ctx, viewerOf(ctx).ProfileID, media, id)
 }
 
 func (s *Service) Continue(ctx context.Context) ([]store.ContinueEntry, error) {
-	list, err := s.st.Continue(ctx, DefaultProfile, 30)
+	v := viewerOf(ctx)
+	list, err := s.st.Continue(ctx, v.ProfileID, v.Kids, 30)
 	for i := range list {
 		if list[i].ImageAllowed {
 			list[i].Logo = s.LogoURL(list[i].ImageItemID)
@@ -198,11 +210,17 @@ func (s *Service) NewPlaybackSession(ctx context.Context, media string, id int64
 		if it.Kind != "movie" {
 			return PlaybackSession{}, invalid("non è un film")
 		}
+		if err := s.allowItem(ctx, id); err != nil {
+			return PlaybackSession{}, err
+		}
 		title = it.Title
 	case "episode":
 		var e store.Episode
 		var err error
 		if it, e, err = s.st.EpisodePlayback(ctx, id); err != nil {
+			return PlaybackSession{}, err
+		}
+		if err := s.allowItem(ctx, e.SeriesItemID); err != nil {
 			return PlaybackSession{}, err
 		}
 		kind, duration = xtream.KindEpisode, e.Duration
@@ -253,7 +271,7 @@ func (s *Service) NewPlaybackSession(ctx context.Context, media string, id int64
 		}
 		out.URL += "/remux"
 	}
-	if p, err := s.st.GetProgress(ctx, DefaultProfile, media, id); err == nil && p != nil && !p.Completed && p.Position > 30 {
+	if p, err := s.st.GetProgress(ctx, viewerOf(ctx).ProfileID, media, id); err == nil && p != nil && !p.Completed && p.Position > 30 {
 		out.Resume = p
 	}
 	return out, nil

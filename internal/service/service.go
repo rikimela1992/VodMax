@@ -52,6 +52,7 @@ type Service struct {
 	vod    vodState
 	rec    recorderState
 	maint  maintenanceState
+	auth   authState
 }
 
 func New(st *store.Store, box *secret.Box, start StartTunnel) *Service {
@@ -532,6 +533,9 @@ func (s *Service) fetch(ctx context.Context, id int64) (*catalog.Snapshot, error
 
 // Catalog and Categories pass through to the store.
 func (s *Service) Catalog(ctx context.Context, q store.Query) (store.Page, error) {
+	if viewerOf(ctx).Kids {
+		q.NoAdult, q.All = true, false
+	}
 	page, err := s.st.Catalog(ctx, q)
 	s.catalogImages(page.Items)
 	return page, err

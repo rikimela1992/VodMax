@@ -166,19 +166,19 @@ type ContinueEntry struct {
 
 // Continue lists unfinished films and episodes, most recent first. For a
 // series only the latest episode appears.
-func (s *Store) Continue(ctx context.Context, profileID int64, limit int) ([]ContinueEntry, error) {
+func (s *Store) Continue(ctx context.Context, profileID int64, noAdult bool, limit int) ([]ContinueEntry, error) {
 	rows, err := s.r.QueryContext(ctx, `
 		SELECT 'movie', i.id, i.display_title, 0, '', 0, 0, i.year, p.position, p.duration, p.updated_at, i.id, i.image <> ''
 		FROM progress p JOIN item i ON i.id = p.media_id
-		WHERE p.profile_id = ? AND p.media = 'movie' AND p.completed = 0 AND i.available = 1
+		WHERE p.profile_id = ? AND p.media = 'movie' AND p.completed = 0 AND i.available = 1 AND (? = 0 OR i.adult = 0)
 		UNION ALL
 		SELECT 'episode', e.id, e.title, i.id, i.display_title, e.season, e.number, i.year, p.position, p.duration, p.updated_at,
 			i.id, i.image <> ''
 		FROM progress p JOIN episode e ON e.id = p.media_id JOIN item i ON i.id = e.series_item_id
-		WHERE p.profile_id = ? AND p.media = 'episode' AND p.completed = 0 AND i.available = 1
+		WHERE p.profile_id = ? AND p.media = 'episode' AND p.completed = 0 AND i.available = 1 AND (? = 0 OR i.adult = 0)
 			AND p.updated_at = (SELECT max(p2.updated_at) FROM progress p2 JOIN episode e2 ON e2.id = p2.media_id
 				WHERE p2.profile_id = p.profile_id AND p2.media = 'episode' AND e2.series_item_id = e.series_item_id)
-		ORDER BY 11 DESC LIMIT ?`, profileID, profileID, limit)
+		ORDER BY 11 DESC LIMIT ?`, profileID, noAdult, profileID, noAdult, limit)
 	if err != nil {
 		return nil, err
 	}

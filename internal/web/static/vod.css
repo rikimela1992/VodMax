@@ -291,3 +291,15 @@ h2 { font-size: 1.15rem; margin: 1.6rem 0 0.7rem; color: var(--soft); font-weigh
   border-radius: 10px;
 }
 #server-problems.error { border-color: var(--accent); }
+
+.pair-code { font-size: 3.2rem; font-weight: 700; letter-spacing: 0.2em; text-align: center; margin: 1.2rem 0; }
+.setup-panel .hint { color: var(--soft); font-size: 0.9rem; }
+.setup-panel button.link { margin-top: 1rem; padding: 0; color: var(--soft); background: none; border: 0; text-decoration: underline; cursor: pointer; font: inherit; }
+.profile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 0.8rem; margin-top: 1rem; }
+.profile-choice { display: flex; flex-direction: column; gap: 0.3rem; padding: 1.2rem 0.8rem; font: inherit; color: var(--text);
+  background: var(--raised); border: 2px solid transparent; border-radius: 12px; cursor: pointer; }
+.profile-choice:focus, .profile-choice:hover { border-color: var(--text); outline: none; }
+.profile-name { font-size: 1.2rem; font-weight: 600; }
+.profile-kind { color: var(--soft); font-size: 0.85rem; min-height: 1em; }
+.setup-panel button.profile-choice { color: var(--text); background: var(--raised); border: 2px solid transparent; }
+.setup-panel button.profile-choice:focus { border-color: var(--text); }

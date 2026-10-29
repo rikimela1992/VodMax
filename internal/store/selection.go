@@ -36,6 +36,7 @@ type SelectionItem struct {
 	Primary      bool
 	VariantCount int
 	Section      string
+	Adult        bool // from the category: never shown to kids profiles
 }
 
 // SelectionCategories loads all categories with overrides and item counts.
@@ -83,7 +84,7 @@ func (s *Store) SelectionCategories(ctx context.Context, subID int64) ([]Selecti
 func (s *Store) SelectionItems(ctx context.Context) ([]SelectionItem, error) {
 	rows, err := s.r.QueryContext(ctx, `
 		SELECT i.id, i.subscription_id, i.kind, i.category_id, i.group_key, coalesce(i.year, 0), i.quality,
-			coalesce(o.hidden, 0), i.visible, i.primary_variant, i.variant_count, i.section
+			coalesce(o.hidden, 0), i.visible, i.primary_variant, i.variant_count, i.section, i.adult
 		FROM item i LEFT JOIN item_override o ON o.item_id = i.id
 		WHERE i.available = 1`)
 	if err != nil {
@@ -94,7 +95,7 @@ func (s *Store) SelectionItems(ctx context.Context) ([]SelectionItem, error) {
 	for rows.Next() {
 		var it SelectionItem
 		if err := rows.Scan(&it.ID, &it.SubscriptionID, &it.Kind, &it.CategoryID, &it.GroupKey, &it.Year, &it.Quality,
-			&it.Hidden, &it.Visible, &it.Primary, &it.VariantCount, &it.Section); err != nil {
+			&it.Hidden, &it.Visible, &it.Primary, &it.VariantCount, &it.Section, &it.Adult); err != nil {
 			return nil, err
 		}
 		out = append(out, it)
@@ -109,13 +110,13 @@ func (s *Store) WriteSelection(ctx context.Context, items []SelectionItem) error
 		return err
 	}
 	defer tx.Rollback()
-	stmt, err := tx.PrepareContext(ctx, `UPDATE item SET visible = ?, primary_variant = ?, variant_count = ?, section = ? WHERE id = ?`)
+	stmt, err := tx.PrepareContext(ctx, `UPDATE item SET visible = ?, primary_variant = ?, variant_count = ?, section = ?, adult = ? WHERE id = ?`)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 	for _, it := range items {
-		if _, err := stmt.ExecContext(ctx, it.Visible, it.Primary, it.VariantCount, it.Section, it.ID); err != nil {
+		if _, err := stmt.ExecContext(ctx, it.Visible, it.Primary, it.VariantCount, it.Section, it.Adult, it.ID); err != nil {
 			return err
 		}
 	}

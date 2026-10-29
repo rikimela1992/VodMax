@@ -93,7 +93,7 @@ const FirstFreeNumber = 100
 // channels first, then the others (TV, sport, radio, each by name) numbered
 // from FirstFreeNumber. Numbers are computed over all channels, so a
 // channel keeps its number in every section and in the favourites.
-func (s *Store) TVChannels(ctx context.Context, profileID int64, section string, favoritesOnly bool, now time.Time) ([]TVChannel, error) {
+func (s *Store) TVChannels(ctx context.Context, profileID int64, noAdult bool, section string, favoritesOnly bool, now time.Time) ([]TVChannel, error) {
 	rows, err := s.r.QueryContext(ctx, `
 		SELECT i.id, coalesce(i.lcn, 0), i.display_title, i.image, i.section, i.quality, i.variant_count, i.catchup_days,
 			i.group_key, f.position IS NOT NULL, coalesce(f.position, 0),
@@ -101,10 +101,10 @@ func (s *Store) TVChannels(ctx context.Context, profileID int64, section string,
 			         (SELECT c.id FROM epg_channel c WHERE c.name_key = i.name_key AND i.name_key <> '' LIMIT 1), '')
 		FROM item i
 		LEFT JOIN favorite f ON f.profile_id = ? AND f.kind = 'live' AND f.group_key = i.group_key
-		WHERE i.kind = 'live' AND i.available = 1 AND i.visible = 1 AND i.primary_variant = 1
+		WHERE i.kind = 'live' AND i.available = 1 AND i.visible = 1 AND i.primary_variant = 1 AND (? = 0 OR i.adult = 0)
 		ORDER BY i.lcn IS NULL, i.lcn,
 			CASE i.section WHEN 'tv' THEN 0 WHEN 'sport' THEN 1 ELSE 2 END,
-			i.display_title COLLATE NOCASE, i.id`, profileID)
+			i.display_title COLLATE NOCASE, i.id`, profileID, noAdult)
 	if err != nil {
 		return nil, err
 	}

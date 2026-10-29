@@ -48,7 +48,7 @@ func (s *Service) ApplySelection(ctx context.Context) (catalog.Stats, error) {
 	var changed []store.SelectionItem
 	for i := range items {
 		a, b := before[i], items[i]
-		if a.Visible != b.Visible || a.Primary != b.Primary || a.VariantCount != b.VariantCount || a.Section != b.Section {
+		if a.Visible != b.Visible || a.Primary != b.Primary || a.VariantCount != b.VariantCount || a.Section != b.Section || a.Adult != b.Adult {
 			changed = append(changed, b)
 		}
 	}
@@ -179,6 +179,9 @@ func (s *Service) SetItemHidden(ctx context.Context, itemID int64, hidden bool) 
 }
 
 func (s *Service) Variants(ctx context.Context, itemID int64) ([]store.CatalogItem, error) {
+	if err := s.allowItem(ctx, itemID); err != nil {
+		return nil, err
+	}
 	list, err := s.st.Variants(ctx, itemID)
 	s.catalogImages(list)
 	return list, err

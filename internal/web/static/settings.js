@@ -35,7 +35,7 @@
     const main = $("content");
     main.replaceChildren(el("p", { className: "note" }, "Caricamento…"));
     try {
-      await ({ subscriptions: renderSubscriptions, vpn: renderVPN, rules: renderRules, categories: renderCategories, system: renderSystem })[state.view](main);
+      await ({ subscriptions: renderSubscriptions, vpn: renderVPN, rules: renderRules, categories: renderCategories, system: renderSystem, profiles: renderProfiles, devices: renderDevices })[state.view](main);
     } catch (e) {
       main.replaceChildren(el("p", { className: "note bad" }, e.message));
     }
@@ -441,6 +441,113 @@
     ];
   }
 
+  // ---- Profiles ----
+  const KINDS = [["admin", "Amministratore"], ["standard", "Normale"], ["kids", "Bambini"]];
+  async function renderProfiles(main) {
+    const list = await api("GET", "/api/v1/profiles");
+    const parts = [el("h2", {}, "Profili"),
+      el("p", { className: "note" }, "Ogni profilo ha i suoi preferiti e il suo “Continua a guardare”. I profili Bambini non vedono mai contenuti per adulti " +
+        "e non programmano registrazioni. Solo gli amministratori aprono le impostazioni: dai loro un PIN se in casa ci sono bambini.")];
+    for (const p of list) {
+      const box = el("section", { className: "box" }, el("h3", {}, p.name), el("div", { className: "facts" },
+        el("span", {}, "Tipo ", el("b", {}, KINDS.find((k) => k[0] === p.kind)[1])),
+        el("span", {}, "PIN ", el("b", {}, p.has_pin ? "sì" : "no"))));
+      const edit = button("Modifica", () => { edit.disabled = true; box.append(profileForm(p)); });
+      const del = button("Elimina", async () => {
+        if (!confirm("Eliminare il profilo “" + p.name + "” con i suoi preferiti e i suoi avanzamenti?")) return;
+        try { await api("DELETE", "/api/v1/profiles/" + p.id); flash("Profilo eliminato"); } catch (e) { flash(e.message); }
+        render();
+      }, "danger");
+      box.append(el("div", { className: "buttons" }, edit, del));
+      parts.push(box);
+    }
+    parts.push(el("h2", {}, "Nuovo profilo"), profileForm());
+    main.replaceChildren(...parts);
+  }
+
+  function profileForm(existing) {
+    const name = input({ value: existing ? existing.name : "", placeholder: "es. Giulia" });
+    const kind = el("select", { className: "focusable" }, ...KINDS.map(([v, l]) => el("option", { value: v }, l)));
+    kind.value = existing ? existing.kind : "standard";
+    const pin = input({ type: "password", inputMode: "numeric", autocomplete: "new-password", maxLength: 8,
+      placeholder: existing && existing.has_pin ? "lascia vuoto per non cambiarlo" : "facoltativo, 4-8 cifre" });
+    const removePin = input({ type: "checkbox" });
+    const save = el("button", { className: "small primary focusable full", type: "submit" }, existing ? "Salva" : "Crea il profilo");
+    const form = el("form", { className: "form" }, ...field("Nome", name), ...field("Tipo", kind), ...field("PIN", pin),
+      existing && existing.has_pin ? el("label", {}, "") : null, existing && existing.has_pin ? el("label", { className: "check" }, removePin, "Togli il PIN") : null, save);
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const body = { name: name.value, kind: kind.value };
+      if (pin.value) body.pin = pin.value;
+      else if (removePin.checked) body.pin = "";
+      try {
+        if (existing) await api("PATCH", "/api/v1/profiles/" + existing.id, body);
+        else await api("POST", "/api/v1/profiles", body);
+        flash(existing ? "Profilo aggiornato" : "Profilo creato");
+        render();
+      } catch (err) { flash(err.message); }
+    };
+    return form;
+  }
+
+  // ---- Devices ----
+  async function renderDevices(main) {
+    const [devices, profiles] = await Promise.all([api("GET", "/api/v1/devices"), api("GET", "/api/v1/profiles")]);
+    const profileName = Object.fromEntries(profiles.map((p) => [p.id, p.name]));
+    const lockSelect = (value) => {
+      const s = el("select", { className: "focusable" }, el("option", { value: "" }, "Tutti i profili (si sceglie all'avvio)"),
+        ...profiles.map((p) => el("option", { value: p.id }, "Solo " + p.name)));
+      s.value = value == null ? "" : value;
+      return s;
+    };
+    const code = input({ placeholder: "es. K7Q-29M", autocomplete: "off", spellcheck: false, maxLength: 7 });
+    const name = input({ placeholder: "es. TV salotto" });
+    const lock = lockSelect(null);
+    const pairButton = el("button", { className: "small primary focusable full", type: "submit" }, "Abbina");
+    const pairForm = el("form", { className: "form" }, ...field("Codice mostrato", code), ...field("Nome del dispositivo", name), ...field("Profili", lock), pairButton);
+    pairForm.onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        await api("POST", "/api/v1/pair/approve", { code: code.value, name: name.value, profile_lock: lock.value ? Number(lock.value) : null });
+        flash("Dispositivo abbinato: entro pochi secondi si apre da solo");
+        render();
+      } catch (err) { flash(err.message); }
+    };
+    const rows = devices.map((d) => {
+      const sel = lockSelect(d.profile_lock);
+      sel.onchange = async () => {
+        try { await api("PATCH", "/api/v1/devices/" + d.id, { name: d.name, profile_lock: sel.value ? Number(sel.value) : null }); flash("Salvato"); }
+        catch (e) { flash(e.message); }
+      };
+      return el("tr", {}, el("td", { className: "name" }, d.name), el("td", {}, d.last_seen ? when(d.last_seen) : "mai"), el("td", {}, sel),
+        el("td", {}, button("Revoca", async () => {
+          if (!confirm("Revocare “" + d.name + "”? Dovrà essere abbinato di nuovo.")) return;
+          try { await api("DELETE", "/api/v1/devices/" + d.id); flash("Dispositivo revocato"); } catch (e) { flash(e.message); }
+          render();
+        }, "danger")));
+    });
+    main.replaceChildren(
+      el("h2", {}, "Abbina un dispositivo"),
+      el("p", { className: "note" }, "Apri VodMax sul nuovo dispositivo (TV, telefono, PC): mostra un codice. Inseriscilo qui. " +
+        "Con “Solo …” il dispositivo usa sempre quel profilo, per esempio il tablet dei bambini."),
+      pairForm,
+      el("h2", {}, "Dispositivi abbinati"),
+      devices.length ? el("table", { className: "cats" }, el("tr", {}, el("th", {}, "Nome"), el("th", {}, "Ultimo uso"), el("th", {}, "Profili"), el("th", {}, "")), ...rows)
+        : el("p", { className: "note" }, "Nessun dispositivo abbinato: per ora si entra con il token di amministrazione."),
+      el("p", { className: "note" }, "Profili: " + Object.values(profileName).join(", ")));
+  }
+
   for (const t of document.querySelectorAll(".tab[data-view]")) t.onclick = () => { state.view = t.dataset.view; render(); };
-  window.VodMax.withToken(render);
+  window.VodMax.withToken(async () => {
+    const who = await window.VodMax.me().catch(() => null);
+    if (!who) return;
+    if (!who.admin) {
+      $("content").replaceChildren(el("h2", {}, "Impostazioni"),
+        el("p", { className: "note" }, "Le impostazioni sono riservate ai profili amministratore."),
+        button("Cambia profilo", () => { store.set("profile", ""); window.VodMax.showProfiles(); }, "primary"));
+      for (const t of document.querySelectorAll(".tab[data-view]")) t.hidden = true;
+      return;
+    }
+    render();
+  });
 })();

@@ -137,7 +137,7 @@ func Select(rules map[int64]Rules, cats []store.SelectionCategory, items []store
 				e.Section = string(SectionTV)
 			}
 		}
-		it.Section = e.Section
+		it.Section, it.Adult = e.Section, e.Adult
 		it.Visible = e.Enabled && !it.Hidden && yearAllowed(it, r)
 		it.Primary, it.VariantCount = false, 1
 		if !it.Visible {

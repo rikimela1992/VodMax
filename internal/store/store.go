@@ -234,6 +234,27 @@ var migrations = []string{
 		key   TEXT PRIMARY KEY,
 		value TEXT NOT NULL
 	);`,
+	// 7: profiles, paired devices, adult flag per item (for kids profiles).
+	`CREATE TABLE profile (
+		id         INTEGER PRIMARY KEY,
+		name       TEXT NOT NULL UNIQUE,
+		kind       TEXT NOT NULL CHECK (kind IN ('admin', 'standard', 'kids')),
+		pin_hash   TEXT NOT NULL DEFAULT '',   -- '' = no PIN
+		pin_epoch  INTEGER NOT NULL DEFAULT 0, -- changes invalidate profile selections
+		color      TEXT NOT NULL DEFAULT '',
+		created_at INTEGER NOT NULL
+	);
+	INSERT INTO profile (id, name, kind, created_at) VALUES (1, 'Principale', 'admin', strftime('%s', 'now'));
+	CREATE TABLE device (
+		id           INTEGER PRIMARY KEY,
+		name         TEXT NOT NULL,
+		token_hash   BLOB NOT NULL UNIQUE,     -- sha256 of the device token
+		profile_lock INTEGER REFERENCES profile(id) ON DELETE SET NULL, -- only this profile, if set
+		created_at   INTEGER NOT NULL,
+		last_seen    INTEGER NOT NULL DEFAULT 0
+	);
+	ALTER TABLE item ADD COLUMN adult INTEGER NOT NULL DEFAULT 0;
+	CREATE INDEX recording_group ON recording (group_key);`,
 }
 
 func (s *Store) migrate(ctx context.Context) error {

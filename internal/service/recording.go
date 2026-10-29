@@ -325,6 +325,15 @@ func (s *Service) ScheduleRecording(ctx context.Context, req RecordingRequest) (
 // Recordings lists recordings with the live size of running ones.
 func (s *Service) Recordings(ctx context.Context) ([]store.Recording, error) {
 	list, err := s.st.Recordings(ctx)
+	if viewerOf(ctx).Kids {
+		kept := list[:0]
+		for _, r := range list {
+			if s.allowGroup(ctx, r.GroupKey) == nil {
+				kept = append(kept, r)
+			}
+		}
+		list = kept
+	}
 	s.rec.mu.Lock()
 	for i := range list {
 		if a := s.rec.running[list[i].ID]; a != nil {
@@ -421,7 +430,11 @@ func (r *follower) Close() error { return r.f.Close() }
 // RecordingTicket authorises playback of a recording for 8 hours (range
 // requests reuse it).
 func (s *Service) RecordingTicket(ctx context.Context, id int64) (string, error) {
-	if _, err := s.st.Recording(ctx, id); err != nil {
+	r, err := s.st.Recording(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	if err := s.allowGroup(ctx, r.GroupKey); err != nil {
 		return "", err
 	}
 	t := randomToken()

@@ -15,41 +15,7 @@
 
 (() => {
   const $ = (id) => document.getElementById(id);
-  const store = {
-    get(key, fallback) {
-      try { const v = localStorage.getItem("vodmax." + key); return v === null ? fallback : JSON.parse(v); }
-      catch { return fallback; }
-    },
-    set(key, value) { try { localStorage.setItem("vodmax." + key, JSON.stringify(value)); } catch { /* private mode */ } },
-  };
-
-  // ---- Authentication: admin token for now (pairing comes later) ----
-  const fromHash = new URLSearchParams(location.hash.slice(1)).get("token");
-  if (fromHash) {
-    store.set("token", fromHash);
-    history.replaceState(null, "", location.pathname);
-  }
-  let token = store.get("token", "");
-  const viewer = store.get("viewer", "") || (() => {
-    const id = "v" + Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, "0")).join("");
-    store.set("viewer", id);
-    return id;
-  })();
-
-  async function api(method, path, body) {
-    const res = await fetch(path, {
-      method,
-      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-    if (res.status === 401) {
-      showSetup();
-      throw new Error("token non valido");
-    }
-    const data = res.status === 204 ? null : await res.json();
-    if (!res.ok) throw Object.assign(new Error(data && data.error ? data.error : "errore " + res.status), { status: res.status });
-    return data;
-  }
+  const { store, api, viewer } = window.VodMax;
 
   // ---- State ----
   const LISTS = [
@@ -480,27 +446,12 @@
   setInterval(() => { refreshChannels().catch(() => {}); }, 60000);
 
   // ---- Start ----
-  function showSetup() {
-    $("setup").hidden = false;
-    $("setup-token").focus();
-  }
-
-  $("setup-form").addEventListener("submit", (e) => {
-    e.preventDefault();
-    token = $("setup-token").value.trim();
-    store.set("token", token);
-    $("setup").hidden = true;
-    start();
-  });
-
   async function start() {
-    if (!token) { showSetup(); return; }
-    try { await refreshChannels(); } catch (e) { if (e.message !== "token non valido") flash(e.message); return; }
-    window.VodMax.watchStatus();
+    try { await refreshChannels(); } catch (e) { if (!e.handled) flash(e.message); return; }
     if (state.channels.length === 0) { flash("Nessun canale: sincronizza un abbonamento"); return; }
     const last = store.get("last", null);
     tune(state.channels.find((c) => c.id === last) || state.channels[0]);
   }
 
-  start();
+  window.VodMax.withToken(start);
 })();

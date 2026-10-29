@@ -4,11 +4,11 @@ package api
 
 import (
 	"context"
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -28,51 +28,69 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	})
 	protected := http.NewServeMux()
-	protected.HandleFunc("GET /api/v1/vpn", a.listVPN)
-	protected.HandleFunc("POST /api/v1/vpn", a.addVPN)
-	protected.HandleFunc("POST /api/v1/vpn/{id}/connect", a.connectVPN)
-	protected.HandleFunc("POST /api/v1/vpn/{id}/disconnect", a.disconnectVPN)
-	protected.HandleFunc("DELETE /api/v1/vpn/{id}", a.deleteVPN)
-	protected.HandleFunc("PATCH /api/v1/vpn/{id}", a.patchVPN)
-	protected.HandleFunc("GET /api/v1/status", a.status)
-	protected.HandleFunc("POST /api/v1/backup", a.exportBackup)
-	protected.HandleFunc("POST /api/v1/restore", a.restoreBackup)
-	protected.HandleFunc("GET /api/v1/backups", a.listBackups)
-	protected.HandleFunc("POST /api/v1/backups", a.makeBackup)
-	protected.HandleFunc("GET /api/v1/backups/{name}", a.downloadBackup)
-	protected.HandleFunc("POST /api/v1/backups/{name}/restore", a.restoreAutoBackup)
-	protected.HandleFunc("GET /api/v1/settings/schedule", a.getSchedule)
-	protected.HandleFunc("PUT /api/v1/settings/schedule", a.putSchedule)
-	protected.HandleFunc("PATCH /api/v1/subscriptions/{id}", a.patchSubscription)
-	protected.HandleFunc("GET /api/v1/subscriptions", a.listSubscriptions)
-	protected.HandleFunc("POST /api/v1/subscriptions", a.addSubscription)
-	protected.HandleFunc("POST /api/v1/subscriptions/{id}/sync", a.syncSubscription)
-	protected.HandleFunc("DELETE /api/v1/subscriptions/{id}", a.deleteSubscription)
-	protected.HandleFunc("GET /api/v1/subscriptions/{id}/rules", a.getRules)
-	protected.HandleFunc("PUT /api/v1/subscriptions/{id}/rules", a.putRules)
-	protected.HandleFunc("POST /api/v1/subscriptions/{id}/rules/preview", a.previewRules)
-	protected.HandleFunc("GET /api/v1/subscriptions/{id}/selection", a.selectionStats)
-	protected.HandleFunc("GET /api/v1/subscriptions/{id}/categories", a.selectionCategories)
-	protected.HandleFunc("PUT /api/v1/subscriptions/{id}/categories/{kind}/{category}", a.putCategory)
-	protected.HandleFunc("PUT /api/v1/items/{id}/hidden", a.putHidden)
-	protected.HandleFunc("GET /api/v1/items/{id}/variants", a.variants)
-	protected.HandleFunc("GET /api/v1/catalog/{kind}", a.catalog)
-	protected.HandleFunc("GET /api/v1/categories/{kind}", a.categories)
-	protected.HandleFunc("GET /api/v1/tv/channels", a.tvChannels)
-	protected.HandleFunc("GET /api/v1/tv/channels/{id}/guide", a.channelGuide)
-	protected.HandleFunc("PUT /api/v1/tv/favorites/{id}", a.putFavorite)
-	protected.HandleFunc("POST /api/v1/subscriptions/{id}/guide/sync", a.syncGuide)
-	protected.HandleFunc("POST /api/v1/live/{id}/ticket", a.liveTicket)
-	protected.HandleFunc("GET /api/v1/series/{id}/episodes", a.episodes)
-	protected.HandleFunc("PUT /api/v1/progress/{media}/{id}", a.putProgress)
-	protected.HandleFunc("GET /api/v1/progress/{media}/{id}", a.getProgress)
-	protected.HandleFunc("GET /api/v1/continue", a.continueWatching)
-	protected.HandleFunc("POST /api/v1/vod/{media}/{id}/session", a.vodSession)
-	protected.HandleFunc("GET /api/v1/recordings", a.recordings)
-	protected.HandleFunc("POST /api/v1/recordings", a.addRecording)
-	protected.HandleFunc("DELETE /api/v1/recordings/{id}", a.deleteRecording)
-	protected.HandleFunc("POST /api/v1/recordings/{id}/ticket", a.recordingTicket)
-	mux.Handle("/api/", requireToken(token, protected))
+	route := func(pattern string, level accessLevel, h http.HandlerFunc) {
+		protected.Handle(pattern, a.require(level, h))
+	}
+	// Device level: before a profile is chosen.
+	route("GET /api/v1/me", levelDevice, a.me)
+	route("GET /api/v1/profiles", levelDevice, a.profiles)
+	route("POST /api/v1/profiles/{id}/select", levelDevice, a.selectProfile)
+	// Administration.
+	route("POST /api/v1/profiles", levelAdmin, a.addProfile)
+	route("PATCH /api/v1/profiles/{id}", levelAdmin, a.patchProfile)
+	route("DELETE /api/v1/profiles/{id}", levelAdmin, a.deleteProfile)
+	route("GET /api/v1/devices", levelAdmin, a.devices)
+	route("PATCH /api/v1/devices/{id}", levelAdmin, a.patchDevice)
+	route("DELETE /api/v1/devices/{id}", levelAdmin, a.deleteDevice)
+	route("POST /api/v1/pair/approve", levelAdmin, a.approvePairing)
+	route("GET /api/v1/vpn", levelAdmin, a.listVPN)
+	route("POST /api/v1/vpn", levelAdmin, a.addVPN)
+	route("POST /api/v1/vpn/{id}/connect", levelAdmin, a.connectVPN)
+	route("POST /api/v1/vpn/{id}/disconnect", levelAdmin, a.disconnectVPN)
+	route("DELETE /api/v1/vpn/{id}", levelAdmin, a.deleteVPN)
+	route("PATCH /api/v1/vpn/{id}", levelAdmin, a.patchVPN)
+	route("GET /api/v1/status", levelViewer, a.status)
+	route("POST /api/v1/backup", levelAdmin, a.exportBackup)
+	route("POST /api/v1/restore", levelAdmin, a.restoreBackup)
+	route("GET /api/v1/backups", levelAdmin, a.listBackups)
+	route("POST /api/v1/backups", levelAdmin, a.makeBackup)
+	route("GET /api/v1/backups/{name}", levelAdmin, a.downloadBackup)
+	route("POST /api/v1/backups/{name}/restore", levelAdmin, a.restoreAutoBackup)
+	route("GET /api/v1/settings/schedule", levelAdmin, a.getSchedule)
+	route("PUT /api/v1/settings/schedule", levelAdmin, a.putSchedule)
+	route("PATCH /api/v1/subscriptions/{id}", levelAdmin, a.patchSubscription)
+	route("GET /api/v1/subscriptions", levelAdmin, a.listSubscriptions)
+	route("POST /api/v1/subscriptions", levelAdmin, a.addSubscription)
+	route("POST /api/v1/subscriptions/{id}/sync", levelAdmin, a.syncSubscription)
+	route("DELETE /api/v1/subscriptions/{id}", levelAdmin, a.deleteSubscription)
+	route("GET /api/v1/subscriptions/{id}/rules", levelAdmin, a.getRules)
+	route("PUT /api/v1/subscriptions/{id}/rules", levelAdmin, a.putRules)
+	route("POST /api/v1/subscriptions/{id}/rules/preview", levelAdmin, a.previewRules)
+	route("GET /api/v1/subscriptions/{id}/selection", levelAdmin, a.selectionStats)
+	route("GET /api/v1/subscriptions/{id}/categories", levelAdmin, a.selectionCategories)
+	route("PUT /api/v1/subscriptions/{id}/categories/{kind}/{category}", levelAdmin, a.putCategory)
+	route("PUT /api/v1/items/{id}/hidden", levelAdmin, a.putHidden)
+	route("GET /api/v1/items/{id}/variants", levelViewer, a.variants)
+	route("GET /api/v1/catalog/{kind}", levelViewer, a.catalog)
+	route("GET /api/v1/categories/{kind}", levelViewer, a.categories)
+	route("GET /api/v1/tv/channels", levelViewer, a.tvChannels)
+	route("GET /api/v1/tv/channels/{id}/guide", levelViewer, a.channelGuide)
+	route("PUT /api/v1/tv/favorites/{id}", levelViewer, a.putFavorite)
+	route("POST /api/v1/subscriptions/{id}/guide/sync", levelAdmin, a.syncGuide)
+	route("POST /api/v1/live/{id}/ticket", levelViewer, a.liveTicket)
+	route("GET /api/v1/series/{id}/episodes", levelViewer, a.episodes)
+	route("PUT /api/v1/progress/{media}/{id}", levelViewer, a.putProgress)
+	route("GET /api/v1/progress/{media}/{id}", levelViewer, a.getProgress)
+	route("GET /api/v1/continue", levelViewer, a.continueWatching)
+	route("POST /api/v1/vod/{media}/{id}/session", levelViewer, a.vodSession)
+	route("GET /api/v1/recordings", levelViewer, a.recordings)
+	route("POST /api/v1/recordings", levelMember, a.addRecording)
+	route("DELETE /api/v1/recordings/{id}", levelMember, a.deleteRecording)
+	route("POST /api/v1/recordings/{id}/ticket", levelViewer, a.recordingTicket)
+	mux.Handle("/api/", a.authenticate(token, protected))
+	// Pairing a new device: no credentials yet.
+	mux.HandleFunc("POST /api/v1/pair", a.startPairing)
+	mux.HandleFunc("GET /api/v1/pair/{poll}", a.pairingResult)
 	// The stream is authorised by its single-use ticket: video players
 	// cannot send an Authorization header.
 	mux.HandleFunc("GET /stream/live/{ticket}", a.liveStream)
@@ -89,14 +107,54 @@ type api struct {
 	log *slog.Logger
 }
 
-func requireToken(token string, next http.Handler) http.Handler {
-	want := []byte("Bearer " + token)
+type accessLevel int
+
+const (
+	levelDevice accessLevel = iota // a paired device
+	levelViewer                    // and a chosen profile
+	levelMember                    // not a kids profile
+	levelAdmin                     // an admin profile (or the admin token)
+)
+
+type identityKey struct{}
+
+func identity(r *http.Request) service.Identity {
+	id, _ := r.Context().Value(identityKey{}).(service.Identity)
+	return id
+}
+
+// authenticate resolves the device (Authorization: Bearer) and the profile
+// (X-Profile, a token from /api/v1/profiles/{id}/select).
+func (a *api) authenticate(master string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), want) != 1 {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "token di amministrazione mancante o errato"})
+		token, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+		id, err := a.svc.Authenticate(r.Context(), token, r.Header.Get("X-Profile"), master)
+		if errors.Is(err, service.ErrUnauthorized) {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": err.Error(), "code": "unauthorized"})
 			return
 		}
-		next.ServeHTTP(w, r)
+		if err != nil {
+			a.fail(w, r, err)
+			return
+		}
+		ctx := context.WithValue(r.Context(), identityKey{}, id)
+		ctx = service.WithViewer(ctx, id.Viewer())
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func (a *api) require(level accessLevel, h http.HandlerFunc) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := identity(r)
+		if level >= levelViewer && id.Profile == nil {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": service.ErrProfileRequired.Error(), "code": "profile_required"})
+			return
+		}
+		if (level == levelMember && id.Profile.Kind == "kids") || (level == levelAdmin && !id.Admin()) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": service.ErrForbidden.Error(), "code": "forbidden"})
+			return
+		}
+		h(w, r)
 	})
 }
 
@@ -121,6 +179,12 @@ func (a *api) fail(w http.ResponseWriter, r *http.Request, err error) {
 		status = http.StatusConflict
 	case errors.Is(err, service.ErrTicket), errors.Is(err, service.ErrBadSignature), errors.Is(err, service.ErrSession):
 		status = http.StatusForbidden
+	case errors.Is(err, service.ErrPIN):
+		status = http.StatusForbidden
+	case errors.Is(err, service.ErrPINLocked):
+		status = http.StatusTooManyRequests
+	case errors.Is(err, service.ErrPairing):
+		status = http.StatusNotFound
 	case errors.Is(err, service.ErrNoImage), errors.Is(err, service.ErrNotReady):
 		status = http.StatusNotFound
 	case errors.As(err, new(*service.UpstreamError)):
@@ -272,7 +336,7 @@ func (a *api) catalog(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	query := store.Query{
 		Kind: r.PathValue("kind"), Text: q.Get("q"), CategoryID: q.Get("category"),
-		Sort: q.Get("sort"), Section: q.Get("section"), All: q.Get("all") == "true", Cursor: q.Get("cursor"),
+		Sort: q.Get("sort"), Section: q.Get("section"), All: q.Get("all") == "true" && identity(r).Admin(), Cursor: q.Get("cursor"),
 	}
 	query.Limit, _ = strconv.Atoi(q.Get("limit"))
 	query.SubscriptionID, _ = strconv.ParseInt(q.Get("subscription"), 10, 64)
@@ -897,4 +961,176 @@ func (a *api) restoreAutoBackup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// ---- Profiles, devices, pairing ----
+
+func (a *api) me(w http.ResponseWriter, r *http.Request) {
+	id := identity(r)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"device":    map[string]any{"id": id.DeviceID, "name": id.Device, "profile_lock": id.Lock},
+		"profile":   id.Profile,
+		"admin":     id.Admin(),
+		"is_master": id.DeviceID == service.MasterDevice,
+	})
+}
+
+func (a *api) profiles(w http.ResponseWriter, r *http.Request) {
+	list, err := a.svc.SelectableProfiles(r.Context(), identity(r))
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+func (a *api) selectProfile(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	var in struct {
+		PIN string `json:"pin"`
+	}
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	token, err := a.svc.SelectProfile(r.Context(), identity(r), id, in.PIN)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"profile_token": token})
+}
+
+func (a *api) addProfile(w http.ResponseWriter, r *http.Request) {
+	var in service.ProfileInput
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	id, err := a.svc.AddProfile(r.Context(), in)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]int64{"id": id})
+}
+
+func (a *api) patchProfile(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	var in service.ProfileInput
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if err := a.svc.UpdateProfile(r.Context(), id, in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) deleteProfile(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if err := a.svc.DeleteProfile(r.Context(), id); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) devices(w http.ResponseWriter, r *http.Request) {
+	list, err := a.svc.Devices(r.Context())
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+func (a *api) patchDevice(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	var in struct {
+		Name        string `json:"name"`
+		ProfileLock *int64 `json:"profile_lock"`
+	}
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if err := a.svc.UpdateDevice(r.Context(), id, in.Name, in.ProfileLock); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) deleteDevice(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if err := a.svc.DeleteDevice(r.Context(), id); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) approvePairing(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Code        string `json:"code"`
+		Name        string `json:"name"`
+		ProfileLock *int64 `json:"profile_lock"`
+	}
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	d, err := a.svc.ApprovePairing(r.Context(), in.Code, in.Name, in.ProfileLock)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, d)
+}
+
+func (a *api) startPairing(w http.ResponseWriter, r *http.Request) {
+	client, _, _ := net.SplitHostPort(r.RemoteAddr)
+	p, err := a.svc.StartPairing(client)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, p)
+}
+
+// pairingResult: 202 while waiting, then the device token once.
+func (a *api) pairingResult(w http.ResponseWriter, r *http.Request) {
+	token, device, err := a.svc.PairingResult(r.PathValue("poll"))
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if token == "" {
+		writeJSON(w, http.StatusAccepted, map[string]string{"status": "in attesa"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"token": token, "device_id": device})
 }

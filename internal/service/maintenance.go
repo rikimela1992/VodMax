@@ -272,7 +272,7 @@ func (s *Service) guideDone(ctx context.Context, subID int64, err error) {
 // Problem is something the user should know about.
 type Problem struct {
 	Level string `json:"level"` // "error" or "warning"
-	Area  string `json:"area"`  // "vpn", "subscription", "guide"
+	Area  string `json:"area"`  // "vpn", "subscription", "guide", "profile"
 	Text  string `json:"text"`
 }
 
@@ -325,6 +325,20 @@ func (s *Service) Status(ctx context.Context) (SystemStatus, error) {
 		guideErr[id] = e
 	}
 	s.mu.Unlock()
+	// With a kids profile, an admin profile without PIN can be chosen on
+	// any device, settings and adult content included.
+	if profiles, err := s.st.Profiles(ctx); err == nil {
+		kids := false
+		for _, p := range profiles {
+			kids = kids || p.Kind == "kids"
+		}
+		for _, p := range profiles {
+			if kids && p.Kind != "kids" && !p.HasPIN {
+				out.Problems = append(out.Problems, Problem{Level: "warning", Area: "profile",
+					Text: fmt.Sprintf("Il profilo “%s” non ha un PIN: dai dispositivi dei bambini si può sceglierlo", p.Name)})
+			}
+		}
+	}
 	for _, sub := range subs {
 		if sub.SyncStatus == "error" {
 			out.Problems = append(out.Problems, Problem{Level: "error", Area: "subscription",
