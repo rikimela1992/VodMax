@@ -51,7 +51,16 @@
 .counts td.changed { color: var(--fav); }
 
 .countries { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.4rem 1rem; margin: 0.6rem 0; }
-.check { display: flex; gap: 0.5rem; align-items: center; color: var(--text); }
+/* A tick box with its text: the whole row is the target, large enough
+   for the TV pointer and a finger. */
+.check { display: flex; gap: 0.7rem; align-items: center; padding: 0.55rem 0.8rem; color: var(--text);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+.form .check { color: var(--text); }
+.check:hover { border-color: var(--soft); }
+.check:has(input:checked) { border-color: var(--text); }
+.check:focus-within { border-color: var(--focus); box-shadow: 0 0 0 2px var(--focus); }
+.form .check input, .check input { flex: none; width: 1.4rem; height: 1.4rem; margin: 0; padding: 0; accent-color: var(--accent); cursor: pointer; }
+.form .check input:focus { outline: none; }
 
 .cats { width: 100%; border-collapse: collapse; }
 .cats th { text-align: left; color: var(--soft); font-weight: 500; padding: 0.4rem; border-bottom: 1px solid var(--line); }
@@ -63,6 +72,7 @@
 
 .form > * { min-width: 0; }
 .form input, .form select, .form textarea { width: 100%; }
+.form input:focus, .form select:focus, .form textarea:focus, .pick:focus { outline: none; border-color: var(--focus); box-shadow: 0 0 0 2px var(--focus); }
 .settings button.small { border-radius: 999px; padding: 0.5em 1.1em; }
 .settings button.small:focus { color: #0b0c10; background: var(--focus); border-color: var(--focus); }
 

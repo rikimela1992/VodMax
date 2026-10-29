@@ -104,6 +104,10 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     } catch (e) {
       main.replaceChildren(el("p", { className: "note bad" }, e.message));
     }
+    if (!document.activeElement || document.activeElement === document.body) {
+      const item = document.querySelector(".item.active");
+      if (item && !phone.matches) item.focus({ preventScroll: true });
+    }
   }
 
   // ---- Subscriptions ----
@@ -743,8 +747,60 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
 
   buildSections();
   phone.addEventListener("change", () => { if (!phone.matches && !state.view) open(store.get("settingsView", "subscriptions")); });
+  // ---- Remote control: arrows move among everything that takes focus,
+  // OK presses or ticks, Back goes back. ----
+  const CONTROLS = "a[href], button, input, select, textarea";
+  function moveFocus(dir) {
+    const all = [...document.querySelectorAll(CONTROLS)].filter((e) => !e.disabled && e.offsetParent !== null && !e.closest("[hidden]"));
+    const current = document.activeElement;
+    if (!current || !all.includes(current)) {
+      const start = document.querySelector(".item.active") || all[0];
+      if (start) start.focus();
+      return;
+    }
+    // From the list of sections into the open one: its first control.
+    if (dir === "ArrowRight" && $("side").contains(current)) {
+      const first = all.find((e) => $("content").contains(e));
+      if (first) { first.focus(); first.scrollIntoView({ block: "nearest" }); }
+      return;
+    }
+    const a = current.getBoundingClientRect();
+    const ax = a.left + a.width / 2, ay = a.top + a.height / 2;
+    let best = null, bestScore = Infinity;
+    for (const e of all) {
+      if (e === current) continue;
+      const b = e.getBoundingClientRect();
+      const dx = b.left + b.width / 2 - ax, dy = b.top + b.height / 2 - ay;
+      const ok = { ArrowLeft: dx < -4, ArrowRight: dx > 4, ArrowUp: dy < -4, ArrowDown: dy > 4 }[dir];
+      if (!ok) continue;
+      const along = dir === "ArrowLeft" || dir === "ArrowRight" ? Math.abs(dx) : Math.abs(dy);
+      const across = dir === "ArrowLeft" || dir === "ArrowRight" ? Math.abs(dy) : Math.abs(dx);
+      const score = along + across * 3;
+      if (score < bestScore) { bestScore = score; best = e; }
+    }
+    if (best) {
+      best.focus();
+      best.scrollIntoView({ block: "nearest" });
+    }
+  }
+  const typing = (e) => e && (e.tagName === "TEXTAREA" || (e.tagName === "INPUT" && !/checkbox|radio|button|submit/.test(e.type)));
   document.addEventListener("keydown", (e) => {
-    if ((e.key === "Escape" || e.key === "Backspace" || e.keyCode === 461) && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) {
+    const key = window.VodMax.keyOf(e), active = document.activeElement;
+    if (window.VodMax.sheetOpen()) return;
+    if (key.startsWith("Arrow")) {
+      // In a text field Left/Right move the cursor; Up/Down always move on
+      // (and do not change a list or a number by mistake).
+      if (typing(active) && (key === "ArrowLeft" || key === "ArrowRight")) return;
+      e.preventDefault();
+      moveFocus(key);
+      return;
+    }
+    if (key === "OK" && active && active.tagName === "INPUT" && active.type === "checkbox") {
+      e.preventDefault();
+      active.click();
+      return;
+    }
+    if ((key === "Back" || e.key === "Backspace") && !typing(active)) {
       e.preventDefault();
       back();
     }
