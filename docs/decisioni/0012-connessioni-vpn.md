@@ -74,3 +74,17 @@ aggiornamenti dell'app, comunicazione fra app e Server in casa.
 - Il traffico TMDB deve passare anch'esso da una VPN?
 - Nell'impianto di casa il Server va comunque nella rete dedicata al
   provider, come oggi, o la VPN interna basta a soddisfare la regola attuale?
+
+## Aggiornamento del 29 ottobre 2026: VPN esterna come scelta
+
+Su richiesta dell'utente: chi ha già una VPN fuori da VodMax (sul router
+per tutta la rete, o l'app VPN sul dispositivo) può usarla invece della
+WireGuard interna. Ogni connessione VPN ha un tipo:
+
+- `wireguard` (consigliato, come prima): tunnel interno a VodMax;
+- `system`: VodMax usa la rete normale del dispositivo. Non può
+  verificare che passi davvero da una VPN: l'interfaccia lo dice
+  chiaramente e la responsabilità è dell'utente.
+
+Ogni abbonamento continua a indicare la sua connessione: il provider non
+si contatta mai senza averne scelta una.

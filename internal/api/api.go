@@ -259,13 +259,14 @@ func (a *api) listVPN(w http.ResponseWriter, r *http.Request) {
 func (a *api) addVPN(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Name   string `json:"name"`
+		Kind   string `json:"kind"`
 		Config string `json:"config"`
 	}
 	if err := decode(r, &in); err != nil {
 		a.fail(w, r, err)
 		return
 	}
-	id, err := a.svc.AddVPN(r.Context(), in.Name, in.Config)
+	id, err := a.svc.AddVPNKind(r.Context(), in.Name, in.Kind, in.Config)
 	if err != nil {
 		a.fail(w, r, err)
 		return

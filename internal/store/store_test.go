@@ -18,7 +18,7 @@ func openTest(t *testing.T) (*Store, int64) {
 	}
 	t.Cleanup(func() { st.Close() })
 	ctx := context.Background()
-	vpnID, err := st.AddVPN(ctx, "test", func(int64) []byte { return []byte("sealed") })
+	vpnID, err := st.AddVPN(ctx, "test", "wireguard", func(int64) []byte { return []byte("sealed") })
 	if err != nil {
 		t.Fatal(err)
 	}

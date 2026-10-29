@@ -98,14 +98,30 @@ func vpnOwner(id int64) string { return fmt.Sprintf("vpn:%d", id) }
 
 // AddVPN validates a wg-quick configuration and stores it encrypted.
 func (s *Service) AddVPN(ctx context.Context, name, conf string) (int64, error) {
+	return s.AddVPNKind(ctx, name, "wireguard", conf)
+}
+
+// AddVPNKind adds a connection: "wireguard" (an internal tunnel from a
+// wg-quick configuration) or "system" (the user runs a VPN outside
+// VodMax, on the device or the router: VodMax uses the normal network and
+// cannot check that it really goes through a VPN).
+func (s *Service) AddVPNKind(ctx context.Context, name, kind, conf string) (int64, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || len(name) > 80 {
 		return 0, invalid("nome della VPN obbligatorio (max 80 caratteri)")
 	}
-	if _, err := vpn.ParseConfig(strings.NewReader(conf)); err != nil {
-		return 0, invalid("configurazione WireGuard non valida: %v", err)
+	switch kind {
+	case "", "wireguard":
+		kind = "wireguard"
+		if _, err := vpn.ParseConfig(strings.NewReader(conf)); err != nil {
+			return 0, invalid("configurazione WireGuard non valida: %v", err)
+		}
+	case "system":
+		conf = ""
+	default:
+		return 0, invalid("tipo di VPN non valido: wireguard o system")
 	}
-	return s.st.AddVPN(ctx, name, func(id int64) []byte { return s.box.Seal([]byte(conf), vpnOwner(id)) })
+	return s.st.AddVPN(ctx, name, kind, func(id int64) []byte { return s.box.Seal([]byte(conf), vpnOwner(id)) })
 }
 
 func (s *Service) vpnConfig(ctx context.Context, id int64) (*vpn.Config, error) {
@@ -128,7 +144,9 @@ func (s *Service) VPNs(ctx context.Context) ([]VPNView, error) {
 	out := make([]VPNView, 0, len(list))
 	for _, v := range list {
 		view := VPNView{VPN: v}
-		if cfg, err := s.vpnConfig(ctx, v.ID); err == nil {
+		if v.Kind == "system" {
+			view.Endpoint = "VPN esterna (rete del sistema)"
+		} else if cfg, err := s.vpnConfig(ctx, v.ID); err == nil {
 			view.Endpoint = cfg.Endpoint
 		}
 		s.mu.Lock()
@@ -200,13 +218,18 @@ func (s *Service) tunnel(ctx context.Context, id int64) (Tunnel, error) {
 	if t != nil && t.Up() {
 		return t, nil
 	}
-	cfg, err := s.vpnConfig(ctx, id)
-	if err != nil {
+	if v, err := s.st.VPN(ctx, id); err != nil {
 		return nil, err
-	}
-	t, err = s.start(ctx, cfg)
-	if err != nil {
-		return nil, err
+	} else if v.Kind == "system" {
+		t = systemNetwork{}
+	} else {
+		cfg, err := s.vpnConfig(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if t, err = s.start(ctx, cfg); err != nil {
+			return nil, err
+		}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -356,6 +379,11 @@ func (s *Service) UpdateVPN(ctx context.Context, id int64, name, conf *string) e
 	}
 	var sealed []byte
 	if conf != nil && strings.TrimSpace(*conf) != "" {
+		if v, err := s.st.VPN(ctx, id); err != nil {
+			return err
+		} else if v.Kind == "system" {
+			return invalid("una VPN esterna non ha una configurazione da caricare")
+		}
 		if _, err := vpn.ParseConfig(strings.NewReader(*conf)); err != nil {
 			return invalid("configurazione WireGuard non valida: %v", err)
 		}

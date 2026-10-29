@@ -13,6 +13,7 @@ import (
 type VPN struct {
 	ID        int64     `json:"id"`
 	Name      string    `json:"name"`
+	Kind      string    `json:"kind"` // wireguard or system
 	CreatedAt time.Time `json:"created_at"`
 	Config    []byte    `json:"-"`
 }
@@ -35,13 +36,13 @@ type Subscription struct {
 
 // AddVPN stores a connection; seal receives the new row id so the sealed
 // value is bound to it.
-func (s *Store) AddVPN(ctx context.Context, name string, seal func(id int64) []byte) (int64, error) {
+func (s *Store) AddVPN(ctx context.Context, name, kind string, seal func(id int64) []byte) (int64, error) {
 	tx, err := s.w.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
 	}
 	defer tx.Rollback()
-	res, err := tx.ExecContext(ctx, `INSERT INTO vpn (name, config, created_at) VALUES (?, x'', ?)`, name, time.Now().Unix())
+	res, err := tx.ExecContext(ctx, `INSERT INTO vpn (name, kind, config, created_at) VALUES (?, ?, x'', ?)`, name, kind, time.Now().Unix())
 	if err != nil {
 		return 0, err
 	}
@@ -53,7 +54,7 @@ func (s *Store) AddVPN(ctx context.Context, name string, seal func(id int64) []b
 }
 
 func (s *Store) VPNs(ctx context.Context) ([]VPN, error) {
-	rows, err := s.r.QueryContext(ctx, `SELECT id, name, created_at, config FROM vpn ORDER BY name`)
+	rows, err := s.r.QueryContext(ctx, `SELECT id, name, kind, created_at, config FROM vpn ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +63,7 @@ func (s *Store) VPNs(ctx context.Context) ([]VPN, error) {
 	for rows.Next() {
 		var v VPN
 		var created int64
-		if err := rows.Scan(&v.ID, &v.Name, &created, &v.Config); err != nil {
+		if err := rows.Scan(&v.ID, &v.Name, &v.Kind, &created, &v.Config); err != nil {
 			return nil, err
 		}
 		v.CreatedAt = time.Unix(created, 0)
@@ -74,8 +75,8 @@ func (s *Store) VPNs(ctx context.Context) ([]VPN, error) {
 func (s *Store) VPN(ctx context.Context, id int64) (VPN, error) {
 	var v VPN
 	var created int64
-	err := s.r.QueryRowContext(ctx, `SELECT id, name, created_at, config FROM vpn WHERE id = ?`, id).
-		Scan(&v.ID, &v.Name, &created, &v.Config)
+	err := s.r.QueryRowContext(ctx, `SELECT id, name, kind, created_at, config FROM vpn WHERE id = ?`, id).
+		Scan(&v.ID, &v.Name, &v.Kind, &created, &v.Config)
 	if errors.Is(err, sql.ErrNoRows) {
 		return v, ErrNotFound
 	}

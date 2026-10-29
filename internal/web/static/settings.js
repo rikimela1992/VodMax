@@ -148,7 +148,9 @@
   async function renderVPN(main) {
     const vpns = await api("GET", "/api/v1/vpn");
     const parts = [el("h2", {}, "Connessioni VPN"),
-      el("p", { className: "note" }, "VPN WireGuard interne a VodMax, una o più. Si importa il file .conf del proprio servizio (Proton, Mullvad, NordVPN…). La chiave privata resta cifrata e non viene mai mostrata.")];
+      el("p", { className: "note" }, "Il provider si contatta solo attraverso una VPN. Due modi: una WireGuard dentro VodMax (si importa il file .conf " +
+        "del proprio servizio: Proton, Mullvad, NordVPN…; la chiave privata resta cifrata) oppure una VPN che hai già fuori da VodMax, " +
+        "sul dispositivo o sul router.")];
     for (const v of vpns) parts.push(vpnBox(v));
     parts.push(el("h2", {}, "Aggiungi una VPN"), vpnForm());
     main.replaceChildren(...parts);
@@ -158,8 +160,9 @@
     const st = v.status || {};
     const connected = v.running && st.connected;
     const box = el("section", { className: "box" }, el("h3", {}, v.name), el("div", { className: "facts" },
-      el("span", {}, "Server ", el("b", {}, v.endpoint || "?")),
-      el("span", {}, "Stato ", el("b", { className: connected ? "ok" : "" }, connected ? "collegata" : v.running ? "in collegamento" : "non collegata")),
+      el("span", {}, v.kind === "system" ? "Tipo " : "Server ", el("b", {}, v.kind === "system" ? "VPN esterna, non controllata da VodMax" : v.endpoint || "?")),
+      el("span", {}, "Stato ", el("b", { className: connected ? "ok" : "" }, v.kind === "system" ? (v.running ? "in uso" : "non in uso")
+        : connected ? "collegata" : v.running ? "in collegamento" : "non collegata")),
       st.last_handshake && st.last_handshake !== "0001-01-01T00:00:00Z" ? el("span", {}, "Ultimo handshake ", el("b", {}, when(st.last_handshake))) : null,
       v.running ? el("span", {}, "Traffico ", el("b", {}, ((st.rx_bytes || 0) / 1e6).toFixed(1) + " MB ricevuti")) : null,
       v.health && v.health.reconnects > 0 ? el("span", {}, "Ricollegamenti automatici ", el("b", {}, v.health.reconnects)) : null),
@@ -184,24 +187,41 @@
 
   function vpnForm(existing) {
     const name = input({ value: existing ? existing.name : "", placeholder: "es. Proton Italia" });
+    const kind = el("select", { className: "focusable" },
+      el("option", { value: "wireguard" }, "WireGuard dentro VodMax (consigliato)"),
+      el("option", { value: "system" }, "VPN già attiva fuori da VodMax (sul dispositivo o sul router)"));
+    kind.value = existing ? existing.kind || "wireguard" : "wireguard";
+    kind.disabled = Boolean(existing);
     const conf = el("textarea", { className: "focusable", spellcheck: false,
       placeholder: existing ? "Incolla un nuovo .conf per sostituirlo, oppure lascia vuoto" : "[Interface]\nPrivateKey = …\nAddress = …\nDNS = …\n\n[Peer]\nPublicKey = …\nEndpoint = …" });
     const file = input({ type: "file", accept: ".conf,text/plain" });
     file.onchange = async () => { if (file.files[0]) conf.value = await file.files[0].text(); };
+    const warning = el("p", { className: "note bad full" }, "Con una VPN esterna VodMax contatta il provider con la normale rete del dispositivo: " +
+      "è compito tuo che quella rete passi davvero dalla VPN (per esempio una VPN sul router per tutta la rete, o l'app VPN attiva sul telefono). " +
+      "Se la VPN cade, VodMax non se ne accorge.");
+    const confRows = [...field("File .conf", file), ...field("Configurazione", conf)];
+    const toggle = () => {
+      const system = kind.value === "system";
+      for (const e of confRows) e.hidden = system;
+      warning.hidden = !system;
+    };
+    kind.onchange = toggle;
     const save = el("button", { className: "small primary focusable full", type: "submit" }, existing ? "Salva le modifiche" : "Aggiungi");
-    const form = el("form", { className: "form" }, ...field("Nome", name), ...field("File .conf", file), ...field("Configurazione", conf), save);
+    const form = el("form", { className: "form" }, ...field("Nome", name), ...field("Tipo", kind), ...confRows, warning, save);
+    toggle();
     form.onsubmit = async (e) => {
       e.preventDefault();
       save.disabled = true;
       try {
-        if (existing) await api("PATCH", "/api/v1/vpn/" + existing.id, { name: name.value, config: conf.value });
-        else await api("POST", "/api/v1/vpn", { name: name.value, config: conf.value });
+        if (existing) await api("PATCH", "/api/v1/vpn/" + existing.id, { name: name.value, config: kind.value === "system" ? "" : conf.value });
+        else await api("POST", "/api/v1/vpn", { name: name.value, kind: kind.value, config: kind.value === "system" ? "" : conf.value });
         flash(existing ? "VPN aggiornata" : "VPN aggiunta");
         render();
       } catch (err) { flash(err.message); save.disabled = false; }
     };
     return form;
   }
+
 
   // ---- Subscription picker for selection pages ----
   async function pickSubscription(main, title, note) {

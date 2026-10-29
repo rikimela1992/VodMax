@@ -35,6 +35,7 @@ const BackupVersion = 1
 type BackupVPN struct {
 	ID     int64  `json:"id"`
 	Name   string `json:"name"`
+	Kind   string `json:"kind,omitempty"`
 	Config string `json:"config"`
 }
 
@@ -103,10 +104,10 @@ func (s *Store) ExportBackup(ctx context.Context, openVPN, openSub func(id int64
 	defer tx.Rollback()
 	b := &Backup{Version: BackupVersion, CreatedAt: time.Now().UTC(), Settings: map[string]string{}, RecordingKeys: map[int64]string{}}
 
-	err = eachRow(ctx, tx, `SELECT id, name, config FROM vpn ORDER BY id`, func(rows *sql.Rows) error {
+	err = eachRow(ctx, tx, `SELECT id, name, kind, config FROM vpn ORDER BY id`, func(rows *sql.Rows) error {
 		var v BackupVPN
 		var sealed []byte
-		if err := rows.Scan(&v.ID, &v.Name, &sealed); err != nil {
+		if err := rows.Scan(&v.ID, &v.Name, &v.Kind, &sealed); err != nil {
 			return err
 		}
 		plain, err := openVPN(v.ID, sealed)
@@ -303,8 +304,12 @@ func (s *Store) ImportBackup(ctx context.Context, b *Backup, sealVPN, sealSub fu
 	}
 	now := time.Now().Unix()
 	for _, v := range b.VPNs {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO vpn (id, name, config, created_at) VALUES (?, ?, ?, ?)`,
-			v.ID, v.Name, sealVPN(v.ID, []byte(v.Config)), now); err != nil {
+		kind := v.Kind
+		if kind == "" {
+			kind = "wireguard"
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO vpn (id, name, kind, config, created_at) VALUES (?, ?, ?, ?, ?)`,
+			v.ID, v.Name, kind, sealVPN(v.ID, []byte(v.Config)), now); err != nil {
 			return err
 		}
 	}

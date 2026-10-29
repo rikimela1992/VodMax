@@ -301,6 +301,9 @@ var migrations = []string{
 	);
 	ALTER TABLE recording ADD COLUMN rule_id INTEGER;
 	ALTER TABLE recording ADD COLUMN protected INTEGER NOT NULL DEFAULT 0;`,
+	// 11: VPN kind: "wireguard" (internal tunnel) or "system" (a VPN the
+	// user runs outside VodMax, on the device or the router).
+	`ALTER TABLE vpn ADD COLUMN kind TEXT NOT NULL DEFAULT 'wireguard' CHECK (kind IN ('wireguard', 'system'));`,
 }
 
 func (s *Store) migrate(ctx context.Context) error {

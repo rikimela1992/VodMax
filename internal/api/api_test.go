@@ -302,3 +302,33 @@ func TestStatusAndSchedule(t *testing.T) {
 		t.Fatal("status without token")
 	}
 }
+
+// A VPN the user runs outside VodMax (device or router): the provider is
+// reached through the normal network, no tunnel is started.
+func TestSystemVPN(t *testing.T) {
+	var hits atomic.Int32
+	provider := fakeProvider(&hits)
+	defer provider.Close()
+	e := setup(t, false) // an internal tunnel would never come up
+	if code, _ := e.do(t, "POST", "/api/v1/vpn", map[string]string{"name": "Router", "kind": "altro"}, true); code != 400 {
+		t.Fatal("unknown kind accepted")
+	}
+	if code, body := e.do(t, "POST", "/api/v1/vpn", map[string]string{"name": "VPN del router", "kind": "system"}, true); code != 201 {
+		t.Fatalf("add: %d %s", code, body)
+	}
+	e.do(t, "POST", "/api/v1/subscriptions", map[string]any{"name": "B", "kind": "xtream", "vpn_id": 1,
+		"server": provider.URL, "username": "mario", "password": password}, true)
+	if code, body := e.do(t, "POST", "/api/v1/subscriptions/1/sync", nil, true); code != 200 {
+		t.Fatalf("sync through the system network: %d %s", code, body)
+	}
+	_, body := e.do(t, "GET", "/api/v1/vpn", nil, true)
+	if !strings.Contains(string(body), `"kind":"system"`) || !strings.Contains(string(body), `"connected":true`) {
+		t.Fatalf("vpn: %s", body)
+	}
+	if code, _ := e.do(t, "PATCH", "/api/v1/vpn/1", map[string]any{"config": wgConf(t)}, true); code != 400 {
+		t.Fatal("configuration accepted on a system VPN")
+	}
+	if _, body := e.do(t, "GET", "/api/v1/status", nil, true); strings.Contains(string(body), `"area":"vpn"`) {
+		t.Fatalf("system VPN reported as a problem: %s", body)
+	}
+}
