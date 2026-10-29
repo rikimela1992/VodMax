@@ -24,8 +24,17 @@ import (
 	"github.com/rikimela1992/vodmax/internal/vpn"
 )
 
-const token = "0123456789abcdef0123456789abcdef"
-const password = "pw-unico-7f3a9"
+// Fixture credentials are generated per run: no literal secrets in tests.
+var (
+	token    = randomHex(16)
+	password = "pw-" + randomHex(6)
+)
+
+func randomHex(n int) string {
+	b := make([]byte, n)
+	rand.Read(b)
+	return fmt.Sprintf("%x", b)
+}
 
 // fakeTunnel stands in for the WireGuard tunnel: it dials the normal
 // network so the test can reach an httptest provider.

@@ -1,0 +1,4 @@
+# Test fixtures (not real credentials) committed in 2741589, since replaced
+# by values generated at run time.
+27415891a28b2a603aae5712a955e10bbef8f08b:internal/api/api_test.go:generic-api-key:27
+27415891a28b2a603aae5712a955e10bbef8f08b:internal/api/api_test.go:generic-api-key:28
