@@ -212,3 +212,19 @@ video {
 .controls button:hover, .controls button:focus { border-color: var(--text); outline: none; }
 .controls #ctl-live.behind { color: var(--bg); background: var(--accent); }
 .controls #ctl-fav.on { color: var(--fav); }
+
+/* Server problems notice. */
+#server-problems {
+  position: fixed;
+  right: 1.2rem;
+  bottom: 1.2rem;
+  z-index: 20;
+  max-width: min(36rem, 80vw);
+  padding: 0.6rem 1rem;
+  color: var(--text);
+  text-decoration: none;
+  background: var(--panel);
+  border: 1px solid var(--fav);
+  border-radius: 10px;
+}
+#server-problems.error { border-color: var(--accent); }

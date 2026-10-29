@@ -496,6 +496,7 @@
   async function start() {
     if (!token) { showSetup(); return; }
     try { await refreshChannels(); } catch (e) { if (e.message !== "token non valido") flash(e.message); return; }
+    window.VodMax.watchStatus();
     if (state.channels.length === 0) { flash("Nessun canale: sincronizza un abbonamento"); return; }
     const last = store.get("last", null);
     tune(state.channels.find((c) => c.id === last) || state.channels[0]);

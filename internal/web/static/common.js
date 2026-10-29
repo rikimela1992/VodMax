@@ -56,7 +56,9 @@ window.VodMax = (() => {
 
   // Runs start() when a token is available, otherwise asks for it.
   function withToken(start) {
-    if (token()) start(); else askToken();
+    if (!token()) { askToken(); return; }
+    start();
+    watchStatus();
   }
 
   async function api(method, path, body) {
@@ -161,5 +163,28 @@ window.VodMax = (() => {
     };
   }
 
-  return { store, viewer, token, withToken, askToken, api, keyOf, clock, hhmm, tsPlayer };
+  // ---- Server problems (VPN down, failed sync, expiring account) ----
+  // A small notice in a corner, on every page, linking to the settings.
+  let statusWatched = false;
+  function watchStatus() {
+    if (statusWatched) return;
+    statusWatched = true;
+    const check = async () => {
+      let problems = [];
+      try { problems = (await api("GET", "/api/v1/status")).problems; } catch { return; }
+      let box = document.getElementById("server-problems");
+      if (!problems.length) { if (box) box.remove(); return; }
+      if (!box) {
+        box = Object.assign(document.createElement("a"), { id: "server-problems", href: "/settings.html?view=system" });
+        document.body.append(box);
+      }
+      const error = problems.some((p) => p.level === "error");
+      box.className = error ? "error" : "warning";
+      box.textContent = "⚠ " + problems[0].text + (problems.length > 1 ? " (e altri " + (problems.length - 1) + ")" : "");
+    };
+    check();
+    setInterval(check, 30000);
+  }
+
+  return { store, viewer, token, withToken, askToken, api, keyOf, clock, hhmm, tsPlayer, watchStatus };
 })();

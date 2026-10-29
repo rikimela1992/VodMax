@@ -229,6 +229,11 @@ var migrations = []string{
 		created_at INTEGER NOT NULL
 	);
 	CREATE INDEX recording_due ON recording (status, start);`,
+	// 6: server settings and bookkeeping (schedules, last runs).
+	`CREATE TABLE setting (
+		key   TEXT PRIMARY KEY,
+		value TEXT NOT NULL
+	);`,
 }
 
 func (s *Store) migrate(ctx context.Context) error {

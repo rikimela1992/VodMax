@@ -43,6 +43,7 @@ type Service struct {
 	mu      sync.Mutex
 	tunnels map[int64]Tunnel
 	syncing map[int64]bool
+	vpnOff  map[int64]bool // disconnected by the user
 
 	selMu  sync.Mutex // serialises selection recomputation
 	live   liveState
@@ -50,13 +51,15 @@ type Service struct {
 	images imageState
 	vod    vodState
 	rec    recorderState
+	maint  maintenanceState
 }
 
 func New(st *store.Store, box *secret.Box, start StartTunnel) *Service {
 	if start == nil {
 		start = func(ctx context.Context, cfg *vpn.Config) (Tunnel, error) { return vpn.Start(ctx, cfg, nil) }
 	}
-	return &Service{st: st, box: box, start: start, tunnels: map[int64]Tunnel{}, syncing: map[int64]bool{}}
+	return &Service{st: st, box: box, start: start, tunnels: map[int64]Tunnel{}, syncing: map[int64]bool{}, vpnOff: map[int64]bool{},
+		maint: maintenanceState{vpn: map[int64]*vpnHealth{}, guideErr: map[int64]string{}, guideRetry: map[int64]time.Time{}}}
 }
 
 // Close shuts every tunnel down.
@@ -84,6 +87,7 @@ type VPNView struct {
 	Endpoint string     `json:"endpoint"`
 	Running  bool       `json:"running"`
 	Status   vpn.Status `json:"status"`
+	Health   *VPNHealth `json:"health,omitempty"`
 }
 
 func vpnOwner(id int64) string { return fmt.Sprintf("vpn:%d", id) }
@@ -124,6 +128,10 @@ func (s *Service) VPNs(ctx context.Context) ([]VPNView, error) {
 			view.Endpoint = cfg.Endpoint
 		}
 		s.mu.Lock()
+		if h := s.maint.vpn[v.ID]; h != nil {
+			c := h.VPNHealth
+			view.Health = &c
+		}
 		if t := s.tunnels[v.ID]; t != nil && t.Up() {
 			view.Running, view.Status = true, t.Status()
 		}
@@ -135,6 +143,9 @@ func (s *Service) VPNs(ctx context.Context) ([]VPNView, error) {
 
 // ConnectVPN starts (or returns) the tunnel and waits for a handshake.
 func (s *Service) ConnectVPN(ctx context.Context, id int64) (vpn.Status, error) {
+	s.mu.Lock()
+	delete(s.vpnOff, id)
+	s.mu.Unlock()
 	t, err := s.tunnel(ctx, id)
 	if err != nil {
 		return vpn.Status{}, err
@@ -151,8 +162,17 @@ func (s *Service) ConnectVPN(ctx context.Context, id int64) (vpn.Status, error) 
 	}
 }
 
-// DisconnectVPN closes the tunnel; subscriptions using it stop at once.
+// DisconnectVPN closes the tunnel at the user's request; subscriptions
+// using it stop at once and the watchdog leaves it down until the user
+// connects it again (or a subscription needs it).
 func (s *Service) DisconnectVPN(id int64) {
+	s.mu.Lock()
+	s.vpnOff[id] = true
+	s.mu.Unlock()
+	s.closeTunnel(id)
+}
+
+func (s *Service) closeTunnel(id int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if t := s.tunnels[id]; t != nil {
@@ -165,7 +185,7 @@ func (s *Service) DeleteVPN(ctx context.Context, id int64) error {
 	if err := s.st.DeleteVPN(ctx, id); err != nil {
 		return err
 	}
-	s.DisconnectVPN(id)
+	s.closeTunnel(id)
 	return nil
 }
 
@@ -341,7 +361,7 @@ func (s *Service) UpdateVPN(ctx context.Context, id int64, name, conf *string) e
 		return err
 	}
 	if sealed != nil {
-		s.DisconnectVPN(id)
+		s.closeTunnel(id) // the watchdog reconnects with the new configuration
 	}
 	return nil
 }
@@ -441,7 +461,9 @@ func (s *Service) Sync(ctx context.Context, id int64, allowDrop bool) (SyncResul
 	// The guide is refreshed with the catalog; a guide failure does not
 	// invalidate the catalog.
 	if sub, err := s.st.Subscription(ctx, id); err == nil && sub.Kind == "xtream" {
-		if g, err := s.SyncGuide(ctx, id); err != nil {
+		g, err := s.SyncGuide(ctx, id)
+		s.guideDone(ctx, id, err)
+		if err != nil {
 			result.GuideError = err.Error()
 		} else {
 			result.Guide = &g

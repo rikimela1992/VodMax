@@ -34,6 +34,9 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	protected.HandleFunc("POST /api/v1/vpn/{id}/disconnect", a.disconnectVPN)
 	protected.HandleFunc("DELETE /api/v1/vpn/{id}", a.deleteVPN)
 	protected.HandleFunc("PATCH /api/v1/vpn/{id}", a.patchVPN)
+	protected.HandleFunc("GET /api/v1/status", a.status)
+	protected.HandleFunc("GET /api/v1/settings/schedule", a.getSchedule)
+	protected.HandleFunc("PUT /api/v1/settings/schedule", a.putSchedule)
 	protected.HandleFunc("PATCH /api/v1/subscriptions/{id}", a.patchSubscription)
 	protected.HandleFunc("GET /api/v1/subscriptions", a.listSubscriptions)
 	protected.HandleFunc("POST /api/v1/subscriptions", a.addSubscription)
@@ -774,6 +777,37 @@ func (a *api) patchSubscription(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := a.svc.UpdateSubscription(r.Context(), id, in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) status(w http.ResponseWriter, r *http.Request) {
+	st, err := a.svc.Status(r.Context())
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, st)
+}
+
+func (a *api) getSchedule(w http.ResponseWriter, r *http.Request) {
+	sc, err := a.svc.Schedule(r.Context())
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, sc)
+}
+
+func (a *api) putSchedule(w http.ResponseWriter, r *http.Request) {
+	var sc service.Schedule
+	if err := decode(r, &sc); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if err := a.svc.SetSchedule(r.Context(), sc); err != nil {
 		a.fail(w, r, err)
 		return
 	}

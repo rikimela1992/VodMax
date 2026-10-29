@@ -26,7 +26,8 @@
     return d.toLocaleDateString("it-IT", { day: "numeric", month: "short" }) + " " + hhmm(d.getTime() / 1000);
   };
 
-  const state = { view: store.get("settingsView", "subscriptions"), sub: store.get("settingsSub", 0), kind: "live" };
+  const asked = new URLSearchParams(location.search).get("view");
+  const state = { view: asked || store.get("settingsView", "subscriptions"), sub: store.get("settingsSub", 0), kind: "live" };
 
   async function render() {
     for (const t of document.querySelectorAll(".tab[data-view]")) t.classList.toggle("active", t.dataset.view === state.view);
@@ -34,7 +35,7 @@
     const main = $("content");
     main.replaceChildren(el("p", { className: "note" }, "Caricamento…"));
     try {
-      await ({ subscriptions: renderSubscriptions, vpn: renderVPN, rules: renderRules, categories: renderCategories })[state.view](main);
+      await ({ subscriptions: renderSubscriptions, vpn: renderVPN, rules: renderRules, categories: renderCategories, system: renderSystem })[state.view](main);
     } catch (e) {
       main.replaceChildren(el("p", { className: "note bad" }, e.message));
     }
@@ -160,7 +161,9 @@
       el("span", {}, "Server ", el("b", {}, v.endpoint || "?")),
       el("span", {}, "Stato ", el("b", { className: connected ? "ok" : "" }, connected ? "collegata" : v.running ? "in collegamento" : "non collegata")),
       st.last_handshake && st.last_handshake !== "0001-01-01T00:00:00Z" ? el("span", {}, "Ultimo handshake ", el("b", {}, when(st.last_handshake))) : null,
-      v.running ? el("span", {}, "Traffico ", el("b", {}, ((st.rx_bytes || 0) / 1e6).toFixed(1) + " MB ricevuti")) : null));
+      v.running ? el("span", {}, "Traffico ", el("b", {}, ((st.rx_bytes || 0) / 1e6).toFixed(1) + " MB ricevuti")) : null,
+      v.health && v.health.reconnects > 0 ? el("span", {}, "Ricollegamenti automatici ", el("b", {}, v.health.reconnects)) : null),
+      v.health && !v.health.ok ? el("p", { className: "note bad" }, "⚠ " + v.health.error + " (da " + when(v.health.since) + ")") : null);
     const connect = button(v.running ? "Scollega" : "Collega", async () => {
       connect.disabled = true;
       try {
@@ -330,6 +333,35 @@
     };
     const included = cats.filter((c) => c.effective.enabled).length;
     main.append(kinds, el("p", { className: "note" }, included + " categorie incluse su " + cats.length), table);
+  }
+
+  // ---- System: problems and schedule ----
+  async function renderSystem(main) {
+    const status = await api("GET", "/api/v1/status");
+    const parts = [el("h2", {}, "Stato")];
+    if (!status.problems.length) parts.push(el("p", { className: "ok" }, "✓ Nessun problema: VPN collegate, abbonamenti attivi, guide aggiornate."));
+    for (const p of status.problems) parts.push(el("p", { className: p.level === "error" ? "bad" : "" }, "⚠ " + p.text));
+    const sc = status.schedule;
+    const hour = el("select", { className: "focusable" }, el("option", { value: -1 }, "Mai (solo a mano)"),
+      ...Array.from({ length: 24 }, (_, h) => el("option", { value: h }, String(h).padStart(2, "0") + ":00")));
+    hour.value = sc.catalog_hour;
+    const guide = el("select", { className: "focusable" }, el("option", { value: 0 }, "Mai (solo con il catalogo)"),
+      ...[1, 2, 3, 4, 6, 8, 12, 24].map((h) => el("option", { value: h }, "Ogni " + h + (h === 1 ? " ora" : " ore"))));
+    guide.value = sc.guide_hours;
+    const save = el("button", { className: "small primary focusable full", type: "submit" }, "Salva");
+    const form = el("form", { className: "form" }, ...field("Catalogo, ogni notte alle", hour), ...field("Guida TV", guide), save);
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        await api("PUT", "/api/v1/settings/schedule", { catalog_hour: Number(hour.value), guide_hours: Number(guide.value) });
+        flash("Pianificazione salvata");
+        render();
+      } catch (err) { flash(err.message); }
+    };
+    parts.push(el("h2", {}, "Aggiornamenti automatici"),
+      el("p", { className: "note" }, "Il catalogo di ogni abbonamento (con la guida) si aggiorna ogni notte; se non riesce riprova ogni ora. La guida si aggiorna anche tra una notte e l'altra." +
+        (status.next_catalog ? " Prossimo aggiornamento del catalogo: " + when(status.next_catalog) + "." : "")), form);
+    main.replaceChildren(...parts);
   }
 
   for (const t of document.querySelectorAll(".tab[data-view]")) t.onclick = () => { state.view = t.dataset.view; render(); };

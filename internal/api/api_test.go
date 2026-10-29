@@ -270,3 +270,23 @@ func TestUpdateSubscriptionAndVPN(t *testing.T) {
 		t.Fatalf("vpn rename: %s", body)
 	}
 }
+
+func TestStatusAndSchedule(t *testing.T) {
+	e := setup(t, true)
+	code, body := e.do(t, "GET", "/api/v1/status", nil, true)
+	if code != 200 || !strings.Contains(string(body), `"problems":[]`) || !strings.Contains(string(body), `"catalog_hour":4`) {
+		t.Fatalf("status: %d %s", code, body)
+	}
+	if code, _ := e.do(t, "PUT", "/api/v1/settings/schedule", map[string]int{"catalog_hour": 25, "guide_hours": 6}, true); code != 400 {
+		t.Fatal("invalid hour accepted")
+	}
+	if code, _ := e.do(t, "PUT", "/api/v1/settings/schedule", map[string]int{"catalog_hour": 3, "guide_hours": 4}, true); code != 204 {
+		t.Fatal("schedule refused")
+	}
+	if _, body := e.do(t, "GET", "/api/v1/settings/schedule", nil, true); string(bytes.TrimSpace(body)) != `{"catalog_hour":3,"guide_hours":4}` {
+		t.Fatalf("schedule: %s", body)
+	}
+	if code, _ := e.do(t, "GET", "/api/v1/status", nil, false); code != 401 {
+		t.Fatal("status without token")
+	}
+}

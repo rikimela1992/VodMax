@@ -275,3 +275,19 @@ h2 { font-size: 1.15rem; margin: 1.6rem 0 0.7rem; color: var(--soft); font-weigh
 }
 .player-buttons button:hover, .player-buttons button:focus { border-color: var(--text); outline: none; }
 .player.cursor-hidden { cursor: none; }
+
+/* Server problems notice. */
+#server-problems {
+  position: fixed;
+  right: 1.2rem;
+  bottom: 1.2rem;
+  z-index: 20;
+  max-width: min(36rem, 80vw);
+  padding: 0.6rem 1rem;
+  color: var(--text);
+  text-decoration: none;
+  background: var(--panel);
+  border: 1px solid var(--fav);
+  border-radius: 10px;
+}
+#server-problems.error { border-color: var(--accent); }

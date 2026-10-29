@@ -84,6 +84,7 @@ func run(data, listen, recordings, ffmpeg, ffprobe string, log *slog.Logger) err
 	if err := svc.StartRecorder(ctx, recordings, log); err != nil {
 		return err
 	}
+	svc.StartMaintenance(ctx, log)
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
