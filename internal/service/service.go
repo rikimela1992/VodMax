@@ -44,8 +44,9 @@ type Service struct {
 	tunnels map[int64]Tunnel
 	syncing map[int64]bool
 
-	selMu sync.Mutex // serialises selection recomputation
-	live  liveState
+	selMu  sync.Mutex // serialises selection recomputation
+	live   liveState
+	images imageState
 }
 
 func New(st *store.Store, box *secret.Box, start StartTunnel) *Service {

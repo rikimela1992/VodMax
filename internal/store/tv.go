@@ -72,7 +72,8 @@ type TVChannel struct {
 	Number       int        `json:"number"`
 	Official     bool       `json:"official"` // number from the national numbering
 	Name         string     `json:"name"`
-	Image        string     `json:"image,omitempty"`
+	Image        string     `json:"image,omitempty"` // provider URL: cleared before reaching clients
+	Logo         string     `json:"logo,omitempty"`  // signed local URL
 	Section      string     `json:"section"`
 	Quality      int        `json:"quality"`
 	VariantCount int        `json:"variant_count"`
@@ -276,4 +277,41 @@ func (s *Store) SetFavorite(ctx context.Context, profileID, itemID int64, favori
 		(SELECT coalesce(max(position), 0) + 1 FROM favorite WHERE profile_id = ? AND kind = ?), ?)`,
 		profileID, kind, group, profileID, kind, time.Now().Unix())
 	return err
+}
+
+// CachedImage is an image fetched from a provider. An empty ContentType
+// records a failed fetch, so it is not retried at every request.
+type CachedImage struct {
+	ContentType string
+	Data        []byte
+	FetchedAt   time.Time
+}
+
+func (s *Store) CachedImage(ctx context.Context, urlHash string) (CachedImage, bool, error) {
+	var img CachedImage
+	var at int64
+	err := s.r.QueryRowContext(ctx, `SELECT content_type, data, fetched_at FROM image_cache WHERE url_hash = ?`, urlHash).
+		Scan(&img.ContentType, &img.Data, &at)
+	if errors.Is(err, sql.ErrNoRows) {
+		return img, false, nil
+	}
+	img.FetchedAt = time.Unix(at, 0)
+	return img, err == nil, err
+}
+
+func (s *Store) PutCachedImage(ctx context.Context, urlHash string, img CachedImage) error {
+	_, err := s.w.ExecContext(ctx, `INSERT OR REPLACE INTO image_cache VALUES (?, ?, ?, ?)`,
+		urlHash, img.ContentType, img.Data, time.Now().Unix())
+	return err
+}
+
+// ItemImage returns the provider image URL and subscription of an item.
+func (s *Store) ItemImage(ctx context.Context, itemID int64) (string, int64, error) {
+	var url string
+	var sub int64
+	err := s.r.QueryRowContext(ctx, `SELECT image, subscription_id FROM item WHERE id = ?`, itemID).Scan(&url, &sub)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", 0, ErrNotFound
+	}
+	return url, sub, err
 }

@@ -177,6 +177,13 @@ var migrations = []string{
 		added_at   INTEGER NOT NULL,
 		PRIMARY KEY (profile_id, kind, group_key)
 	);`,
+	// 4: images (channel logos, covers) fetched through the VPN.
+	`CREATE TABLE image_cache (
+		url_hash     TEXT PRIMARY KEY,          -- sha256 of the source URL
+		content_type TEXT NOT NULL,             -- '' when the source failed
+		data         BLOB,
+		fetched_at   INTEGER NOT NULL
+	);`,
 }
 
 func (s *Store) migrate(ctx context.Context) error {

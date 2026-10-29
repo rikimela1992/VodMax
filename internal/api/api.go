@@ -56,6 +56,7 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	// The stream is authorised by its single-use ticket: video players
 	// cannot send an Authorization header.
 	mux.HandleFunc("GET /stream/live/{ticket}", a.liveStream)
+	mux.HandleFunc("GET /img/logo/{id}", a.logo)
 	mux.Handle("/", web.Handler())
 	return mux
 }
@@ -94,8 +95,10 @@ func (a *api) fail(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, store.ErrInUse), errors.Is(err, service.ErrBusy), errors.Is(err, store.ErrSuspiciousDrop),
 		errors.As(err, new(service.ConnectionBusy)):
 		status = http.StatusConflict
-	case errors.Is(err, service.ErrTicket):
+	case errors.Is(err, service.ErrTicket), errors.Is(err, service.ErrBadSignature):
 		status = http.StatusForbidden
+	case errors.Is(err, service.ErrNoImage):
+		status = http.StatusNotFound
 	case errors.Is(err, context.DeadlineExceeded):
 		status = http.StatusGatewayTimeout
 	}
@@ -510,4 +513,26 @@ func (a *api) liveStream(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+}
+
+func (a *api) logo(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	img, err := a.svc.Logo(r.Context(), id, r.URL.Query().Get("s"))
+	if err != nil {
+		if errors.Is(err, service.ErrNoImage) {
+			w.Header().Set("Cache-Control", "max-age=3600")
+		}
+		a.fail(w, r, err)
+		return
+	}
+	h := w.Header()
+	h.Set("Content-Type", img.ContentType)
+	h.Set("Cache-Control", "private, max-age=86400")
+	h.Set("Content-Security-Policy", "default-src 'none'")
+	h.Set("X-Content-Type-Options", "nosniff")
+	w.Write(img.Data)
 }

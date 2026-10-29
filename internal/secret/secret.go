@@ -5,7 +5,9 @@ package secret
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -15,7 +17,10 @@ import (
 // Box seals and opens values with AES-256-GCM. The associated data binds a
 // sealed value to its owner (e.g. "vpn:3"), so values cannot be swapped
 // between rows.
-type Box struct{ aead cipher.AEAD }
+type Box struct {
+	aead cipher.AEAD
+	key  []byte
+}
 
 const keySize = 32
 
@@ -65,7 +70,16 @@ func New(key []byte) (*Box, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Box{aead: aead}, nil
+	return &Box{aead: aead, key: append([]byte(nil), key...)}, nil
+}
+
+// Derive returns a 32-byte key for another purpose (e.g. signing URLs),
+// derived from the installation key: stable across restarts, independent
+// from the encryption key.
+func (b *Box) Derive(purpose string) []byte {
+	mac := hmac.New(sha256.New, b.key)
+	mac.Write([]byte("vodmax-derive\x00" + purpose))
+	return mac.Sum(nil)
 }
 
 // Seal returns nonce || ciphertext.

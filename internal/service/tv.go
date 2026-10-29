@@ -138,6 +138,7 @@ func (s *Service) TVChannels(ctx context.Context, section string, favorites bool
 	if list == nil {
 		list = []store.TVChannel{}
 	}
+	s.withLogos(list)
 	return list, err
 }
 

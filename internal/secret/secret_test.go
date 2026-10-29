@@ -51,3 +51,12 @@ func TestKeyPermissions(t *testing.T) {
 		t.Fatal("world-readable key accepted")
 	}
 }
+
+func TestDerive(t *testing.T) {
+	a, _ := New(bytes.Repeat([]byte{1}, 32))
+	b, _ := New(bytes.Repeat([]byte{1}, 32))
+	c, _ := New(bytes.Repeat([]byte{2}, 32))
+	if !bytes.Equal(a.Derive("x"), b.Derive("x")) || bytes.Equal(a.Derive("x"), a.Derive("y")) || bytes.Equal(a.Derive("x"), c.Derive("x")) {
+		t.Fatal("derived keys must be stable per key and purpose")
+	}
+}

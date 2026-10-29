@@ -85,6 +85,7 @@ video {
 
 .banner-head { display: flex; align-items: baseline; gap: 1rem; margin-bottom: 0.8rem; }
 .number { font-size: 2.2em; font-weight: 700; color: var(--accent); min-width: 2.5ch; }
+.logo { height: 2.4em; max-width: 6em; object-fit: contain; align-self: center; }
 .name { font-size: 1.5em; font-weight: 600; flex: 1; }
 .badges span, .mode {
   font-size: 0.7em;
@@ -127,12 +128,13 @@ video {
 .list ol { list-style: none; margin: 0; padding: 0; flex: 1; overflow: hidden; }
 .list li {
   display: grid;
-  grid-template-columns: 3.5em 1fr;
+  grid-template-columns: 3.5em 3.2em 1fr;
   gap: 0.2rem 1rem;
   padding: 0.55rem 0.8rem;
   border-radius: 10px;
 }
 .list li .n { grid-row: span 2; font-weight: 700; color: var(--soft); text-align: right; }
+.list li .l { grid-row: span 2; width: 3.2em; height: 2.2em; object-fit: contain; align-self: center; }
 .list li .c { font-weight: 600; }
 .list li .p { color: var(--soft); font-size: 0.85em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .list li.current .n { color: var(--accent); }

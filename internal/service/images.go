@@ -1,0 +1,183 @@
+package service
+
+import (
+	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strconv"
+	"sync"
+	"time"
+
+	"github.com/rikimela1992/vodmax/internal/provider"
+	"github.com/rikimela1992/vodmax/internal/store"
+)
+
+// Images (channel logos for now) are hosted by providers or third parties.
+// Clients must not fetch them directly, so the server fetches them through
+// the subscription's VPN, validates and caches them. Image URLs given to
+// clients are signed so they need no token (an <img> cannot send one) and
+// cannot be used to make the server fetch anything else.
+
+const (
+	maxImageBytes   = 1 << 20
+	imageRetryAfter = 24 * time.Hour // failed fetches are retried after this
+)
+
+var allowedImageTypes = map[string]bool{"image/png": true, "image/jpeg": true, "image/gif": true, "image/webp": true}
+
+// ErrNoImage means the item has no usable image.
+var ErrNoImage = errors.New("immagine non disponibile")
+
+type imageState struct {
+	once     sync.Once
+	key      []byte
+	mu       sync.Mutex
+	inflight map[string]*imageCall
+	slots    chan struct{}
+}
+
+type imageCall struct {
+	done chan struct{}
+	img  store.CachedImage
+	err  error
+}
+
+func (s *Service) imageKey() []byte {
+	s.images.once.Do(func() {
+		s.images.key = s.box.Derive("image-url-signing")
+		s.images.inflight = map[string]*imageCall{}
+		s.images.slots = make(chan struct{}, 4)
+	})
+	return s.images.key
+}
+
+func (s *Service) imageSignature(itemID int64) string {
+	mac := hmac.New(sha256.New, s.imageKey())
+	mac.Write([]byte("logo:" + strconv.FormatInt(itemID, 10)))
+	return hex.EncodeToString(mac.Sum(nil)[:16])
+}
+
+// LogoURL is the signed local URL of an item's image.
+func (s *Service) LogoURL(itemID int64) string {
+	return "/img/logo/" + strconv.FormatInt(itemID, 10) + "?s=" + s.imageSignature(itemID)
+}
+
+// ErrBadSignature is returned for image URLs not issued by this server.
+var ErrBadSignature = errors.New("firma dell'immagine non valida")
+
+// Logo returns the image of an item, from the cache or fetched through the
+// subscription's VPN.
+func (s *Service) Logo(ctx context.Context, itemID int64, sig string) (store.CachedImage, error) {
+	if !hmac.Equal([]byte(sig), []byte(s.imageSignature(itemID))) {
+		return store.CachedImage{}, ErrBadSignature
+	}
+	src, subID, err := s.st.ItemImage(ctx, itemID)
+	if err != nil {
+		return store.CachedImage{}, err
+	}
+	u, err := url.Parse(src)
+	if src == "" || err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return store.CachedImage{}, ErrNoImage
+	}
+	sum := sha256.Sum256([]byte(src))
+	hash := hex.EncodeToString(sum[:])
+	if img, ok, err := s.st.CachedImage(ctx, hash); err != nil {
+		return img, err
+	} else if ok && (img.ContentType != "" || time.Since(img.FetchedAt) < imageRetryAfter) {
+		if img.ContentType == "" {
+			return img, ErrNoImage
+		}
+		return img, nil
+	}
+
+	// One fetch per URL even if many clients ask at once.
+	s.imageKey()
+	s.images.mu.Lock()
+	call := s.images.inflight[hash]
+	if call == nil {
+		call = &imageCall{done: make(chan struct{})}
+		s.images.inflight[hash] = call
+		s.images.mu.Unlock()
+		go func() {
+			call.img, call.err = s.fetchImage(context.WithoutCancel(ctx), subID, src)
+			if call.err == nil || errors.Is(call.err, ErrNoImage) {
+				s.st.PutCachedImage(context.Background(), hash, call.img)
+			}
+			s.images.mu.Lock()
+			delete(s.images.inflight, hash)
+			s.images.mu.Unlock()
+			close(call.done)
+		}()
+	} else {
+		s.images.mu.Unlock()
+	}
+	select {
+	case <-call.done:
+	case <-ctx.Done():
+		return store.CachedImage{}, ctx.Err()
+	}
+	if call.err != nil {
+		return store.CachedImage{}, call.err
+	}
+	if call.img.ContentType == "" {
+		return call.img, ErrNoImage
+	}
+	return call.img, nil
+}
+
+// fetchImage downloads and validates an image through the VPN. Images the
+// source refuses or that are not acceptable images return an empty
+// CachedImage with ErrNoImage (cached as a failure); transport errors
+// (VPN down) are not cached.
+func (s *Service) fetchImage(ctx context.Context, subID int64, src string) (store.CachedImage, error) {
+	s.images.slots <- struct{}{}
+	defer func() { <-s.images.slots }()
+	sub, err := s.st.Subscription(ctx, subID)
+	if err != nil {
+		return store.CachedImage{}, err
+	}
+	tun, err := s.tunnel(ctx, sub.VPNID)
+	if err != nil {
+		return store.CachedImage{}, fmt.Errorf("VPN: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, src, nil)
+	if err != nil {
+		return store.CachedImage{}, ErrNoImage
+	}
+	req.Header.Set("User-Agent", "VodMax")
+	resp, err := provider.NewHTTPClient(tun, 0).Do(req)
+	if err != nil {
+		return store.CachedImage{}, fmt.Errorf("immagine: %w", provider.Redact(err))
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return store.CachedImage{}, ErrNoImage
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxImageBytes+1))
+	if err != nil {
+		return store.CachedImage{}, fmt.Errorf("immagine: %w", provider.Redact(err))
+	}
+	ctype := http.DetectContentType(data)
+	if len(data) > maxImageBytes || !allowedImageTypes[ctype] {
+		return store.CachedImage{}, ErrNoImage
+	}
+	return store.CachedImage{ContentType: ctype, Data: data, FetchedAt: time.Now()}, nil
+}
+
+// withLogos sets the signed logo URL of channels that have an image.
+func (s *Service) withLogos(list []store.TVChannel) {
+	for i := range list {
+		if list[i].Image != "" {
+			list[i].Logo = s.LogoURL(list[i].ID)
+		}
+		list[i].Image = "" // never hand provider URLs to clients
+	}
+}

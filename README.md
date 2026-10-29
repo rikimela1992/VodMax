@@ -12,9 +12,9 @@ che può diventare il **Server** della casa per gli altri dispositivi.
 > e M3U, sincronizzazione del catalogo solo tramite VPN, **selezione del
 > catalogo** (paesi, adulti, anno minimo, categorie, una scheda per titolo),
 > catalogo con ricerca via API, **TV in diretta** con numerazione da
-> telecomando, guida, preferiti e flusso ritrasmesso dal server, e una prima
-> interfaccia TV (`/`), non ancora provata su una TV vera. Film e serie non
-> sono ancora riproducibili.
+> telecomando, guida, preferiti, loghi e flusso ritrasmesso dal server, e
+> un'interfaccia TV (`/`) provata in un browser automatico ma non ancora su
+> una TV vera. Film e serie non sono ancora riproducibili.
 
 ## L'idea in breve
 
@@ -106,6 +106,7 @@ API, tranne `/api/v1/health`, richiede `Authorization: Bearer <token>`.
 | `POST /api/v1/subscriptions/{id}/guide/sync` | Aggiorna la guida (fatto anche a ogni sincronizzazione) |
 | `POST /api/v1/live/{id}/ticket` `{viewer}` | Permesso di visione monouso (30 s) → `{url}` |
 | `GET /stream/live/{permesso}` | Il flusso MPEG-TS ritrasmesso dal server (`?force=1` per prendere il controllo della connessione) |
+| `GET /img/logo/{id}?s=firma` | Logo del canale scaricato tramite VPN e in cache (indirizzo firmato, fornito dall'elenco dei canali) |
 
 ## Sviluppo
 

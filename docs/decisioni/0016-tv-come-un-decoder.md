@@ -58,15 +58,29 @@ con l'uso di un decoder Sky:
    Tasti mappati per browser, LG webOS (P+ 33, P− 34, colori 403–406, Indietro
    461) e Android TV.
 6. **Nessuna risorsa esterna nell'interfaccia** (CSP `default-src 'self'`).
-   Anche i loghi dei canali non sono caricati direttamente, perché sono
-   ospitati dal provider o da terzi: saranno scaricati dal server tramite VPN
-   e serviti da lui.
+   I loghi dei canali, ospitati dal provider o da terzi, sono scaricati dal
+   server **tramite la VPN dell'abbonamento**:
+   - validati (PNG, JPEG, GIF o WebP; niente SVG; massimo 1 MB);
+   - salvati in cache nel database, anche i fallimenti (ritentati dopo 24 ore);
+   - un solo download per immagine anche con molte richieste insieme;
+   - serviti con un indirizzo **firmato** (HMAC con una chiave derivata da
+     quella dell'installazione), quindi senza token e utilizzabili solo per
+     l'immagine di quel canale.
+
+   L'elenco dei canali non contiene più gli indirizzi del provider.
+
+## Prova dell'interfaccia (29 ottobre 2026)
+
+Chromium 140 automatico, catalogo reale dell'account B, server sul gateway:
+banner con numero, logo, qualità, preferito, ora e a seguire; scorrimento
+senza cambiare; lista con loghi; preferiti; numeri; tasto giallo; P+/P− e
+"solo preferiti" (3 → 22 → 1). Il browser ha contattato **solo** il server
+VodMax. Questo Chromium non decodifica H.264/AAC, quindi la riproduzione
+vera non è stata provata, e il player non ha aperto flussi inutili.
 
 ## Ancora da fare
 
-- **Verifica dell'interfaccia su una TV vera** (webOS, Android TV): la prova
-  automatica nel browser non è stata possibile sulla macchina di sviluppo.
-- Loghi dei canali tramite il server.
+- **Riproduzione su una TV vera** (webOS, Android TV) o su un Chrome normale.
 - Profili: oggi i preferiti appartengono a un unico profilo.
 - Guida per le playlist M3U (`url-tvg`).
 - Riordino manuale dei preferiti e dei numeri.

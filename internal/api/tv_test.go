@@ -18,16 +18,27 @@ import (
 // enforcing max_connections would.
 type tvProvider struct {
 	*httptest.Server
-	mu      sync.Mutex
-	active  int
-	maxSeen int
-	opened  []string
+	mu       sync.Mutex
+	active   int
+	maxSeen  int
+	opened   []string
+	logoHits map[string]int
 }
 
 func newTVProvider() *tvProvider {
-	p := &tvProvider{}
+	p := &tvProvider{logoHits: map[string]int{}}
 	p.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case strings.HasPrefix(r.URL.Path, "/logo/"):
+			p.mu.Lock()
+			p.logoHits[r.URL.Path]++
+			p.mu.Unlock()
+			time.Sleep(50 * time.Millisecond) // let concurrent requests overlap
+			if strings.HasSuffix(r.URL.Path, ".svg") {
+				w.Write([]byte(`<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`))
+				return
+			}
+			w.Write(append([]byte("\x89PNG\r\n\x1a\n"), make([]byte, 64)...))
 		case r.URL.Path == "/xmltv.php":
 			now := time.Now().UTC()
 			f := func(t time.Time) string { return t.Format("20060102150405 +0000") }
@@ -68,8 +79,9 @@ func newTVProvider() *tvProvider {
 				w.Write([]byte(`[{"category_id":"1","category_name":"Italia"},{"category_id":"2","category_name":"Intrattenimento"},
 					{"category_id":"3","category_name":"Dazn Locale"}]`))
 			case "get_live_streams":
-				w.Write([]byte(`[{"name":"Canale 5 HD","stream_id":105,"category_id":"1"},{"name":"Rai 1 HD","stream_id":101,"category_id":"1","epg_channel_id":"Rai1.it"},
-					{"name":"Cielo HD","stream_id":126,"category_id":"2"},{"name":"Alma Tv","stream_id":300,"category_id":"2"},
+				logo := "http://" + r.Host + "/logo/"
+				w.Write([]byte(`[{"name":"Canale 5 HD","stream_id":105,"category_id":"1"},{"name":"Rai 1 HD","stream_id":101,"category_id":"1","epg_channel_id":"Rai1.it","stream_icon":"` + logo + `rai1.png"},
+					{"name":"Cielo HD","stream_id":126,"category_id":"2","stream_icon":"` + logo + `cielo.svg"},{"name":"Alma Tv","stream_id":300,"category_id":"2"},
 					{"name":"DAZN Calcio 1 HD","stream_id":400,"category_id":"3"}]`))
 			default:
 				w.Write([]byte(`[]`))
@@ -262,4 +274,65 @@ func TestWebInterfaceServedWithStrictCSP(t *testing.T) {
 			t.Fatalf("%s: %d csp=%q", path, resp.StatusCode, csp)
 		}
 	}
+}
+
+func TestLogosThroughServer(t *testing.T) {
+	e, p := tvSetup(t)
+	code, body := e.do(t, "GET", "/api/v1/tv/channels?section=tv", nil, true)
+	if code != 200 || strings.Contains(string(body), p.URL) || strings.Contains(string(body), `"image"`) {
+		t.Fatalf("provider URLs must not reach clients: %s", body)
+	}
+	var list []struct {
+		Name string `json:"name"`
+		Logo string `json:"logo"`
+	}
+	json.Unmarshal(body, &list)
+	logos := map[string]string{}
+	for _, c := range list {
+		logos[c.Name] = c.Logo
+	}
+	if logos["Rai 1"] == "" || logos["Cielo"] == "" || logos["Canale 5"] != "" {
+		t.Fatalf("logo URLs: %v", logos)
+	}
+
+	// Five clients at once: one fetch through the VPN, then cache.
+	var wg sync.WaitGroup
+	for range 5 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			resp, err := http.Get(e.srv.URL + logos["Rai 1"])
+			if err != nil || resp.StatusCode != 200 || resp.Header.Get("Content-Type") != "image/png" {
+				t.Errorf("logo: %v %v", err, resp)
+			}
+			resp.Body.Close()
+		}()
+	}
+	wg.Wait()
+	resp, _ := http.Get(e.srv.URL + logos["Rai 1"])
+	resp.Body.Close()
+	p.mu.Lock()
+	if p.logoHits["/logo/rai1.png"] != 1 {
+		t.Errorf("logo fetched %d times from the provider", p.logoHits["/logo/rai1.png"])
+	}
+	p.mu.Unlock()
+
+	tampered := strings.Replace(logos["Rai 1"], "?s=", "?s=0", 1)
+	if resp, _ := http.Get(e.srv.URL + tampered); resp.StatusCode != 403 {
+		t.Errorf("tampered signature: %d", resp.StatusCode)
+	}
+	other := strings.Replace(logos["Rai 1"], "/logo/", "/logo/9", 1)
+	if resp, _ := http.Get(e.srv.URL + other); resp.StatusCode != 403 {
+		t.Errorf("signature reused for another item: %d", resp.StatusCode)
+	}
+	for range 2 {
+		if resp, _ := http.Get(e.srv.URL + logos["Cielo"]); resp.StatusCode != 404 {
+			t.Errorf("svg must be refused: %d", resp.StatusCode)
+		}
+	}
+	p.mu.Lock()
+	if p.logoHits["/logo/cielo.svg"] != 1 {
+		t.Errorf("refused image fetched %d times (failure not cached)", p.logoHits["/logo/cielo.svg"])
+	}
+	p.mu.Unlock()
 }
