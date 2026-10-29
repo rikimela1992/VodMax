@@ -78,6 +78,7 @@ func fakeProvider(hits *atomic.Int32) *httptest.Server {
 }
 
 type env struct {
+	svc        *service.Service
 	srv        *httptest.Server
 	tunnel     *fakeTunnel
 	dbPath     string
@@ -100,6 +101,7 @@ func setup(t *testing.T, tunnelComesUp bool) *env {
 		e.tunnel.up.Store(tunnelComesUp)
 		return e.tunnel, nil
 	})
+	e.svc = svc
 	e.recordings = filepath.Join(dir, "recordings")
 	svc.SetBackupDir(filepath.Join(dir, "backups"))
 	ctx, cancel := context.WithCancel(context.Background())

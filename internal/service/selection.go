@@ -183,6 +183,6 @@ func (s *Service) Variants(ctx context.Context, itemID int64) ([]store.CatalogIt
 		return nil, err
 	}
 	list, err := s.st.Variants(ctx, itemID)
-	s.catalogImages(list)
+	s.catalogImages(ctx, list)
 	return list, err
 }

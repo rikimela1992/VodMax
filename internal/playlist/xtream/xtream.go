@@ -159,6 +159,7 @@ type Episode struct {
 
 type SeriesInfo struct {
 	Info     Series `json:"info"`
+	Details  Details
 	Episodes []Episode
 }
 
@@ -209,13 +210,14 @@ func (c *Client) Series(ctx context.Context) ([]Series, error) {
 // SeriesInfo returns a series with all its episodes, ordered by season.
 func (c *Client) SeriesInfo(ctx context.Context, seriesID string) (SeriesInfo, error) {
 	var raw struct {
-		Info     Series                     `json:"info"`
+		Info     json.RawMessage            `json:"info"`
 		Episodes map[string]json.RawMessage `json:"episodes"`
 	}
 	if err := c.get(ctx, "get_series_info", url.Values{"series_id": {seriesID}}, &raw); err != nil {
 		return SeriesInfo{}, err
 	}
-	out := SeriesInfo{Info: raw.Info}
+	out := SeriesInfo{Details: ParseDetails(raw.Info)}
+	json.Unmarshal(raw.Info, &out.Info)
 	for season, msg := range raw.Episodes {
 		var eps []Episode
 		if err := json.Unmarshal(msg, &eps); err != nil {

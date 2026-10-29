@@ -53,6 +53,7 @@ type Service struct {
 	rec    recorderState
 	maint  maintenanceState
 	auth   authState
+	meta   metaState
 }
 
 func New(st *store.Store, box *secret.Box, start StartTunnel) *Service {
@@ -537,14 +538,23 @@ func (s *Service) Catalog(ctx context.Context, q store.Query) (store.Page, error
 		q.NoAdult, q.All = true, false
 	}
 	page, err := s.st.Catalog(ctx, q)
-	s.catalogImages(page.Items)
+	s.catalogImages(ctx, page.Items)
 	return page, err
 }
 
 // catalogImages replaces provider image URLs with signed local ones.
-func (s *Service) catalogImages(items []store.CatalogItem) {
+// A film or series without an image of its own can still have the TMDB
+// poster, when a key is configured.
+func (s *Service) catalogImages(ctx context.Context, items []store.CatalogItem) {
+	tmdb := false
+	for _, it := range items {
+		if it.Image == "" && it.TMDBID != "" {
+			tmdb = s.tmdbClient(ctx) != nil
+			break
+		}
+	}
 	for i := range items {
-		if items[i].Image != "" {
+		if items[i].Image != "" || (tmdb && items[i].TMDBID != "" && items[i].Kind != "live") {
 			items[i].Logo = s.LogoURL(items[i].ID)
 		}
 		items[i].Image = ""

@@ -255,6 +255,12 @@ var migrations = []string{
 	);
 	ALTER TABLE item ADD COLUMN adult INTEGER NOT NULL DEFAULT 0;
 	CREATE INDEX recording_group ON recording (group_key);`,
+	// 8: metadata of films and series (provider details, TMDB), cached.
+	`CREATE TABLE meta_cache (
+		key        TEXT PRIMARY KEY,   -- "p:<item id>" provider, "t:movie:<id>" / "t:tv:<id>" TMDB
+		data       TEXT NOT NULL,      -- JSON; '' when the source had nothing
+		fetched_at INTEGER NOT NULL
+	);`,
 }
 
 func (s *Store) migrate(ctx context.Context) error {

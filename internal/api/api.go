@@ -71,6 +71,9 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	route("PUT /api/v1/subscriptions/{id}/categories/{kind}/{category}", levelAdmin, a.putCategory)
 	route("PUT /api/v1/items/{id}/hidden", levelAdmin, a.putHidden)
 	route("GET /api/v1/items/{id}/variants", levelViewer, a.variants)
+	route("GET /api/v1/items/{id}/details", levelViewer, a.details)
+	route("GET /api/v1/settings/metadata", levelAdmin, a.getMetadataSettings)
+	route("PUT /api/v1/settings/metadata", levelAdmin, a.putMetadataSettings)
 	route("GET /api/v1/catalog/{kind}", levelViewer, a.catalog)
 	route("GET /api/v1/categories/{kind}", levelViewer, a.categories)
 	route("GET /api/v1/tv/channels", levelViewer, a.tvChannels)
@@ -95,6 +98,7 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	// cannot send an Authorization header.
 	mux.HandleFunc("GET /stream/live/{ticket}", a.liveStream)
 	mux.HandleFunc("GET /img/logo/{id}", a.logo)
+	mux.HandleFunc("GET /img/meta/{id}/{which}", a.metaImage)
 	mux.HandleFunc("GET /stream/vod/{session}", a.vodDirect)
 	mux.HandleFunc("GET /stream/vod/{session}/remux", a.vodRemux)
 	mux.HandleFunc("GET /stream/vod/{session}/subtitles", a.vodSubtitles)
@@ -618,6 +622,20 @@ func (a *api) logo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	img, err := a.svc.Logo(r.Context(), id, r.URL.Query().Get("s"))
+	a.image(w, r, img, err)
+}
+
+func (a *api) metaImage(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	img, err := a.svc.MetaImage(r.Context(), id, r.PathValue("which"), r.URL.Query().Get("s"))
+	a.image(w, r, img, err)
+}
+
+func (a *api) image(w http.ResponseWriter, r *http.Request, img store.CachedImage, err error) {
 	if err != nil {
 		if errors.Is(err, service.ErrNoImage) {
 			w.Header().Set("Cache-Control", "max-age=3600")
@@ -1153,4 +1171,37 @@ func (a *api) vodSubtitles(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Write(data)
+}
+
+func (a *api) details(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	d, err := a.svc.Details(r.Context(), id)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, d)
+}
+
+func (a *api) getMetadataSettings(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, a.svc.MetadataSettings(r.Context()))
+}
+
+func (a *api) putMetadataSettings(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		TMDBKey string `json:"tmdb_key"`
+	}
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if err := a.svc.SetTMDBKey(r.Context(), in.TMDBKey); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, a.svc.MetadataSettings(r.Context()))
 }

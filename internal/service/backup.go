@@ -57,6 +57,17 @@ func (s *Service) exportData(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Sealed settings (the TMDB key) travel in clear inside the encrypted
+	// backup, so another installation can seal them with its own key.
+	b.Secrets = map[string]string{}
+	for k := range b.Settings {
+		if strings.HasPrefix(k, secretPrefix) {
+			if v, err := s.secretSetting(ctx, k); err == nil && v != "" {
+				b.Secrets[k] = v
+			}
+			delete(b.Settings, k)
+		}
+	}
 	var buf bytes.Buffer
 	zw := gzip.NewWriter(&buf)
 	if err := json.NewEncoder(zw).Encode(b); err != nil {
@@ -192,11 +203,23 @@ func (s *Service) RestoreBackup(ctx context.Context, data []byte, password strin
 	clear(s.maint.guideErr)
 	clear(s.maint.guideRetry)
 	s.mu.Unlock()
+	for k := range b.Settings {
+		if strings.HasPrefix(k, secretPrefix) {
+			delete(b.Settings, k) // sealed by another installation
+		}
+	}
 	err = s.st.ImportBackup(ctx, b,
 		func(id int64, plain []byte) []byte { return s.box.Seal(plain, vpnOwner(id)) },
 		func(id int64, plain []byte) []byte { return s.box.Seal(plain, subOwner(id)) })
 	if err != nil {
 		return err
+	}
+	for k, v := range b.Secrets {
+		if strings.HasPrefix(k, secretPrefix) {
+			if err := s.setSecretSetting(ctx, k, v); err != nil {
+				return err
+			}
+		}
 	}
 	go func() {
 		ctx := context.Background()

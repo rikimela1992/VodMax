@@ -24,7 +24,8 @@ type Backup struct {
 	Recordings    []Recording         `json:"recordings"`
 	RecordingKeys map[int64]string    `json:"recording_groups"` // recording id → channel group
 	Settings      map[string]string   `json:"settings"`
-	Extra         map[string][]string `json:"extra,omitempty"` // reserved for later tables
+	Secrets       map[string]string   `json:"secrets,omitempty"` // sealed settings, in clear inside the backup
+	Extra         map[string][]string `json:"extra,omitempty"`   // reserved for later tables
 }
 
 const BackupVersion = 1

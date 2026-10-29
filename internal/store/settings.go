@@ -30,3 +30,8 @@ func (s *Store) SetSetting(ctx context.Context, key string, v any) error {
 		ON CONFLICT (key) DO UPDATE SET value = excluded.value`, key, string(raw))
 	return err
 }
+
+func (s *Store) DeleteSetting(ctx context.Context, key string) error {
+	_, err := s.w.ExecContext(ctx, `DELETE FROM setting WHERE key = ?`, key)
+	return err
+}

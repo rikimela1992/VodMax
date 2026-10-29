@@ -81,10 +81,26 @@ func (s *Service) Logo(ctx context.Context, itemID int64, sig string) (store.Cac
 	if err != nil {
 		return store.CachedImage{}, err
 	}
-	u, err := url.Parse(src)
-	if src == "" || err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+	if !imageURL(src) {
+		if poster := s.tmdbPoster(ctx, itemID); poster != "" {
+			return s.cachedImage(ctx, poster, func(ctx context.Context) (store.CachedImage, error) { return s.fetchDirect(ctx, poster) })
+		}
 		return store.CachedImage{}, ErrNoImage
 	}
+	img, err := s.cachedImage(ctx, src, func(ctx context.Context) (store.CachedImage, error) { return s.fetchImage(ctx, subID, src) })
+	if errors.Is(err, ErrNoImage) {
+		// Broken or refused by the provider: the TMDB poster, if known.
+		if poster := s.tmdbPoster(ctx, itemID); poster != "" {
+			return s.cachedImage(ctx, poster, func(ctx context.Context) (store.CachedImage, error) { return s.fetchDirect(ctx, poster) })
+		}
+	}
+	return img, err
+}
+
+// cachedImage returns src from the cache or fetches it once, even if many
+// clients ask at the same time. Failures the source reports (ErrNoImage)
+// are cached too, for imageRetryAfter.
+func (s *Service) cachedImage(ctx context.Context, src string, fetch func(context.Context) (store.CachedImage, error)) (store.CachedImage, error) {
 	sum := sha256.Sum256([]byte(src))
 	hash := hex.EncodeToString(sum[:])
 	if img, ok, err := s.st.CachedImage(ctx, hash); err != nil {
@@ -95,8 +111,6 @@ func (s *Service) Logo(ctx context.Context, itemID int64, sig string) (store.Cac
 		}
 		return img, nil
 	}
-
-	// One fetch per URL even if many clients ask at once.
 	s.imageKey()
 	s.images.mu.Lock()
 	call := s.images.inflight[hash]
@@ -105,7 +119,7 @@ func (s *Service) Logo(ctx context.Context, itemID int64, sig string) (store.Cac
 		s.images.inflight[hash] = call
 		s.images.mu.Unlock()
 		go func() {
-			call.img, call.err = s.fetchImage(context.WithoutCancel(ctx), subID, src)
+			call.img, call.err = fetch(context.WithoutCancel(ctx))
 			if call.err == nil || errors.Is(call.err, ErrNoImage) {
 				s.st.PutCachedImage(context.Background(), hash, call.img)
 			}
@@ -157,6 +171,34 @@ func (s *Service) fetchImage(ctx context.Context, subID int64, src string) (stor
 	if err != nil {
 		return store.CachedImage{}, fmt.Errorf("immagine: %w", provider.Redact(err))
 	}
+	return readImage(resp)
+}
+
+// fetchDirect downloads an image that is not the provider's (TMDB): the
+// normal network, same checks.
+func (s *Service) fetchDirect(ctx context.Context, src string) (store.CachedImage, error) {
+	s.images.slots <- struct{}{}
+	defer func() { <-s.images.slots }()
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, src, nil)
+	if err != nil {
+		return store.CachedImage{}, ErrNoImage
+	}
+	req.Header.Set("User-Agent", "VodMax")
+	resp, err := s.directHTTP().Do(req)
+	if err != nil {
+		return store.CachedImage{}, fmt.Errorf("immagine: %w", provider.Redact(err))
+	}
+	return readImage(resp)
+}
+
+func imageURL(src string) bool {
+	u, err := url.Parse(src)
+	return src != "" && err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
+}
+
+func readImage(resp *http.Response) (store.CachedImage, error) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return store.CachedImage{}, ErrNoImage

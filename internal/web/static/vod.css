@@ -311,3 +311,13 @@ h2 { font-size: 1.15rem; margin: 1.6rem 0 0.7rem; color: var(--soft); font-weigh
 .player-menu button:disabled { opacity: 0.45; cursor: default; }
 .player-menu button:focus, .player-menu button:hover { border-color: var(--text); outline: none; }
 video::cue { font-size: 1.6rem; background: rgba(0, 0, 0, 0.65); }
+
+/* Detail page: backdrop behind a dark gradient, plot and credits. */
+.detail.with-backdrop { background-size: cover; background-position: center top; }
+.detail.with-backdrop::before { content: ""; position: fixed; inset: 0; z-index: -1;
+  background: linear-gradient(90deg, rgba(8, 9, 11, 0.97) 35%, rgba(8, 9, 11, 0.7) 70%, rgba(8, 9, 11, 0.5)); }
+.detail { isolation: isolate; }
+.plot { max-width: 48rem; line-height: 1.5; margin: 1rem 0; }
+.credits { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; max-width: 48rem; margin: 0.5rem 0; color: var(--soft); }
+.credits dt { color: var(--soft); }
+.credits dd { margin: 0; color: var(--text); }

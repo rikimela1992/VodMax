@@ -361,8 +361,32 @@
     parts.push(el("h2", {}, "Aggiornamenti automatici"),
       el("p", { className: "note" }, "Il catalogo di ogni abbonamento (con la guida) si aggiorna ogni notte; se non riesce riprova ogni ora. La guida si aggiorna anche tra una notte e l'altra." +
         (status.next_catalog ? " Prossimo aggiornamento del catalogo: " + when(status.next_catalog) + "." : "")), form);
-    parts.push(...await backupSection());
+    parts.push(...(await metadataSection()).filter(Boolean), ...await backupSection());
     main.replaceChildren(...parts);
+  }
+
+  // ---- Covers and details (TMDB) ----
+  async function metadataSection() {
+    const m = await api("GET", "/api/v1/settings/metadata");
+    const key = input({ type: "password", autocomplete: "off", spellcheck: false,
+      placeholder: m.tmdb ? "configurata: incolla una nuova chiave per sostituirla" : "Chiave API (v3) o token di accesso in lettura (v4)" });
+    const save = el("button", { className: "small primary focusable full", type: "submit" }, "Salva la chiave");
+    const form = el("form", { className: "form" }, ...field("Chiave TMDB", key), save);
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      save.disabled = true;
+      try { await api("PUT", "/api/v1/settings/metadata", { tmdb_key: key.value }); flash("Chiave TMDB verificata e salvata"); render(); }
+      catch (err) { flash(err.message); save.disabled = false; }
+    };
+    const remove = m.tmdb ? button("Togli la chiave", async () => {
+      try { await api("PUT", "/api/v1/settings/metadata", { tmdb_key: "" }); flash("Chiave tolta"); render(); } catch (e) { flash(e.message); }
+    }, "danger") : null;
+    return [el("h2", {}, "Copertine e schede (TMDB)"),
+      el("p", { className: "note" }, "Le schede di film e serie vengono dal provider. Con una chiave gratuita di The Movie Database si aggiungono " +
+        "la locandina dove il provider non ce l'ha o l'ha rotta, la trama in italiano quando manca, lo sfondo e il cast. " +
+        "La chiave si crea su themoviedb.org → Impostazioni → API. Resta cifrata sul server e non viene mai mostrata."),
+      el("p", {}, m.tmdb ? el("span", { className: "ok" }, "✓ TMDB attivo") : el("span", { className: "note" }, "TMDB non configurato")),
+      form, remove ? el("div", { className: "buttons" }, remove) : null];
   }
 
   // ---- Backup ----

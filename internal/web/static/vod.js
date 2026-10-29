@@ -143,6 +143,41 @@
   }
 
   // ---- Detail ----
+  // Plot, credits and backdrop: from the provider (and TMDB when
+  // configured), loaded after the page opens so it is never slower.
+  async function showDetails(item) {
+    const panel = $("detail");
+    $("detail-plot").textContent = "";
+    $("detail-credits").replaceChildren();
+    panel.classList.remove("with-backdrop");
+    panel.style.backgroundImage = "";
+    let d;
+    try { d = await api("GET", "/api/v1/items/" + item.id + "/details"); } catch { return; }
+    if (state.detail !== item) return;
+    if (d.title && d.title.toLowerCase() !== item.display_title.toLowerCase()) $("detail-title").textContent = d.title;
+    const meta = $("detail-meta").textContent;
+    const extra = [d.duration ? Math.round(d.duration / 60) + " min" : "", d.genre].filter(Boolean).join(" · ");
+    if (extra) $("detail-meta").textContent = [meta, extra].filter(Boolean).join(" · ");
+    $("detail-plot").textContent = d.plot || "";
+    const rows = [["Regia", d.director], ["Cast", d.cast], ["Uscita", d.released], ["Paese", d.country],
+      ["Titolo originale", d.original_title && d.original_title !== item.display_title ? d.original_title : ""]];
+    for (const [k, v] of rows) if (v) $("detail-credits").append(el("dt", {}, k), el("dd", {}, v));
+    if (d.trailer) {
+      const a = el("a", { className: "button secondary focusable", href: "https://www.youtube.com/watch?v=" + encodeURIComponent(d.trailer),
+        target: "_blank", rel: "noopener noreferrer" }, "▶ Trailer");
+      $("detail-actions").append(a);
+    }
+    if (d.backdrop) {
+      const img = new Image();
+      img.onload = () => {
+        if (state.detail !== item) return;
+        panel.style.backgroundImage = "url(" + JSON.stringify(d.backdrop) + ")";
+        panel.classList.add("with-backdrop");
+      };
+      img.src = d.backdrop;
+    }
+  }
+
   async function openDetail(item) {
     state.detail = item;
     $("detail-title").textContent = item.display_title;
@@ -151,6 +186,7 @@
       item.rating ? "★ " + Number(item.rating).toLocaleString("it-IT", { maximumFractionDigits: 1 }) : ""].filter(Boolean).join(" · ");
     $("detail-image").hidden = !item.logo;
     if (item.logo) $("detail-image").src = item.logo;
+    showDetails(item);
     $("seasons").replaceChildren();
     $("episodes").replaceChildren();
     const actions = $("detail-actions");
