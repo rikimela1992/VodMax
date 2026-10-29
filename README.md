@@ -8,8 +8,10 @@ può passare da una **VPN** registrata.
 Un'unica applicazione che funziona da sola su un dispositivo (**Agent**) e
 che può diventare il **Server** della casa per gli altri dispositivi.
 
-> Stato: **sviluppo iniziale**. Primo modulo: VPN interna, client verso il
-> provider che passa solo dal tunnel, lettura di playlist M3U e Xtream Codes.
+> Stato: **sviluppo iniziale**. Funzionano: VPN interna, abbonamenti Xtream
+> e M3U, sincronizzazione del catalogo solo tramite VPN, catalogo con
+> ricerca e paginazione via API. Non c'è ancora un'interfaccia né la
+> riproduzione.
 
 ## L'idea in breve
 
@@ -59,6 +61,32 @@ Dettagli nella [decisione 0012](docs/decisioni/0012-connessioni-vpn.md).
 | `internal/provider` | L'unico client HTTP ammesso verso i provider: si collega solo tramite il tunnel, ignora i proxy di sistema, toglie le credenziali dagli errori. |
 | `internal/playlist/m3u` | Lettura di playlist M3U estese (`tvg-*`, `group-title`, catch-up, `#EXTVLCOPT`). |
 | `internal/playlist/xtream` | Client Xtream Codes: account, diretta, film, serie, episodi, URL di riproduzione e catch-up. |
+| `internal/secret` | Cifratura AES-256-GCM delle credenziali con chiave locale (`secret.key`, 0600). |
+| `internal/store` | SQLite: lettori e scrittore separati (WAL), id stabili, import "tutto o niente" con protezione dai cali anomali, ricerca FTS5 senza accenti, paginazione a cursore. |
+| `internal/catalog` | Conversione delle playlist in catalogo; titoli puliti (anno separato, tag di qualità tolti), separatori scartati. |
+| `internal/service`, `internal/api` | Logica e API HTTP `/api/v1` (VPN, abbonamenti, sincronizzazione, catalogo, categorie), protetta da token. |
+| `cmd/vodmax-server` | Il server. |
+| `cmd/vodmax-probe` | Strumento di prova: `.conf`, tunnel, login Xtream. |
+
+## Avvio del server
+
+```sh
+go build ./cmd/vodmax-server
+./vodmax-server -data ./vodmax-data -listen 127.0.0.1:8095
+```
+
+Al primo avvio crea in `-data` il database, la chiave di cifratura
+(`secret.key`) e il token di amministrazione (`admin.token`). Ogni chiamata
+API, tranne `/api/v1/health`, richiede `Authorization: Bearer <token>`.
+
+| Metodo e percorso | Scopo |
+|---|---|
+| `POST /api/v1/vpn` `{name, config}` | Registra una VPN WireGuard (testo `.conf`) |
+| `POST /api/v1/vpn/{id}/connect` · `/disconnect` | Collega o scollega il tunnel |
+| `POST /api/v1/subscriptions` `{name, kind, vpn_id, server, username, password}` o `{…, url}` | Aggiunge un abbonamento Xtream o M3U |
+| `POST /api/v1/subscriptions/{id}/sync` | Sincronizza il catalogo (`?allow_drop=true` per accettare un calo anomalo) |
+| `GET /api/v1/catalog/{live\|movie\|series}` | Catalogo: `q`, `category`, `subscription`, `sort=recent`, `cursor`, `limit` |
+| `GET /api/v1/categories/{kind}` | Categorie |
 
 ## Sviluppo
 

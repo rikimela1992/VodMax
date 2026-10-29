@@ -1,0 +1,387 @@
+package store
+
+import (
+	"context"
+	"database/sql"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+	"unicode"
+)
+
+// Item is one catalog entry as imported from a provider.
+type Item struct {
+	Kind         string
+	SourceID     string
+	Title        string
+	DisplayTitle string
+	Year         int
+	CategoryID   string
+	Image        string
+	EPGID        string
+	Number       int
+	Rating       float64
+	TMDBID       string
+	Extension    string
+	CatchupDays  int
+	AddedAt      int64
+	Locator      []byte // sealed stream URL, M3U only
+}
+
+// Category groups items of one kind inside a subscription.
+type Category struct {
+	Kind     string `json:"kind"`
+	SourceID string `json:"id"`
+	Name     string `json:"name"`
+}
+
+// ImportResult summarises a catalog replacement.
+type ImportResult struct {
+	Total   map[string]int `json:"total"`
+	Added   int            `json:"added"`
+	Removed int            `json:"removed"`
+}
+
+// ErrSuspiciousDrop protects the catalog from broken provider responses:
+// the previous catalog stays available.
+var ErrSuspiciousDrop = errors.New("il nuovo catalogo ha meno della metà dei titoli: mantenuto il precedente")
+
+const dropMinimum = 50
+
+// ReplaceCatalog makes items the current content of the given kinds of a
+// subscription, in a single write transaction. Existing rows keep their id
+// (and so favourites and progress); missing ones become unavailable, never
+// deleted. Readers keep seeing the previous catalog until commit.
+func (s *Store) ReplaceCatalog(ctx context.Context, subID int64, kinds []string, categories []Category, items []Item, allowDrop bool) (ImportResult, error) {
+	res := ImportResult{Total: map[string]int{}}
+	covered := map[string]bool{}
+	for _, k := range kinds {
+		covered[k] = true
+		res.Total[k] = 0
+	}
+	for _, it := range items {
+		if !covered[it.Kind] {
+			return res, fmt.Errorf("tipo %q non dichiarato nell'importazione", it.Kind)
+		}
+		res.Total[it.Kind]++
+	}
+
+	tx, err := s.w.BeginTx(ctx, nil)
+	if err != nil {
+		return res, err
+	}
+	defer tx.Rollback()
+
+	for _, kind := range kinds {
+		var current int
+		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM item WHERE subscription_id = ? AND kind = ? AND available = 1`,
+			subID, kind).Scan(&current); err != nil {
+			return res, err
+		}
+		if !allowDrop && current >= dropMinimum && res.Total[kind]*2 < current {
+			return res, fmt.Errorf("%w (%s: %d → %d)", ErrSuspiciousDrop, kind, current, res.Total[kind])
+		}
+	}
+
+	now := time.Now().UnixNano() // unique per import: identifies rows seen now
+	stmt, err := tx.PrepareContext(ctx, `
+		INSERT INTO item (subscription_id, kind, source_id, title, display_title, year, category_id, image, epg_id,
+			number, rating, tmdb_id, extension, catchup_days, added_at, locator, first_seen_at, last_seen_at, available)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+		ON CONFLICT (subscription_id, kind, source_id) DO UPDATE SET
+			title = excluded.title, display_title = excluded.display_title, year = excluded.year,
+			category_id = excluded.category_id, image = excluded.image, epg_id = excluded.epg_id,
+			number = excluded.number, rating = excluded.rating, tmdb_id = excluded.tmdb_id,
+			extension = excluded.extension, catchup_days = excluded.catchup_days, added_at = excluded.added_at,
+			locator = excluded.locator, last_seen_at = excluded.last_seen_at,
+			available = 1
+		RETURNING first_seen_at`)
+	if err != nil {
+		return res, err
+	}
+	defer stmt.Close()
+	for _, it := range items {
+		var first int64
+		err := stmt.QueryRowContext(ctx, subID, it.Kind, it.SourceID, it.Title, it.DisplayTitle, zeroNull(it.Year),
+			it.CategoryID, it.Image, it.EPGID, zeroNull(it.Number), zeroNullF(it.Rating), it.TMDBID, it.Extension,
+			it.CatchupDays, zeroNull64(it.AddedAt), it.Locator, now, now).Scan(&first)
+		if err != nil {
+			return res, fmt.Errorf("titolo %q: %w", it.Title, err)
+		}
+		if first == now {
+			res.Added++
+		}
+	}
+
+	for _, kind := range kinds {
+		r, err := tx.ExecContext(ctx, `UPDATE item SET available = 0 WHERE subscription_id = ? AND kind = ? AND available = 1 AND last_seen_at <> ?`,
+			subID, kind, now)
+		if err != nil {
+			return res, err
+		}
+		n, _ := r.RowsAffected()
+		res.Removed += int(n)
+		if _, err := tx.ExecContext(ctx, `DELETE FROM category WHERE subscription_id = ? AND kind = ?`, subID, kind); err != nil {
+			return res, err
+		}
+	}
+	for _, c := range categories {
+		if !covered[c.Kind] {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT OR REPLACE INTO category VALUES (?, ?, ?, ?)`, subID, c.Kind, c.SourceID, c.Name); err != nil {
+			return res, err
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO item_search(item_search) VALUES ('rebuild')`); err != nil {
+		return res, err
+	}
+	if err := tx.Commit(); err != nil {
+		return res, err
+	}
+	// A full import rewrites most pages: fold the WAL back into the main
+	// file so it does not stay at catalog size. Best effort, readers may
+	// still hold old snapshots.
+	s.w.ExecContext(ctx, `PRAGMA wal_checkpoint(TRUNCATE)`)
+	return res, nil
+}
+
+func zeroNull(n int) any {
+	if n == 0 {
+		return nil
+	}
+	return n
+}
+
+func zeroNull64(n int64) any {
+	if n == 0 {
+		return nil
+	}
+	return n
+}
+
+func zeroNullF(f float64) any {
+	if f == 0 {
+		return nil
+	}
+	return f
+}
+
+// CatalogItem is the public view of an item: no locator.
+type CatalogItem struct {
+	ID             int64    `json:"id"`
+	SubscriptionID int64    `json:"subscription_id"`
+	Kind           string   `json:"kind"`
+	SourceID       string   `json:"source_id"`
+	Title          string   `json:"title"`
+	DisplayTitle   string   `json:"display_title"`
+	Year           *int     `json:"year,omitempty"`
+	CategoryID     string   `json:"category_id,omitempty"`
+	Image          string   `json:"image,omitempty"`
+	EPGID          string   `json:"epg_id,omitempty"`
+	Number         *int     `json:"number,omitempty"`
+	Rating         *float64 `json:"rating,omitempty"`
+	TMDBID         string   `json:"tmdb_id,omitempty"`
+	Extension      string   `json:"-"`
+	CatchupDays    int      `json:"catchup_days,omitempty"`
+	FirstSeenAt    int64    `json:"first_seen_at"`
+	Available      bool     `json:"available"`
+}
+
+// Query selects a page of the catalog.
+type Query struct {
+	Kind           string // live, movie or series (required)
+	Text           string // full-text search; ignores Sort
+	SubscriptionID int64
+	CategoryID     string
+	Sort           string // "title" (default) or "recent"
+	Cursor         string
+	Limit          int
+}
+
+// Page is a slice of results with an opaque cursor for the next one.
+type Page struct {
+	Items []CatalogItem `json:"items"`
+	Next  string        `json:"next,omitempty"`
+}
+
+type cursor struct {
+	Title string `json:"t,omitempty"`
+	Time  int64  `json:"s,omitempty"`
+	ID    int64  `json:"i"`
+	Off   int    `json:"o,omitempty"`
+}
+
+const itemColumns = `i.id, i.subscription_id, i.kind, i.source_id, i.title, i.display_title, i.year, i.category_id,
+	i.image, i.epg_id, i.number, i.rating, i.tmdb_id, i.extension, i.catchup_days, i.first_seen_at, i.available`
+
+func scanItem(rows *sql.Rows) (CatalogItem, error) {
+	var it CatalogItem
+	var year, number sql.NullInt64
+	var rating sql.NullFloat64
+	err := rows.Scan(&it.ID, &it.SubscriptionID, &it.Kind, &it.SourceID, &it.Title, &it.DisplayTitle, &year,
+		&it.CategoryID, &it.Image, &it.EPGID, &number, &rating, &it.TMDBID, &it.Extension, &it.CatchupDays,
+		&it.FirstSeenAt, &it.Available)
+	if year.Valid {
+		y := int(year.Int64)
+		it.Year = &y
+	}
+	if number.Valid {
+		n := int(number.Int64)
+		it.Number = &n
+	}
+	if rating.Valid {
+		it.Rating = &rating.Float64
+	}
+	it.FirstSeenAt /= int64(time.Second) // stored in ns to identify imports
+	return it, err
+}
+
+// Catalog returns one page. Pagination is keyset-based, so deep pages cost
+// the same as the first one.
+func (s *Store) Catalog(ctx context.Context, q Query) (Page, error) {
+	if q.Kind != "live" && q.Kind != "movie" && q.Kind != "series" {
+		return Page{}, errors.New("tipo di catalogo non valido")
+	}
+	if q.Limit <= 0 || q.Limit > 200 {
+		q.Limit = 50
+	}
+	var cur cursor
+	if q.Cursor != "" {
+		raw, err := base64.RawURLEncoding.DecodeString(q.Cursor)
+		if err != nil || json.Unmarshal(raw, &cur) != nil {
+			return Page{}, errors.New("cursore non valido")
+		}
+	}
+	where := []string{"i.kind = ?", "i.available = 1"}
+	args := []any{q.Kind}
+	if q.SubscriptionID != 0 {
+		where, args = append(where, "i.subscription_id = ?"), append(args, q.SubscriptionID)
+	}
+	if q.CategoryID != "" {
+		where, args = append(where, "i.category_id = ?"), append(args, q.CategoryID)
+	}
+
+	var sqlText string
+	switch {
+	case strings.TrimSpace(q.Text) != "":
+		match := ftsQuery(q.Text)
+		if match == "" {
+			return Page{}, nil
+		}
+		// Relevance order; offset pagination is fine for bounded result sets.
+		sqlText = `SELECT ` + itemColumns + ` FROM item_search JOIN item i ON i.id = item_search.rowid
+			WHERE item_search MATCH ? AND ` + strings.Join(where, " AND ") + `
+			ORDER BY item_search.rank, i.id LIMIT ? OFFSET ?`
+		args = append([]any{match}, args...)
+		args = append(args, q.Limit+1, cur.Off)
+	case q.Sort == "recent":
+		if q.Cursor != "" {
+			where = append(where, "(i.first_seen_at < ? OR (i.first_seen_at = ? AND i.id > ?))")
+			args = append(args, cur.Time, cur.Time, cur.ID)
+		}
+		sqlText = `SELECT ` + itemColumns + ` FROM item i WHERE ` + strings.Join(where, " AND ") +
+			` ORDER BY i.first_seen_at DESC, i.id LIMIT ?`
+		args = append(args, q.Limit+1)
+	default:
+		if q.Cursor != "" {
+			where = append(where, "(i.display_title COLLATE NOCASE > ? OR (i.display_title COLLATE NOCASE = ? AND i.id > ?))")
+			args = append(args, cur.Title, cur.Title, cur.ID)
+		}
+		sqlText = `SELECT ` + itemColumns + ` FROM item i WHERE ` + strings.Join(where, " AND ") +
+			` ORDER BY i.display_title COLLATE NOCASE, i.id LIMIT ?`
+		args = append(args, q.Limit+1)
+	}
+
+	rows, err := s.r.QueryContext(ctx, sqlText, args...)
+	if err != nil {
+		return Page{}, err
+	}
+	defer rows.Close()
+	var page Page
+	var lastFirstSeen int64
+	for rows.Next() {
+		it, err := scanItem(rows)
+		if err != nil {
+			return Page{}, err
+		}
+		page.Items = append(page.Items, it)
+	}
+	if err := rows.Err(); err != nil {
+		return Page{}, err
+	}
+	if len(page.Items) > q.Limit {
+		page.Items = page.Items[:q.Limit]
+		last := page.Items[q.Limit-1]
+		next := cursor{ID: last.ID}
+		switch {
+		case strings.TrimSpace(q.Text) != "":
+			next = cursor{Off: cur.Off + q.Limit}
+		case q.Sort == "recent":
+			// Re-read the exact stored value for the keyset comparison.
+			if err := s.r.QueryRowContext(ctx, `SELECT first_seen_at FROM item WHERE id = ?`, last.ID).Scan(&lastFirstSeen); err != nil {
+				return Page{}, err
+			}
+			next.Time = lastFirstSeen
+		default:
+			next.Title = last.DisplayTitle
+		}
+		raw, _ := json.Marshal(next)
+		page.Next = base64.RawURLEncoding.EncodeToString(raw)
+	}
+	return page, nil
+}
+
+// ftsQuery turns user text into a prefix query: every word must match.
+func ftsQuery(text string) string {
+	words := strings.FieldsFunc(text, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsNumber(r) })
+	if len(words) > 12 {
+		words = words[:12]
+	}
+	parts := make([]string, 0, len(words))
+	for _, w := range words {
+		parts = append(parts, `"`+w+`"*`)
+	}
+	return strings.Join(parts, " AND ")
+}
+
+// Categories lists the categories of a kind, optionally for one subscription.
+func (s *Store) Categories(ctx context.Context, kind string, subID int64) ([]Category, error) {
+	rows, err := s.r.QueryContext(ctx, `SELECT kind, source_id, name FROM category
+		WHERE kind = ? AND (? = 0 OR subscription_id = ?) ORDER BY name COLLATE NOCASE`, kind, subID, subID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Category
+	for rows.Next() {
+		var c Category
+		if err := rows.Scan(&c.Kind, &c.SourceID, &c.Name); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// Counts returns available items per kind for a subscription.
+func (s *Store) Counts(ctx context.Context, subID int64) (map[string]int, error) {
+	rows, err := s.r.QueryContext(ctx, `SELECT kind, count(*) FROM item WHERE subscription_id = ? AND available = 1 GROUP BY kind`, subID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var k string
+		var n int
+		if err := rows.Scan(&k, &n); err != nil {
+			return nil, err
+		}
+		out[k] = n
+	}
+	return out, rows.Err()
+}

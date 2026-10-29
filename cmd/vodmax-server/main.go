@@ -1,0 +1,112 @@
+// Command vodmax-server runs the VodMax server.
+//
+//	vodmax-server -data /var/lib/vodmax -listen 127.0.0.1:8095
+//
+// On first start it creates in the data directory the database, the key
+// that encrypts credentials (secret.key) and the admin token (admin.token),
+// all readable only by the owner.
+package main
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
+	"flag"
+	"fmt"
+	"io/fs"
+	"log/slog"
+	"net"
+	"net/http"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/rikimela1992/vodmax/internal/api"
+	"github.com/rikimela1992/vodmax/internal/secret"
+	"github.com/rikimela1992/vodmax/internal/service"
+	"github.com/rikimela1992/vodmax/internal/store"
+)
+
+func main() {
+	data := flag.String("data", "./vodmax-data", "cartella dei dati")
+	listen := flag.String("listen", "127.0.0.1:8095", "indirizzo HTTP")
+	flag.Parse()
+	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	if err := run(*data, *listen, log); err != nil {
+		log.Error("avvio fallito", "err", err)
+		os.Exit(1)
+	}
+}
+
+func run(data, listen string, log *slog.Logger) error {
+	if err := os.MkdirAll(data, 0o700); err != nil {
+		return err
+	}
+	if host, _, err := net.SplitHostPort(listen); err == nil {
+		if ip := net.ParseIP(host); ip == nil || !ip.IsLoopback() {
+			log.Warn("API raggiungibile dalla rete: l'accesso è protetto solo dal token di amministrazione", "listen", listen)
+		}
+	}
+	box, err := secret.LoadOrCreate(filepath.Join(data, "secret.key"))
+	if err != nil {
+		return err
+	}
+	token, err := adminToken(filepath.Join(data, "admin.token"))
+	if err != nil {
+		return err
+	}
+	st, err := store.Open(filepath.Join(data, "vodmax.db"))
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+	svc := service.New(st, box, nil)
+	defer svc.Close()
+
+	srv := &http.Server{
+		Addr:              listen,
+		Handler:           api.Handler(svc, token, log),
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	go func() {
+		<-ctx.Done()
+		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		srv.Shutdown(shutdown)
+	}()
+	log.Info("VodMax server avviato", "listen", listen, "data", data)
+	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
+}
+
+// adminToken reads or creates the admin token file (mode 0600).
+func adminToken(path string) (string, error) {
+	raw, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		b := make([]byte, 32)
+		if _, err := rand.Read(b); err != nil {
+			return "", err
+		}
+		token := hex.EncodeToString(b)
+		if err := os.WriteFile(path, []byte(token+"\n"), 0o600); err != nil {
+			return "", err
+		}
+		return token, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	token := strings.TrimSpace(string(raw))
+	if len(token) < 32 {
+		return "", fmt.Errorf("%s: token troppo corto", path)
+	}
+	return token, nil
+}

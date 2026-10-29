@@ -48,6 +48,9 @@ titolo.
 
 ## Domande aperte
 
-- Stesso film presente in due abbonamenti: un'unica scheda con più versioni
-  (proposta: sì, come nel VodMax precedente)?
+- Stesso film presente più volte: un'unica scheda con più versioni
+  (proposta: sì, come nel VodMax precedente)? Nella prima sincronizzazione
+  reale (92.425 film) molti titoli compaiono più volte nello **stesso**
+  abbonamento, per qualità e lingua diverse: per esempio "Matrix" 28 risultati,
+  "1408" 5. Il raggruppamento serve già con un solo abbonamento.
 - Serve il supporto Stalker / MAC portal?
