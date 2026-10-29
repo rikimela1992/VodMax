@@ -33,6 +33,8 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	protected.HandleFunc("POST /api/v1/vpn/{id}/connect", a.connectVPN)
 	protected.HandleFunc("POST /api/v1/vpn/{id}/disconnect", a.disconnectVPN)
 	protected.HandleFunc("DELETE /api/v1/vpn/{id}", a.deleteVPN)
+	protected.HandleFunc("PATCH /api/v1/vpn/{id}", a.patchVPN)
+	protected.HandleFunc("PATCH /api/v1/subscriptions/{id}", a.patchSubscription)
 	protected.HandleFunc("GET /api/v1/subscriptions", a.listSubscriptions)
 	protected.HandleFunc("POST /api/v1/subscriptions", a.addSubscription)
 	protected.HandleFunc("POST /api/v1/subscriptions/{id}/sync", a.syncSubscription)
@@ -737,4 +739,43 @@ func (a *api) getProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, p)
+}
+
+func (a *api) patchVPN(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	var in struct {
+		Name   *string `json:"name"`
+		Config *string `json:"config"`
+	}
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if err := a.svc.UpdateVPN(r.Context(), id, in.Name, in.Config); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) patchSubscription(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	var in service.SubscriptionPatch
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if err := a.svc.UpdateSubscription(r.Context(), id, in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

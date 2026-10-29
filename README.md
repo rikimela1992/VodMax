@@ -71,7 +71,7 @@ Dettagli nella [decisione 0012](docs/decisioni/0012-connessioni-vpn.md).
 | `internal/service`, `internal/api` | Logica e API HTTP `/api/v1` (VPN, abbonamenti, sincronizzazione, catalogo, categorie), protetta da token. |
 | `internal/lineup` | Riconoscimento dei canali nazionali e numerazione LCN ufficiale. |
 | `internal/epg` | Lettura in streaming delle guide XMLTV. |
-| `internal/web` | Interfaccia da telecomando: menu (`/`: Home, Film, Serie, Registrazioni), TV (`/tv.html`); HTML/JS senza framework, mpegts.js 1.8.2 incluso. Un link `/#token=…` salva il token di accesso. |
+| `internal/web` | Interfaccia da telecomando: menu (`/`: Home, Film, Serie, Registrazioni), TV (`/tv.html`), Impostazioni (`/settings.html`: abbonamenti, VPN, selezione del catalogo con anteprima, categorie); HTML/JS senza framework, mpegts.js 1.8.2 incluso. Un link `/#token=…` salva il token di accesso. |
 | `cmd/vodmax-server` | Il server. |
 | `cmd/vodmax-probe` | Strumento di prova: `.conf`, tunnel, login Xtream. |
 

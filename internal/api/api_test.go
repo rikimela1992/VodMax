@@ -229,3 +229,44 @@ func TestNoProviderTrafficWithoutVPN(t *testing.T) {
 		t.Fatalf("status after failed sync: %s", body)
 	}
 }
+
+func TestUpdateSubscriptionAndVPN(t *testing.T) {
+	var hits atomic.Int32
+	provider := fakeProvider(&hits)
+	defer provider.Close()
+	e := setup(t, true)
+	e.do(t, "POST", "/api/v1/vpn", map[string]string{"name": "VPN", "config": wgConf(t)}, true)
+	e.do(t, "POST", "/api/v1/subscriptions", map[string]any{"name": "B", "kind": "xtream", "vpn_id": 1,
+		"server": provider.URL, "username": "mario", "password": "sbagliata"}, true)
+	if code, _ := e.do(t, "POST", "/api/v1/subscriptions/1/sync", nil, true); code == 200 {
+		t.Fatal("sync with wrong password succeeded")
+	}
+	// Fix only the password: server and username are kept.
+	if code, body := e.do(t, "PATCH", "/api/v1/subscriptions/1", map[string]any{"password": password, "name": "Provider B"}, true); code != 204 {
+		t.Fatalf("patch: %d %s", code, body)
+	}
+	if code, body := e.do(t, "POST", "/api/v1/subscriptions/1/sync", nil, true); code != 200 {
+		t.Fatalf("sync after fixing the password: %d %s", code, body)
+	}
+	// An empty password keeps the stored one.
+	e.do(t, "PATCH", "/api/v1/subscriptions/1", map[string]any{"password": ""}, true)
+	if code, _ := e.do(t, "POST", "/api/v1/subscriptions/1/sync", nil, true); code != 200 {
+		t.Fatal("empty password replaced the stored one")
+	}
+	_, body := e.do(t, "GET", "/api/v1/subscriptions", nil, true)
+	if !strings.Contains(string(body), `"name":"Provider B"`) || strings.Contains(string(body), password) {
+		t.Fatalf("list: %s", body)
+	}
+	if code, _ := e.do(t, "PATCH", "/api/v1/subscriptions/1", map[string]any{"vpn_id": 9}, true); code != 400 {
+		t.Fatal("unknown VPN accepted")
+	}
+	if code, _ := e.do(t, "PATCH", "/api/v1/vpn/1", map[string]any{"name": "Proton IT", "config": "[Interface]\n"}, true); code != 400 {
+		t.Fatal("invalid VPN config accepted")
+	}
+	if code, _ := e.do(t, "PATCH", "/api/v1/vpn/1", map[string]any{"name": "Proton IT", "config": wgConf(t)}, true); code != 204 {
+		t.Fatal("valid VPN update refused")
+	}
+	if _, body := e.do(t, "GET", "/api/v1/vpn", nil, true); !strings.Contains(string(body), "Proton IT") {
+		t.Fatalf("vpn rename: %s", body)
+	}
+}

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VodMax · Impostazioni</title>
+<link rel="stylesheet" href="vod.css">
+<link rel="stylesheet" href="settings.css">
+</head>
+<body>
+<header class="top">
+  <nav id="tabs">
+    <a class="tab focusable" href="/">← Menu</a>
+    <button class="tab focusable" data-view="subscriptions">Abbonamenti</button>
+    <button class="tab focusable" data-view="vpn">VPN</button>
+    <button class="tab focusable" data-view="rules">Selezione</button>
+    <button class="tab focusable" data-view="categories">Categorie</button>
+  </nav>
+</header>
+<main id="content" class="settings" aria-live="polite"></main>
+<div id="status" class="status" hidden></div>
+<script src="common.js"></script>
+<script src="settings.js"></script>
+</body>
+</html>

@@ -252,6 +252,100 @@ func (s *Service) AddSubscription(ctx context.Context, in SubscriptionInput) (in
 		func(id int64) []byte { return s.box.Seal(rawSecret, subOwner(id)) })
 }
 
+// SubscriptionPatch changes an existing subscription; nil fields are kept.
+// Secrets are never returned: an empty password or URL keeps the stored one.
+type SubscriptionPatch struct {
+	Name     *string `json:"name"`
+	VPNID    *int64  `json:"vpn_id"`
+	Server   *string `json:"server"`
+	Username *string `json:"username"`
+	Password *string `json:"password"`
+	URL      *string `json:"url"`
+}
+
+func (s *Service) UpdateSubscription(ctx context.Context, id int64, p SubscriptionPatch) error {
+	sub, err := s.st.Subscription(ctx, id)
+	if err != nil {
+		return err
+	}
+	if p.Name != nil {
+		n := strings.TrimSpace(*p.Name)
+		if n == "" || len(n) > 80 {
+			return invalid("nome dell'abbonamento obbligatorio (max 80 caratteri)")
+		}
+		p.Name = &n
+	}
+	if p.VPNID != nil {
+		if _, err := s.st.VPN(ctx, *p.VPNID); err != nil {
+			return invalid("ogni abbonamento richiede una connessione VPN esistente")
+		}
+	}
+	raw, err := s.box.Open(sub.Secret, subOwner(id))
+	if err != nil {
+		return err
+	}
+	var sec subscriptionSecret
+	json.Unmarshal(raw, &sec)
+	var settings json.RawMessage
+	var secret []byte
+	switch sub.Kind {
+	case "xtream":
+		var set xtreamSettings
+		json.Unmarshal(sub.Settings, &set)
+		if p.Server != nil {
+			set.Server = strings.TrimSpace(*p.Server)
+		}
+		if p.Username != nil {
+			set.Username = *p.Username
+		}
+		if p.Password != nil && *p.Password != "" {
+			sec.Password = *p.Password
+		}
+		if _, err := xtream.New(set.Server, set.Username, sec.Password, nil); err != nil {
+			return invalid("%v", err)
+		}
+		settings, _ = json.Marshal(set)
+	case "m3u":
+		if p.URL != nil && *p.URL != "" {
+			u, err := url.Parse(strings.TrimSpace(*p.URL))
+			if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+				return invalid("URL della playlist non valido (atteso http:// o https://)")
+			}
+			sec.URL = u.String()
+			settings, _ = json.Marshal(map[string]string{"host": u.Hostname()})
+		}
+	}
+	rawSecret, _ := json.Marshal(sec)
+	secret = s.box.Seal(rawSecret, subOwner(id))
+	return s.st.UpdateSubscription(ctx, id, p.Name, p.VPNID, settings, secret)
+}
+
+// UpdateVPN renames a connection and/or replaces its configuration; a
+// running tunnel is closed so the new configuration is used next time.
+func (s *Service) UpdateVPN(ctx context.Context, id int64, name, conf *string) error {
+	if name != nil {
+		n := strings.TrimSpace(*name)
+		if n == "" || len(n) > 80 {
+			return invalid("nome della VPN obbligatorio (max 80 caratteri)")
+		}
+		name = &n
+	}
+	var sealed []byte
+	if conf != nil && strings.TrimSpace(*conf) != "" {
+		if _, err := vpn.ParseConfig(strings.NewReader(*conf)); err != nil {
+			return invalid("configurazione WireGuard non valida: %v", err)
+		}
+		sealed = s.box.Seal([]byte(*conf), vpnOwner(id))
+	}
+	if err := s.st.UpdateVPN(ctx, id, name, sealed); err != nil {
+		return err
+	}
+	if sealed != nil {
+		s.DisconnectVPN(id)
+	}
+	return nil
+}
+
 // SubscriptionView adds catalog counts.
 type SubscriptionView struct {
 	store.Subscription

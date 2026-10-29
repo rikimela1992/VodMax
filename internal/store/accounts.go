@@ -196,3 +196,31 @@ func nullable(raw json.RawMessage) any {
 	}
 	return string(raw)
 }
+
+// UpdateSubscription changes name, VPN, settings and sealed secret; nil
+// arguments are left unchanged.
+func (s *Store) UpdateSubscription(ctx context.Context, id int64, name *string, vpnID *int64, settings json.RawMessage, secret []byte) error {
+	res, err := s.w.ExecContext(ctx, `UPDATE subscription SET name = coalesce(?, name), vpn_id = coalesce(?, vpn_id),
+		settings = coalesce(?, settings), secret = coalesce(?, secret) WHERE id = ?`,
+		name, vpnID, nullable(settings), secret, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// UpdateVPN changes the name and/or the sealed configuration.
+func (s *Store) UpdateVPN(ctx context.Context, id int64, name *string, config []byte) error {
+	res, err := s.w.ExecContext(ctx, `UPDATE vpn SET name = coalesce(?, name), config = coalesce(?, config) WHERE id = ?`,
+		name, config, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
