@@ -50,7 +50,8 @@ func TestFilmDirectPlaybackAndProgress(t *testing.T) {
 	if resp.StatusCode != 206 || resp.Header.Get("Content-Range") != "bytes 100-199/1048576" || len(got) != 100 || got[0] != 100 {
 		t.Fatalf("range: %d %q %d", resp.StatusCode, resp.Header.Get("Content-Range"), len(got))
 	}
-	if !strings.Contains(strings.Join(p.ranges, ","), "555.mp4 bytes=100-199") {
+	// The server reads the provider file in chunks through one connection.
+	if !strings.Contains(strings.Join(p.ranges, ","), "555.mp4 bytes=0-") {
 		t.Fatalf("provider requests: %v", p.ranges)
 	}
 

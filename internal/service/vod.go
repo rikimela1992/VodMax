@@ -169,6 +169,7 @@ type vodSession struct {
 	subDir   string // temporary folder of extracted subtitles
 	subFile  string // WebVTT being written by the current remux
 	catchup  *catchupInfo
+	cache    *rangeCache // direct mode: the single provider connection
 }
 
 // addVODSession registers a session, replacing the viewer's previous one.
@@ -194,6 +195,9 @@ func (v *vodSession) drop() {
 	if v.subDir != "" {
 		os.RemoveAll(v.subDir)
 	}
+	if v.cache != nil {
+		v.cache.Close()
+	}
 }
 
 type vodState struct {
@@ -201,6 +205,7 @@ type vodState struct {
 	sessions map[string]*vodSession
 	byToken  map[string]*vodSession
 	loopback string // "127.0.0.1:port" of the ffmpeg relay
+	cacheDir string // chunks of direct playback
 	once     sync.Once
 	ffmpeg   string
 	ffprobe  string
@@ -359,21 +364,121 @@ func (s *Service) OpenDirect(ctx context.Context, sessionID, rangeHeader string,
 	if sess.mode != "direct" {
 		return nil, invalid("sessione non diretta")
 	}
-	streamCtx, release, err := s.acquire(ctx, sess.subID, sess.viewer, force, false)
+	from, to, ranged, err := parseRange(rangeHeader)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := s.upstream(streamCtx, sess.subID, sess.url, rangeHeader)
+	cache, err := s.directCache(sess, force)
 	if err != nil {
-		release()
 		return nil, err
 	}
-	ctype := resp.Header.Get("Content-Type")
-	if !strings.HasPrefix(ctype, "video/") {
-		ctype = "video/mp4"
+	size, err := cache.Size(ctx, from)
+	if err != nil {
+		return nil, err
 	}
-	return &Stream{ReadCloser: &releasingBody{ReadCloser: resp.Body, release: release}, ContentType: ctype, Title: sess.title,
-		Status: resp.StatusCode, ContentLength: resp.ContentLength, ContentRange: resp.Header.Get("Content-Range")}, nil
+	if from >= size {
+		return nil, invalid("intervallo oltre la fine del file")
+	}
+	if to < 0 || to >= size {
+		to = size - 1
+	}
+	pr, pw := io.Pipe()
+	go func() { pw.CloseWithError(cache.WriteRange(ctx, pw, from, to)) }()
+	st := &Stream{ReadCloser: pr, ContentType: "video/mp4", Title: sess.title, Status: http.StatusOK, ContentLength: to - from + 1}
+	if ranged {
+		st.Status, st.ContentRange = http.StatusPartialContent, fmt.Sprintf("bytes %d-%d/%d", from, to, size)
+	}
+	return st, nil
+}
+
+// parseRange reads "bytes=a-b" or "bytes=a-" (to = -1); no header is the
+// whole file.
+func parseRange(h string) (from, to int64, ranged bool, err error) {
+	if h == "" {
+		return 0, -1, false, nil
+	}
+	spec, ok := strings.CutPrefix(h, "bytes=")
+	a, b, ok2 := strings.Cut(spec, "-")
+	if !ok || !ok2 || strings.Contains(spec, ",") {
+		return 0, 0, false, invalid("intervallo non supportato")
+	}
+	if from, err = strconv.ParseInt(a, 10, 64); err != nil || from < 0 {
+		return 0, 0, false, invalid("intervallo non valido")
+	}
+	to = -1
+	if b != "" {
+		if to, err = strconv.ParseInt(b, 10, 64); err != nil || to < from {
+			return 0, 0, false, invalid("intervallo non valido")
+		}
+	}
+	return from, to, true, nil
+}
+
+// directCache returns the session's single-connection cache, making a new
+// one if there is none or the last one failed (e.g. after "take control").
+func (s *Service) directCache(sess *vodSession, force bool) (*rangeCache, error) {
+	s.vod.mu.Lock()
+	defer s.vod.mu.Unlock()
+	if sess.cache != nil {
+		sess.cache.mu.Lock()
+		failed := sess.cache.err != nil
+		sess.cache.mu.Unlock()
+		if !failed && !force {
+			return sess.cache, nil
+		}
+		sess.cache.Close()
+		sess.cache = nil
+	}
+	root := s.vod.cacheDir
+	if root == "" {
+		root = os.TempDir()
+	}
+	dir := filepath.Join(root, "direct-"+sess.id)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return nil, err
+	}
+	url, subID, viewer := sess.url, sess.subID, sess.viewer
+	sess.cache = newRangeCache(dir,
+		func() (context.Context, func(), error) {
+			return s.acquire(context.Background(), subID, viewer, force, false)
+		},
+		func(ctx context.Context, from int64) (io.ReadCloser, int64, error) {
+			resp, err := s.upstream(ctx, subID, url, fmt.Sprintf("bytes=%d-", from))
+			if err != nil {
+				return nil, 0, err
+			}
+			total := int64(-1)
+			if cr := resp.Header.Get("Content-Range"); resp.StatusCode == http.StatusPartialContent && cr != "" {
+				if i := strings.LastIndex(cr, "/"); i >= 0 {
+					total, _ = strconv.ParseInt(cr[i+1:], 10, 64)
+				}
+			} else if resp.StatusCode == http.StatusOK && from == 0 {
+				total = resp.ContentLength
+			} else {
+				resp.Body.Close()
+				return nil, 0, errors.New("il provider non permette di leggere il file a pezzi")
+			}
+			if total <= 0 {
+				resp.Body.Close()
+				return nil, 0, errors.New("il provider non indica la dimensione del file")
+			}
+			return resp.Body, total, nil
+		})
+	return sess.cache, nil
+}
+
+// SetCacheDir sets where direct playback keeps its chunks (cleared now).
+func (s *Service) SetCacheDir(dir string) error {
+	if err := os.RemoveAll(dir); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	s.vod.mu.Lock()
+	s.vod.cacheDir = dir
+	s.vod.mu.Unlock()
+	return nil
 }
 
 const directProbeLimit = 4 * time.Second

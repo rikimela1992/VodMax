@@ -88,6 +88,9 @@ func run(data, listen, recordings, ffmpeg, ffprobe string, log *slog.Logger) err
 	if err := svc.SetTimeshiftDir(filepath.Join(data, "timeshift"), log); err != nil {
 		return err
 	}
+	if err := svc.SetCacheDir(filepath.Join(data, "cache")); err != nil {
+		return err
+	}
 	svc.StartMaintenance(ctx, log)
 	go func() {
 		<-ctx.Done()
