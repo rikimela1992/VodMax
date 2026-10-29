@@ -25,6 +25,7 @@ type tvProvider struct {
 	opened   []string
 	logoHits map[string]int
 	ranges   []string
+	refused  int // live requests refused for exceeding the connection limit
 }
 
 // fakeFilm is the content served for films and episodes.
@@ -72,7 +73,15 @@ func newTVProvider() *tvProvider {
 			w.Header().Set("Content-Type", "video/mp4")
 			http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(fakeFilm))
 		case strings.HasPrefix(r.URL.Path, "/live/"):
+			// Like a real provider with max_connections=1: a request
+			// arriving while a stream is still open is refused, not served.
 			p.mu.Lock()
+			if p.active >= 1 {
+				p.refused++
+				p.mu.Unlock()
+				http.Error(w, "max connections reached", 458)
+				return
+			}
 			p.active++
 			p.maxSeen = max(p.maxSeen, p.active)
 			p.opened = append(p.opened, r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:])
