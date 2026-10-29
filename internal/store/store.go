@@ -148,6 +148,35 @@ var migrations = []string{
 	CREATE INDEX item_browse ON item (kind, visible, primary_variant, display_title COLLATE NOCASE, id);
 	CREATE INDEX item_browse_recent ON item (kind, visible, primary_variant, first_seen_at DESC, id);
 	CREATE INDEX item_variants ON item (kind, group_key, visible);`,
+	// 3: TV: official numbering, programme guide, favourites.
+	`ALTER TABLE item ADD COLUMN lcn INTEGER;          -- official channel number, when recognised
+	ALTER TABLE item ADD COLUMN name_key TEXT NOT NULL DEFAULT ''; -- channel name for guide matching
+	CREATE TABLE epg_channel (
+		subscription_id INTEGER NOT NULL REFERENCES subscription(id) ON DELETE CASCADE,
+		id              TEXT NOT NULL,               -- XMLTV channel id, lower case
+		name_key        TEXT NOT NULL,
+		PRIMARY KEY (subscription_id, id)
+	);
+	CREATE INDEX epg_channel_by_name ON epg_channel (name_key);
+	CREATE TABLE epg_programme (
+		channel     TEXT NOT NULL,
+		start       INTEGER NOT NULL,
+		stop        INTEGER NOT NULL,
+		title       TEXT NOT NULL,
+		subtitle    TEXT NOT NULL DEFAULT '',
+		description TEXT NOT NULL DEFAULT '',
+		category    TEXT NOT NULL DEFAULT '',
+		PRIMARY KEY (channel, start)
+	) WITHOUT ROWID;
+	CREATE INDEX epg_programme_by_stop ON epg_programme (channel, stop);
+	CREATE TABLE favorite (
+		profile_id INTEGER NOT NULL,
+		kind       TEXT NOT NULL,
+		group_key  TEXT NOT NULL,                    -- the channel or title, not one variant
+		position   INTEGER NOT NULL,
+		added_at   INTEGER NOT NULL,
+		PRIMARY KEY (profile_id, kind, group_key)
+	);`,
 }
 
 func (s *Store) migrate(ctx context.Context) error {

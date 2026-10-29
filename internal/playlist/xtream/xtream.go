@@ -249,6 +249,17 @@ func (c *Client) StreamURL(kind Kind, streamID, extension string) string {
 	return c.base.JoinPath(string(kind), c.username, c.password, streamID+"."+extension).String()
 }
 
+// XMLTVURL is the provider's full programme guide. It contains the
+// credentials: keep it in memory only.
+func (c *Client) XMLTVURL() string {
+	u := c.base.JoinPath("xmltv.php")
+	u.RawQuery = url.Values{"username": {c.username}, "password": {c.password}}.Encode()
+	return u.String()
+}
+
+// HTTP returns the client used for provider requests (through the VPN).
+func (c *Client) HTTP() *http.Client { return c.http }
+
 // CatchupURL builds a timeshift URL for a programme of a live channel.
 func (c *Client) CatchupURL(streamID string, start time.Time, duration time.Duration) string {
 	minutes := int(duration.Round(time.Minute) / time.Minute)

@@ -21,6 +21,7 @@ Una decisione approvata si cambia solo con una nuova scheda che la sostituisce.
 | [0013](0013-migrazione-affiancata.md) | Migrazione affiancata dell'impianto di casa | **Approvata** |
 | [0014](0014-contenuti-per-adulti.md) | Contenuti per adulti nascosti per impostazione predefinita | Proposta (predefinito già attivo, vedi 0015) |
 | [0015](0015-selezione-del-catalogo.md) | Selezione del catalogo: regole, correzioni manuali, una scheda per titolo | **Approvata** nel principio |
+| [0016](0016-tv-come-un-decoder.md) | La sezione TV come un decoder: numerazione, preferiti, guida, cambio canale | **Approvata** |
 
 ## Ordine consigliato per decidere
 

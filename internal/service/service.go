@@ -45,6 +45,7 @@ type Service struct {
 	syncing map[int64]bool
 
 	selMu sync.Mutex // serialises selection recomputation
+	live  liveState
 }
 
 func New(st *store.Store, box *secret.Box, start StartTunnel) *Service {
@@ -289,9 +290,11 @@ var ErrBusy = errors.New("sincronizzazione già in corso")
 // SyncResult reports a completed synchronisation.
 type SyncResult struct {
 	store.ImportResult
-	Skipped   int           `json:"skipped"`
-	Selection catalog.Stats `json:"selection"`
-	Duration  time.Duration `json:"duration_ms"`
+	Skipped    int           `json:"skipped"`
+	Selection  catalog.Stats `json:"selection"`
+	Guide      *GuideResult  `json:"guide,omitempty"`
+	GuideError string        `json:"guide_error,omitempty"`
+	Duration   time.Duration `json:"duration_ms"`
 }
 
 // Sync reads the full catalog of a subscription through its VPN and
@@ -336,7 +339,18 @@ func (s *Service) Sync(ctx context.Context, id int64, allowDrop bool) (SyncResul
 	if err != nil {
 		return SyncResult{}, err
 	}
-	return SyncResult{ImportResult: res, Skipped: snap.Skipped, Selection: stats, Duration: time.Since(started) / time.Millisecond}, nil
+	result := SyncResult{ImportResult: res, Skipped: snap.Skipped, Selection: stats}
+	// The guide is refreshed with the catalog; a guide failure does not
+	// invalidate the catalog.
+	if sub, err := s.st.Subscription(ctx, id); err == nil && sub.Kind == "xtream" {
+		if g, err := s.SyncGuide(ctx, id); err != nil {
+			result.GuideError = err.Error()
+		} else {
+			result.Guide = &g
+		}
+	}
+	result.Duration = time.Since(started) / time.Millisecond
+	return result, nil
 }
 
 func (s *Service) fetch(ctx context.Context, id int64) (*catalog.Snapshot, error) {

@@ -1,0 +1,73 @@
+# 0016 — La sezione TV come un decoder (stile Sky)
+
+Stato: **Approvata** (29 ottobre 2026), prima versione realizzata
+
+## Richiesta
+
+La sezione TV deve funzionare come le "dirette" del VodMax precedente, ma
+con l'uso di un decoder Sky:
+- cambio canale con il telecomando;
+- preferiti, e possibilità di usare solo la lista dei preferiti;
+- vedere cosa c'è sui canali successivi senza cambiare canale, anche con una
+  lista a schermo da scorrere.
+
+## Verifiche sul provider reale (29 ottobre 2026)
+
+| | Risultato |
+|---|---|
+| Formato dei canali | MPEG-TS, H.264 + AAC, su tutti i canali provati (anche "4K") |
+| Avvio di un canale | circa 270 ms al primo dato dal provider, circa 340 ms tramite il server VodMax |
+| HLS | Disponibile, ma su alcuni canali lento (5,4 s) |
+| Guida XMLTV del provider | 5 MB, 2,5 giorni, programmi per 128 canali |
+
+## Decisioni
+
+1. **Numerazione da telecomando.** I canali nazionali vengono riconosciuti e
+   ricevono il numero LCN ufficiale del digitale terrestre (lista del 10
+   settembre 2026, in `internal/lineup/it.json`). Gli altri canali prendono i
+   numeri dal 100 in su: prima TV, poi sport, poi radio. Il numero non cambia
+   tra lista completa, sezioni e preferiti.
+2. **Preferiti per canale, non per versione.** Restano validi anche se il
+   provider cambia i flussi; hanno il loro ordine. Il tasto rosso fa scorrere
+   P+/P− solo tra i preferiti.
+3. **Guida TV.** Si importa la guida XMLTV del provider (tramite VPN) a ogni
+   sincronizzazione, tenendo solo i canali visibili e una finestra da -6 ore
+   a +72 ore. L'abbinamento usa l'id EPG del canale oppure, in mancanza, il
+   nome normalizzato.
+4. **Il flusso passa sempre dal server.** I client non possono contattare il
+   provider (VPN interna, 0012):
+   - il client chiede un permesso di visione monouso valido 30 secondi;
+   - il server apre il canale tramite il tunnel e lo ritrasmette;
+   - **cambio canale**: lo stesso player che chiede un altro canale chiude
+     prima il flusso precedente, così un account con una sola connessione non
+     viene mai superato;
+   - **connessioni esaurite**: un altro dispositivo riceve "connessioni in
+     uso" e può scegliere di prendere il controllo.
+5. **Interfaccia da telecomando** (servita dal server, `/`):
+
+| Tasto | Azione |
+|---|---|
+| P+ / P− (PagSu/PagGiù, + / −) | Cambio canale |
+| Su / Giù | Mostra nel banner cosa c'è sugli altri canali **senza cambiare**; OK sintonizza, Indietro annulla |
+| OK | Lista dei canali con ora e a seguire; ◀ ▶ tra Tutti, Preferiti, Sport, Radio |
+| Giallo (F) | Aggiunge o toglie dai preferiti |
+| Rosso (P) | Cambio canale solo tra i preferiti |
+| Numeri | Vai al canale |
+| Info (I) | Banner |
+
+   Tasti mappati per browser, LG webOS (P+ 33, P− 34, colori 403–406, Indietro
+   461) e Android TV.
+6. **Nessuna risorsa esterna nell'interfaccia** (CSP `default-src 'self'`).
+   Anche i loghi dei canali non sono caricati direttamente, perché sono
+   ospitati dal provider o da terzi: saranno scaricati dal server tramite VPN
+   e serviti da lui.
+
+## Ancora da fare
+
+- **Verifica dell'interfaccia su una TV vera** (webOS, Android TV): la prova
+  automatica nel browser non è stata possibile sulla macchina di sviluppo.
+- Loghi dei canali tramite il server.
+- Profili: oggi i preferiti appartengono a un unico profilo.
+- Guida per le playlist M3U (`url-tvg`).
+- Riordino manuale dei preferiti e dei numeri.
+- Accesso senza token di amministrazione (abbinamento del dispositivo, 0008).

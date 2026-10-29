@@ -37,6 +37,7 @@ func main() {
 	server := fs.String("server", "", "indirizzo del server Xtream")
 	user := fs.String("user", "", "utente Xtream")
 	wait := fs.Duration("wait", 15*time.Second, "attesa massima dell'handshake")
+	channels := fs.String("channels", "", "nomi dei canali da provare, separati da virgola")
 	fs.Parse(os.Args[2:])
 	if *conf == "" {
 		usage()
@@ -104,6 +105,21 @@ func main() {
 		if err := dump(client); err != nil {
 			fail(err)
 		}
+	case "xtream-live-check":
+		password := os.Getenv("VODMAX_XTREAM_PASSWORD")
+		if *server == "" || *user == "" || password == "" || *channels == "" {
+			fail(errors.New("servono -server, -user, -channels e VODMAX_XTREAM_PASSWORD"))
+		}
+		tun := up(cfg, *wait)
+		defer tun.Close()
+		client, err := xtream.New(*server, *user, password, provider.NewHTTPClient(tun, 10*time.Minute))
+		if err != nil {
+			fail(err)
+		}
+		if err := liveCheck(client, strings.Split(*channels, ",")); err != nil {
+			fail(err)
+		}
+		report(tun)
 	default:
 		usage()
 	}
@@ -185,7 +201,7 @@ func report(tun *vpn.Tunnel) {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "uso: vodmax-probe vpn-check|vpn-up|xtream-login|xtream-dump -conf wg.conf [-server URL -user NOME]")
+	fmt.Fprintln(os.Stderr, "uso: vodmax-probe vpn-check|vpn-up|xtream-login|xtream-dump|xtream-live-check -conf wg.conf [-server URL -user NOME]")
 	os.Exit(2)
 }
 

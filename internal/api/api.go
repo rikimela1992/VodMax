@@ -17,6 +17,7 @@ import (
 	"github.com/rikimela1992/vodmax/internal/catalog"
 	"github.com/rikimela1992/vodmax/internal/service"
 	"github.com/rikimela1992/vodmax/internal/store"
+	"github.com/rikimela1992/vodmax/internal/web"
 )
 
 // Handler builds the router. token is the admin bearer token.
@@ -46,7 +47,16 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	protected.HandleFunc("GET /api/v1/items/{id}/variants", a.variants)
 	protected.HandleFunc("GET /api/v1/catalog/{kind}", a.catalog)
 	protected.HandleFunc("GET /api/v1/categories/{kind}", a.categories)
+	protected.HandleFunc("GET /api/v1/tv/channels", a.tvChannels)
+	protected.HandleFunc("GET /api/v1/tv/channels/{id}/guide", a.channelGuide)
+	protected.HandleFunc("PUT /api/v1/tv/favorites/{id}", a.putFavorite)
+	protected.HandleFunc("POST /api/v1/subscriptions/{id}/guide/sync", a.syncGuide)
+	protected.HandleFunc("POST /api/v1/live/{id}/ticket", a.liveTicket)
 	mux.Handle("/api/", requireToken(token, protected))
+	// The stream is authorised by its single-use ticket: video players
+	// cannot send an Authorization header.
+	mux.HandleFunc("GET /stream/live/{ticket}", a.liveStream)
+	mux.Handle("/", web.Handler())
 	return mux
 }
 
@@ -81,8 +91,11 @@ func (a *api) fail(w http.ResponseWriter, r *http.Request, err error) {
 		status = http.StatusBadRequest
 	case errors.Is(err, store.ErrNotFound):
 		status = http.StatusNotFound
-	case errors.Is(err, store.ErrInUse), errors.Is(err, service.ErrBusy), errors.Is(err, store.ErrSuspiciousDrop):
+	case errors.Is(err, store.ErrInUse), errors.Is(err, service.ErrBusy), errors.Is(err, store.ErrSuspiciousDrop),
+		errors.As(err, new(service.ConnectionBusy)):
 		status = http.StatusConflict
+	case errors.Is(err, service.ErrTicket):
+		status = http.StatusForbidden
 	case errors.Is(err, context.DeadlineExceeded):
 		status = http.StatusGatewayTimeout
 	}
@@ -386,4 +399,115 @@ func (a *api) variants(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, list)
+}
+
+func (a *api) tvChannels(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	list, err := a.svc.TVChannels(r.Context(), q.Get("section"), q.Get("list") == "favorites")
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+func (a *api) channelGuide(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	hours, _ := strconv.Atoi(r.URL.Query().Get("hours"))
+	list, err := a.svc.ChannelGuide(r.Context(), id, hours)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+func (a *api) putFavorite(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	var in struct {
+		Favorite bool `json:"favorite"`
+	}
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if err := a.svc.SetFavorite(r.Context(), id, in.Favorite); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) syncGuide(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 15*time.Minute)
+	defer cancel()
+	res, err := a.svc.SyncGuide(ctx, id)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+func (a *api) liveTicket(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	var in struct {
+		Viewer string `json:"viewer"`
+	}
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	t, err := a.svc.LiveTicket(r.Context(), id, in.Viewer)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"url": "/stream/live/" + t})
+}
+
+func (a *api) liveStream(w http.ResponseWriter, r *http.Request) {
+	stream, err := a.svc.OpenLive(r.Context(), r.PathValue("ticket"), r.URL.Query().Get("force") == "1")
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	defer stream.Close()
+	w.Header().Set("Content-Type", stream.ContentType)
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+	flusher, _ := w.(http.Flusher)
+	buf := make([]byte, 64<<10)
+	for {
+		n, err := stream.Read(buf)
+		if n > 0 {
+			if _, werr := w.Write(buf[:n]); werr != nil {
+				return // viewer gone
+			}
+			if flusher != nil {
+				flusher.Flush()
+			}
+		}
+		if err != nil {
+			return
+		}
+	}
 }

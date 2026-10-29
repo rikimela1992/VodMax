@@ -31,6 +31,8 @@ type Item struct {
 	Locator      []byte // sealed stream URL, M3U only
 	Quality      int    // 1 SD … 4 UHD
 	GroupKey     string // identifies variants of the same title or channel
+	LCN          int    // official channel number, 0 if not recognised
+	NameKey      string // normalised channel name, to match the guide
 }
 
 // Category groups items of one kind inside a subscription, with what
@@ -97,15 +99,16 @@ func (s *Store) ReplaceCatalog(ctx context.Context, subID int64, kinds []string,
 	stmt, err := tx.PrepareContext(ctx, `
 		INSERT INTO item (subscription_id, kind, source_id, title, display_title, year, category_id, image, epg_id,
 			number, rating, tmdb_id, extension, catchup_days, added_at, locator, first_seen_at, last_seen_at, available,
-			quality, group_key)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+			quality, group_key, lcn, name_key)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
 		ON CONFLICT (subscription_id, kind, source_id) DO UPDATE SET
 			title = excluded.title, display_title = excluded.display_title, year = excluded.year,
 			category_id = excluded.category_id, image = excluded.image, epg_id = excluded.epg_id,
 			number = excluded.number, rating = excluded.rating, tmdb_id = excluded.tmdb_id,
 			extension = excluded.extension, catchup_days = excluded.catchup_days, added_at = excluded.added_at,
 			locator = excluded.locator, last_seen_at = excluded.last_seen_at,
-			available = 1, quality = excluded.quality, group_key = excluded.group_key
+			available = 1, quality = excluded.quality, group_key = excluded.group_key,
+			lcn = excluded.lcn, name_key = excluded.name_key
 		RETURNING first_seen_at`)
 	if err != nil {
 		return res, err
@@ -115,7 +118,7 @@ func (s *Store) ReplaceCatalog(ctx context.Context, subID int64, kinds []string,
 		var first int64
 		err := stmt.QueryRowContext(ctx, subID, it.Kind, it.SourceID, it.Title, it.DisplayTitle, zeroNull(it.Year),
 			it.CategoryID, it.Image, it.EPGID, zeroNull(it.Number), zeroNullF(it.Rating), it.TMDBID, it.Extension,
-			it.CatchupDays, zeroNull64(it.AddedAt), it.Locator, now, now, max(it.Quality, 1), it.GroupKey).Scan(&first)
+			it.CatchupDays, zeroNull64(it.AddedAt), it.Locator, now, now, max(it.Quality, 1), it.GroupKey, zeroNull(it.LCN), it.NameKey).Scan(&first)
 		if err != nil {
 			return res, fmt.Errorf("titolo %q: %w", it.Title, err)
 		}
@@ -411,4 +414,26 @@ func (s *Store) Counts(ctx context.Context, subID int64) (map[string]int, error)
 		out[k] = n
 	}
 	return out, rows.Err()
+}
+
+// PlaybackItem is what is needed to open a stream.
+type PlaybackItem struct {
+	ID             int64
+	SubscriptionID int64
+	Kind           string
+	SourceID       string
+	Extension      string
+	Locator        []byte
+	Title          string
+}
+
+func (s *Store) PlaybackItem(ctx context.Context, id int64) (PlaybackItem, error) {
+	var it PlaybackItem
+	err := s.r.QueryRowContext(ctx, `SELECT id, subscription_id, kind, source_id, extension, locator, display_title
+		FROM item WHERE id = ? AND available = 1`, id).
+		Scan(&it.ID, &it.SubscriptionID, &it.Kind, &it.SourceID, &it.Extension, &it.Locator, &it.Title)
+	if errors.Is(err, sql.ErrNoRows) {
+		return it, ErrNotFound
+	}
+	return it, err
 }

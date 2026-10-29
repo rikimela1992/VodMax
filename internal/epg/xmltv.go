@@ -1,0 +1,138 @@
+// Package epg reads XMLTV programme guides.
+package epg
+
+import (
+	"encoding/xml"
+	"errors"
+	"fmt"
+	"io"
+	"strings"
+	"time"
+)
+
+// Channel is an XMLTV <channel>.
+type Channel struct {
+	ID    string
+	Names []string
+}
+
+// Programme is an XMLTV <programme>; times are absolute.
+type Programme struct {
+	Channel     string
+	Start, Stop time.Time
+	Title       string
+	Subtitle    string
+	Description string
+	Category    string
+}
+
+// Guide is the part of an XMLTV document VodMax keeps.
+type Guide struct {
+	Channels   []Channel
+	Programmes []Programme
+}
+
+// Filter decides which programmes are kept, so that a guide of several
+// hundred MB never has to be held in memory.
+type Filter func(channel string, start, stop time.Time) bool
+
+// Options control parsing. OnChannel sees every <channel> before Keep is
+// asked about its programmes (XMLTV lists channels first), so Keep can
+// match channels by name.
+type Options struct {
+	OnChannel func(Channel)
+	Keep      Filter
+}
+
+// Parse streams an XMLTV document. Channel ids are lower-cased.
+func Parse(r io.Reader, opts Options) (*Guide, error) {
+	keep := opts.Keep
+	dec := xml.NewDecoder(r)
+	dec.Strict = false
+	dec.CharsetReader = func(charset string, input io.Reader) (io.Reader, error) {
+		if strings.EqualFold(charset, "utf-8") || strings.EqualFold(charset, "us-ascii") {
+			return input, nil
+		}
+		return nil, fmt.Errorf("codifica %q non supportata", charset)
+	}
+	g := &Guide{}
+	for {
+		tok, err := dec.Token()
+		if errors.Is(err, io.EOF) {
+			return g, nil
+		}
+		if err != nil {
+			return g, fmt.Errorf("guida XMLTV: %w", err)
+		}
+		el, ok := tok.(xml.StartElement)
+		if !ok {
+			continue
+		}
+		switch el.Name.Local {
+		case "channel":
+			var c struct {
+				ID    string   `xml:"id,attr"`
+				Names []string `xml:"display-name"`
+			}
+			if err := dec.DecodeElement(&c, &el); err != nil {
+				return g, err
+			}
+			ch := Channel{ID: strings.ToLower(strings.TrimSpace(c.ID)), Names: c.Names}
+			g.Channels = append(g.Channels, ch)
+			if opts.OnChannel != nil {
+				opts.OnChannel(ch)
+			}
+		case "programme":
+			var p struct {
+				Start    string   `xml:"start,attr"`
+				Stop     string   `xml:"stop,attr"`
+				Channel  string   `xml:"channel,attr"`
+				Title    []string `xml:"title"`
+				SubTitle []string `xml:"sub-title"`
+				Desc     []string `xml:"desc"`
+				Category []string `xml:"category"`
+			}
+			if err := dec.DecodeElement(&p, &el); err != nil {
+				return g, err
+			}
+			start, err1 := ParseTime(p.Start)
+			stop, err2 := ParseTime(p.Stop)
+			if err1 != nil || err2 != nil || !stop.After(start) || len(p.Title) == 0 {
+				continue
+			}
+			ch := strings.ToLower(strings.TrimSpace(p.Channel))
+			if keep != nil && !keep(ch, start, stop) {
+				continue
+			}
+			g.Programmes = append(g.Programmes, Programme{
+				Channel: ch, Start: start, Stop: stop, Title: strings.TrimSpace(p.Title[0]),
+				Subtitle: first(p.SubTitle), Description: first(p.Desc), Category: first(p.Category),
+			})
+		}
+	}
+}
+
+func first(v []string) string {
+	if len(v) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(v[0])
+}
+
+// ParseTime reads XMLTV times: "20261028113910 +0100", with or without
+// seconds and offset (no offset means UTC).
+func ParseTime(s string) (time.Time, error) {
+	s = strings.TrimSpace(s)
+	digits, offset, _ := strings.Cut(s, " ")
+	switch len(digits) {
+	case 14:
+	case 12:
+		digits += "00"
+	default:
+		return time.Time{}, fmt.Errorf("orario XMLTV non valido %q", s)
+	}
+	if offset == "" {
+		return time.Parse("20060102150405", digits)
+	}
+	return time.Parse("20060102150405 -0700", digits+" "+offset)
+}

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VodMax TV</title>
+<link rel="stylesheet" href="tv.css">
+</head>
+<body>
+<main id="screen">
+  <video id="video" autoplay playsinline></video>
+
+  <section id="setup" class="panel" hidden>
+    <h1>VodMax</h1>
+    <p>Inserisci il token di amministrazione del server (file <code>admin.token</code>).</p>
+    <form id="setup-form">
+      <input id="setup-token" type="password" autocomplete="off" spellcheck="false" aria-label="Token di amministrazione">
+      <button type="submit">Continua</button>
+    </form>
+    <p class="hint">Su una TV puoi aprire una volta l'indirizzo <code>/#token=…</code>: verrà salvato e tolto dalla barra.</p>
+  </section>
+
+  <section id="banner" class="banner" hidden aria-live="polite">
+    <div class="banner-head">
+      <span id="banner-number" class="number"></span>
+      <span id="banner-name" class="name"></span>
+      <span id="banner-badges" class="badges"></span>
+      <span id="banner-mode" class="mode"></span>
+    </div>
+    <div class="programme">
+      <span class="label">Ora</span>
+      <span id="banner-now" class="title"></span>
+      <span id="banner-now-time" class="time"></span>
+    </div>
+    <div class="progress"><div id="banner-progress"></div></div>
+    <div class="programme next">
+      <span class="label">A seguire</span>
+      <span id="banner-next" class="title"></span>
+      <span id="banner-next-time" class="time"></span>
+    </div>
+    <div id="banner-hint" class="hint"></div>
+  </section>
+
+  <section id="list" class="list" hidden>
+    <nav id="list-tabs" class="tabs"></nav>
+    <ol id="list-items"></ol>
+    <p class="hint">OK guarda · ◀ ▶ cambia elenco · Giallo preferito · Indietro chiude</p>
+  </section>
+
+  <div id="digits" class="digits" hidden></div>
+  <div id="status" class="status" hidden></div>
+  <section id="dialog" class="panel dialog" hidden>
+    <p id="dialog-text"></p>
+    <p class="hint">OK per confermare · Indietro per annullare</p>
+  </section>
+</main>
+<script src="vendor/mpegts-1.8.2.min.js"></script>
+<script src="tv.js"></script>
+</body>
+</html>

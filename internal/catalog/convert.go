@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/rikimela1992/vodmax/internal/lineup"
 	"github.com/rikimela1992/vodmax/internal/playlist/m3u"
 	"github.com/rikimela1992/vodmax/internal/playlist/xtream"
 	"github.com/rikimela1992/vodmax/internal/store"
@@ -144,12 +145,22 @@ func categoryInfos(cats []store.Category) map[string]CategoryInfo {
 	return out
 }
 
-// finish computes the fields used by the catalog selection.
+var italy = lineup.Italy()
+
+// finish computes the fields used by the catalog selection and the TV.
 func finish(it *store.Item, info CategoryInfo) {
 	it.Quality = Quality(it.Title, info)
 	year := it.Year
 	if it.Kind == "live" {
 		year = 0
+		it.NameKey = lineup.Normalize(it.DisplayTitle)
+		// Official numbers only for home-country channels: a foreign
+		// "Rai 1" relay must not take number 1.
+		if info.Country == "" {
+			if c, ok := italy.Match(it.DisplayTitle); ok {
+				it.LCN = c.Number
+			}
+		}
 	}
 	it.GroupKey = GroupKey(it.Kind, it.DisplayTitle, year)
 }

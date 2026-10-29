@@ -11,8 +11,10 @@ che può diventare il **Server** della casa per gli altri dispositivi.
 > Stato: **sviluppo iniziale**. Funzionano: VPN interna, abbonamenti Xtream
 > e M3U, sincronizzazione del catalogo solo tramite VPN, **selezione del
 > catalogo** (paesi, adulti, anno minimo, categorie, una scheda per titolo),
-> catalogo con ricerca e paginazione via API. Non c'è ancora un'interfaccia
-> né la riproduzione.
+> catalogo con ricerca via API, **TV in diretta** con numerazione da
+> telecomando, guida, preferiti e flusso ritrasmesso dal server, e una prima
+> interfaccia TV (`/`), non ancora provata su una TV vera. Film e serie non
+> sono ancora riproducibili.
 
 ## L'idea in breve
 
@@ -66,6 +68,9 @@ Dettagli nella [decisione 0012](docs/decisioni/0012-connessioni-vpn.md).
 | `internal/store` | SQLite: lettori e scrittore separati (WAL), id stabili, import "tutto o niente" con protezione dai cali anomali, ricerca FTS5 senza accenti, paginazione a cursore. |
 | `internal/catalog` | Conversione delle playlist in catalogo; titoli puliti (anno separato, tag di qualità tolti), separatori scartati. |
 | `internal/service`, `internal/api` | Logica e API HTTP `/api/v1` (VPN, abbonamenti, sincronizzazione, catalogo, categorie), protetta da token. |
+| `internal/lineup` | Riconoscimento dei canali nazionali e numerazione LCN ufficiale. |
+| `internal/epg` | Lettura in streaming delle guide XMLTV. |
+| `internal/web` | Interfaccia TV da telecomando (HTML/JS senza framework, mpegts.js 1.8.2 incluso). |
 | `cmd/vodmax-server` | Il server. |
 | `cmd/vodmax-probe` | Strumento di prova: `.conf`, tunnel, login Xtream. |
 
@@ -95,6 +100,12 @@ API, tranne `/api/v1/health`, richiede `Authorization: Bearer <token>`.
 | `PUT /api/v1/subscriptions/{id}/categories/{kind}/{categoria}` | Correzione manuale: `enabled`, `section`, `country`, `adult` (`null` = automatico) |
 | `PUT /api/v1/items/{id}/hidden` | Nasconde o ripristina un singolo titolo o canale |
 | `GET /api/v1/items/{id}/variants` | Le versioni dello stesso titolo, migliore per prima |
+| `GET /api/v1/tv/channels` | Canali in ordine da telecomando con numero, ora e a seguire: `section`, `list=favorites` |
+| `GET /api/v1/tv/channels/{id}/guide` | Guida di un canale (`hours`, massimo 72) |
+| `PUT /api/v1/tv/favorites/{id}` `{favorite}` | Aggiunge o toglie un canale dai preferiti |
+| `POST /api/v1/subscriptions/{id}/guide/sync` | Aggiorna la guida (fatto anche a ogni sincronizzazione) |
+| `POST /api/v1/live/{id}/ticket` `{viewer}` | Permesso di visione monouso (30 s) → `{url}` |
+| `GET /stream/live/{permesso}` | Il flusso MPEG-TS ritrasmesso dal server (`?force=1` per prendere il controllo della connessione) |
 
 ## Sviluppo
 
