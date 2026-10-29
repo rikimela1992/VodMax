@@ -8,8 +8,8 @@ può passare da una **VPN** registrata.
 Un'unica applicazione che funziona da sola su un dispositivo (**Agent**) e
 che può diventare il **Server** della casa per gli altri dispositivi.
 
-> Stato: **progettazione**. Il repository contiene per ora soltanto le
-> decisioni di base, da approvare prima di scrivere codice.
+> Stato: **sviluppo iniziale**. Primo modulo: VPN interna, client verso il
+> provider che passa solo dal tunnel, lettura di playlist M3U e Xtream Codes.
 
 ## L'idea in breve
 
@@ -50,6 +50,28 @@ Dettagli nella [decisione 0012](docs/decisioni/0012-connessioni-vpn.md).
   con opzioni, raccomandazione e domande aperte.
 - [Spunti dal VodMax precedente](docs/spunti-vodmax-precedente.md): cosa
   riprendere (grafica e soluzioni) e cosa evitare. Nessun codice riutilizzato.
+
+## Struttura del codice
+
+| Pacchetto | Cosa fa |
+|---|---|
+| `internal/vpn` | Lettura dei file WireGuard `.conf`; tunnel WireGuard in user space con stack di rete proprio. DNS compreso, tutto resta nel tunnel. |
+| `internal/provider` | L'unico client HTTP ammesso verso i provider: si collega solo tramite il tunnel, ignora i proxy di sistema, toglie le credenziali dagli errori. |
+| `internal/playlist/m3u` | Lettura di playlist M3U estese (`tvg-*`, `group-title`, catch-up, `#EXTVLCOPT`). |
+| `internal/playlist/xtream` | Client Xtream Codes: account, diretta, film, serie, episodi, URL di riproduzione e catch-up. |
+
+## Sviluppo
+
+Serve Go (versione indicata in `go.mod`).
+
+```sh
+go vet ./...
+go test -race ./...
+```
+
+I test del tunnel creano due VPN interne nello stesso processo e verificano
+che il traffico passi dal tunnel, che a VPN chiusa non parta nessuna
+connessione e che un server VPN irraggiungibile non causi fughe di traffico.
 
 ## Licenza
 

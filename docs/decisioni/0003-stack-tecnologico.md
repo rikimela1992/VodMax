@@ -1,6 +1,12 @@
 # 0003 — Stack tecnologico
 
-Stato: **Proposta**
+Stato: **Scelta per iniziare** (29 ottobre 2026): **opzione B, Go** per
+nucleo e Server, per via della VPN interna (vedi sotto). L'interfaccia
+Android resterà in Kotlin e userà il nucleo Go tramite gomobile. Rivedibile
+finché non c'è codice dipendente dalla scelta oltre al primo modulo.
+
+Dipendenze del primo modulo: `golang.zx2c4.com/wireguard` (WireGuard in user
+space con stack di rete gVisor), fissato a un commit di almeno due settimane.
 
 ## Vincolo principale
 

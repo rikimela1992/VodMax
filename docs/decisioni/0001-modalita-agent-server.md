@@ -1,6 +1,9 @@
 # 0001 — Modalità Agent, Server e promozione Agent → Server
 
-Stato: **Proposta**
+Stato: **Proposta** · Ordine di sviluppo: **prima il Server** (29 ottobre
+2026), perché la migrazione affiancata dell'impianto di casa (0013) parte
+dalle funzioni server. L'Agent Android autonomo viene dopo, sullo stesso
+nucleo.
 
 ## Contesto
 

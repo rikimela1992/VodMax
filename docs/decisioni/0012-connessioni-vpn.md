@@ -50,7 +50,20 @@ aggiornamenti dell'app, comunicazione fra app e Server in casa.
 
 ## Configurazione
 
-- Import di file WireGuard `.conf` o QR code (Proton, Mullvad, NordVPN…).
+- **L'utente usa il proprio abbonamento VPN.** VodMax non include né
+  fornisce una VPN (servirebbero server propri o accordi commerciali).
+- Import di file WireGuard `.conf` o QR code: Mullvad, Proton (piani a
+  pagamento; piano gratuito da verificare), Surfshark, IVPN, AirVPN,
+  Windscribe Pro…
+- **NordVPN** (facoltativo, in seguito): non fornisce file `.conf`; un
+  assistente genera la configurazione dal "token di accesso" dell'account
+  tramite l'API non ufficiale usata da strumenti come `wg-nord`. Marcato
+  "non ufficiale, può smettere di funzionare".
+- **OpenVPN**: in seguito, perché in user space è molto più complesso di
+  WireGuard.
+- La configurazione deve indicare un `DNS` raggiungibile nel tunnel: senza,
+  i nomi del provider andrebbero risolti fuori dalla VPN, quindi VodMax la
+  rifiuta.
 - Chiave privata cifrata a riposo, mai nei log o nelle API.
 - Stato visibile: collegata / non collegata, IP di uscita, ultimo handshake;
   per ogni abbonamento "via VPN X" oppure "bloccato: VPN non collegata".
