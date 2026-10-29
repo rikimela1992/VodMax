@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -213,5 +214,48 @@ func TestOneProgressPerFilmAcrossVersions(t *testing.T) {
 	e.do(t, "PUT", "/api/v1/progress/movie/"+a, map[string]int{"position": 1500, "duration": 6000}, true)
 	if _, body := e.do(t, "GET", "/api/v1/progress/movie/"+b, nil, true); !strings.Contains(string(body), `"position":1500`) {
 		t.Fatalf("most recent: %s", body)
+	}
+}
+
+func TestBrowseByRatingAndCategory(t *testing.T) {
+	e, _ := tvSetup(t)
+	titles := func(q string) string {
+		t.Helper()
+		_, body := e.do(t, "GET", "/api/v1/catalog/movie?"+q, nil, true)
+		var page struct {
+			Items []struct {
+				Title string `json:"display_title"`
+			}
+		}
+		json.Unmarshal(body, &page)
+		var out []string
+		for _, i := range page.Items {
+			out = append(out, i.Title)
+		}
+		return strings.Join(out, ",")
+	}
+	if got := titles("sort=rating"); got != "Psycho,1408" {
+		t.Fatalf("by rating: %s", got)
+	}
+	if got := titles("min_rating=7"); got != "Psycho" {
+		t.Fatalf("min rating: %s", got)
+	}
+	// Paging by rating keeps the order.
+	_, body := e.do(t, "GET", "/api/v1/catalog/movie?sort=rating&limit=1", nil, true)
+	var page struct{ Next string }
+	json.Unmarshal(body, &page)
+	if got := titles("sort=rating&limit=1&cursor=" + page.Next); got != "1408" {
+		t.Fatalf("second page: %s", got)
+	}
+	// 1408's 4K version is the only one in Thriller: the title is there.
+	if got := titles("category=11"); got != "1408" {
+		t.Fatalf("thriller: %s", got)
+	}
+	if got := titles("category=10"); got != "1408,Psycho" {
+		t.Fatalf("horror: %s", got)
+	}
+	_, body = e.do(t, "GET", "/api/v1/browse/movie/categories", nil, true)
+	if string(bytes.TrimSpace(body)) != `[{"id":"10","name":"Horror","titles":2},{"id":"11","name":"Thriller","titles":1}]` {
+		t.Fatalf("categories: %s", body)
 	}
 }

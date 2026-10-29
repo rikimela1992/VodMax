@@ -78,6 +78,7 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	route("PUT /api/v1/settings/metadata", levelAdmin, a.putMetadataSettings)
 	route("GET /api/v1/catalog/{kind}", levelViewer, a.catalog)
 	route("GET /api/v1/categories/{kind}", levelViewer, a.categories)
+	route("GET /api/v1/browse/{kind}/categories", levelViewer, a.browseCategories)
 	route("GET /api/v1/tv/channels", levelViewer, a.tvChannels)
 	route("GET /api/v1/tv/channels/{id}/guide", levelViewer, a.channelGuide)
 	route("GET /api/v1/guide", levelViewer, a.guide)
@@ -372,6 +373,7 @@ func (a *api) catalog(w http.ResponseWriter, r *http.Request) {
 		Sort: q.Get("sort"), Section: q.Get("section"), All: q.Get("all") == "true" && identity(r).Admin(), Cursor: q.Get("cursor"),
 	}
 	query.Limit, _ = strconv.Atoi(q.Get("limit"))
+	query.MinRating, _ = strconv.ParseFloat(q.Get("min_rating"), 64)
 	query.SubscriptionID, _ = strconv.ParseInt(q.Get("subscription"), 10, 64)
 	if len(query.Text) > 200 {
 		query.Text = query.Text[:200]
@@ -1588,4 +1590,13 @@ func (a *api) playerLog(w http.ResponseWriter, r *http.Request) {
 	id := identity(r)
 	a.log.Info("player", "dispositivo", id.DeviceID, "evento", in.Event, "dettagli", in.Detail)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) browseCategories(w http.ResponseWriter, r *http.Request) {
+	list, err := a.svc.BrowseCategories(r.Context(), r.PathValue("kind"))
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
 }

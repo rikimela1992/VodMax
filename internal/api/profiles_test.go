@@ -77,6 +77,7 @@ func TestProfilesDevicesAndKids(t *testing.T) {
 	e, _ := tvSetup(t)
 	// Horror is an adult category, shown to adults by the rules.
 	e.do(t, "PUT", "/api/v1/subscriptions/1/categories/movie/10", map[string]any{"adult": true}, true)
+	e.do(t, "PUT", "/api/v1/subscriptions/1/categories/movie/11", map[string]any{"adult": true}, true)
 	e.do(t, "PUT", "/api/v1/subscriptions/1/rules", map[string]any{"adult": true}, true)
 	film := strconv.FormatInt(findItem(t, e, "movie", "1408"), 10)
 

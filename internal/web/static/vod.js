@@ -215,20 +215,93 @@
   }
 
 
+  // ---- Films and series: filters (order, rating, category), then a
+  // grid that loads more as asked. ----
+  const SORTS = [["recent", "Novità"], ["title", "A–Z"], ["rating", "Più votati"]];
+  const RATINGS = [[0, "Tutti"], [6, "6+"], [7, "7+"], [8, "8+"]];
+  function browseState(kind) {
+    return { sort: "recent", minRating: 0, category: "", categoryName: "", ...store.get("browse." + kind, {}) };
+  }
+
   async function renderGrid(main, kind, cursor, grid) {
-    const page = await api("GET", "/api/v1/catalog/" + kind + "?limit=60" + (cursor ? "&cursor=" + encodeURIComponent(cursor) : ""));
+    const b = browseState(kind);
+    const q = new URLSearchParams({ limit: 60, sort: b.sort });
+    if (b.minRating) q.set("min_rating", b.minRating);
+    if (b.category) q.set("category", b.category);
+    if (cursor) q.set("cursor", cursor);
+    if (!grid) main.replaceChildren(el("h2", {}, kind === "movie" ? "Film" : "Serie"), filterBar(kind, b), skeletonRow(false));
+    const page = await api("GET", "/api/v1/catalog/" + kind + "?" + q);
     if (!grid) {
       grid = el("div", { className: "grid" });
-      main.replaceChildren(el("h2", {}, kind === "movie" ? "Film" : "Serie"), grid);
+      main.lastElementChild.replaceWith(page.items.length ? grid : el("p", { className: "empty" }, "Nessun titolo con questi filtri."));
     }
     grid.append(...page.items.map(itemCard));
     main.querySelector(".more")?.remove();
     if (page.next) {
-      const more = el("button", { className: "button secondary more focusable" }, "Altri titoli");
-      more.onclick = async () => { more.remove(); await renderGrid(main, kind, page.next, grid); focusFirst(grid.lastElementChild); };
+      const more = el("button", { className: "button more focusable" }, "Altri titoli");
+      more.onclick = async () => { more.remove(); const n = grid.children.length; await renderGrid(main, kind, page.next, grid); focusFirst(grid.children[n]); };
       main.append(more);
     }
   }
+
+  function filterBar(kind, b) {
+    // After a choice the focus stays on the chip that was pressed.
+    const set = (change) => {
+      const pressed = document.activeElement && document.activeElement.closest(".filters .chip");
+      const index = pressed ? [...pressed.parentElement.querySelectorAll(".chip")].indexOf(pressed) : -1;
+      store.set("browse." + kind, { ...b, ...change });
+      render().then(() => {
+        const chips = $("content").querySelectorAll(".filters .chip");
+        if (index >= 0 && chips[index]) chips[index].focus();
+      });
+    };
+    const chip = (text, active, fn, icon) => {
+      const c = el("button", { className: "chip focusable" + (active ? " active" : "") });
+      window.VodMax.label(c, icon, text);
+      c.onclick = fn;
+      return c;
+    };
+    return el("div", { className: "chips filters" },
+      el("span", { className: "chip-label" }, "Ordina"),
+      ...SORTS.map(([v, t]) => chip(t, b.sort === v, () => set({ sort: v }))),
+      el("span", { className: "chip-label" }, "Voto"),
+      ...RATINGS.map(([v, t]) => chip(t, b.minRating === v, () => set({ minRating: v }))),
+      el("span", { className: "chip-label" }, "Categoria"),
+      chip(b.category ? b.categoryName : "Tutte", Boolean(b.category), () => pickCategory(kind, b, set), "list"),
+      b.category ? chip("Togli", false, () => set({ category: "", categoryName: "" }), "x") : null);
+  }
+
+  // A panel to choose among hundreds of provider categories: type to
+  // filter, arrows and OK to choose, Back to close.
+  async function pickCategory(kind, b, set) {
+    const back = document.activeElement;
+    const list = await api("GET", "/api/v1/browse/" + kind + "/categories");
+    const filter = el("input", { type: "search", className: "focusable", placeholder: "Cerca una categoria", autocomplete: "off" });
+    const options = el("div", { className: "options" });
+    const scrim = el("div", { className: "scrim" });
+    const panel = el("section", { className: "picker", id: "picker" }, el("h2", {}, "Categoria"), filter, options);
+    const close = () => { panel.remove(); scrim.remove(); if (back) back.focus(); };
+    scrim.onclick = close;
+    panel.close = close;
+    const draw = () => {
+      const f = filter.value.trim().toLowerCase();
+      const all = el("button", { className: "chip focusable" + (b.category ? "" : " active") }, "Tutte");
+      all.onclick = () => { close(); set({ category: "", categoryName: "" }); };
+      // Names that start with the text first ("azione" before "animazione").
+      const found = list.filter((c) => !f || c.name.toLowerCase().includes(f))
+        .sort((x, y) => (f ? Number(!x.name.toLowerCase().startsWith(f)) - Number(!y.name.toLowerCase().startsWith(f)) : 0));
+      options.replaceChildren(...(f ? [] : [all]), ...found.map((c) => {
+        const o = el("button", { className: "chip focusable" + (c.id === b.category ? " active" : "") }, c.name + " ", el("small", {}, c.titles));
+        o.onclick = () => { close(); set({ category: c.id, categoryName: c.name }); };
+        return o;
+      }));
+    };
+    filter.oninput = draw;
+    draw();
+    document.body.append(scrim, panel);
+    (options.querySelector(".active") || options.firstElementChild || filter).focus();
+  }
+
 
   async function renderSearch(main) {
     const q = encodeURIComponent(state.query);
@@ -863,7 +936,7 @@
 
   // ---- Remote control navigation ----
   function focusables(root = document) {
-    const layer = !$("player").hidden ? $("player") : !$("detail").hidden ? $("detail") : document;
+    const layer = $("picker") || (!$("player").hidden ? $("player") : !$("detail").hidden ? $("detail") : document);
     return [...(root === document ? layer : root).querySelectorAll(".focusable")].filter((e) => e.offsetParent !== null);
   }
 
@@ -919,6 +992,12 @@
         Back: () => stopPlayback(true), Stop: () => stopPlayback(true), Backspace: () => stopPlayback(true),
       }[key];
       if (handled) { handled(); e.preventDefault(); }
+      return;
+    }
+    if ($("picker")) {
+      const typing = document.activeElement && document.activeElement.tagName === "INPUT";
+      if (key === "Back" || (key === "Backspace" && !typing)) { $("picker").close(); e.preventDefault(); return; }
+      if (key.startsWith("Arrow") && !(typing && (key === "ArrowLeft" || key === "ArrowRight"))) { moveFocus(key); e.preventDefault(); }
       return;
     }
     const active = document.activeElement;

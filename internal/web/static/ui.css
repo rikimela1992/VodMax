@@ -139,6 +139,36 @@ h2 { margin: 1.8rem 0 0.8rem; font-size: 1.2rem; font-weight: 600; color: var(--
 }
 .row::-webkit-scrollbar { display: none; }
 
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(8.5rem, 11vw, 13rem), 1fr));
+  gap: 1.6rem var(--gap);
+  padding: 0.7rem 0.4rem 1rem;
+}
+.grid .card { flex: none; }
+
+/* Chips: filters and choices */
+.chips { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.45em 1em;
+  font: inherit;
+  font-size: 0.92rem;
+  color: var(--soft);
+  background: var(--raised);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, transform 0.15s var(--ease);
+}
+.chip.active { color: #0b0c10; background: #d9dae0; }
+.chip:hover { color: var(--text); }
+.chip:focus, .chip:focus-visible { outline: none; color: #0b0c10; background: var(--focus); transform: scale(1.06); }
+.chip-label { color: var(--faint); font-size: 0.85rem; margin: 0 0.2rem 0 0.6rem; }
+.chip-label:first-child { margin-left: 0; }
+
 .card {
   position: relative;
   flex: 0 0 clamp(8.5rem, 11vw, 13rem);
@@ -224,3 +254,34 @@ h2 { margin: 1.8rem 0 0.8rem; font-size: 1.2rem; font-weight: 600; color: var(--
   #search { width: 100%; margin: 0; }
   .tab { padding: 0.45em 0.8em; }
 }
+
+/* ---- Picker panel (categories) ---- */
+.picker {
+  position: fixed;
+  inset: 6vh 50% auto auto;
+  z-index: 8;
+  transform: translateX(50%);
+  width: min(92vw, 60rem);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding: 1.4rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 2rem 5rem rgba(0, 0, 0, 0.7);
+}
+.picker h2 { margin: 0; }
+.picker input {
+  padding: 0.6em 1em;
+  font: inherit;
+  color: var(--text);
+  background: var(--raised);
+  border: 2px solid transparent;
+  border-radius: 999px;
+}
+.picker input:focus { border-color: var(--focus); outline: none; }
+.picker .options { overflow-y: auto; display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0.4rem; }
+.picker .chip small { color: inherit; opacity: 0.7; }
+.scrim { position: fixed; inset: 0; z-index: 7; background: rgba(0, 0, 0, 0.55); }

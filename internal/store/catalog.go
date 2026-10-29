@@ -219,10 +219,11 @@ type Query struct {
 	Section        string // live only: tv, sport, radio
 	// All lists every available variant, including what the user's
 	// selection hides (for the selection editor).
-	All     bool
-	NoAdult bool // kids profiles
-	Cursor  string
-	Limit   int
+	All       bool
+	NoAdult   bool    // kids profiles
+	MinRating float64 // 0: any; with a minimum, titles without a rating are left out
+	Cursor    string
+	Limit     int
 }
 
 // Page is a slice of results with an opaque cursor for the next one.
@@ -232,10 +233,11 @@ type Page struct {
 }
 
 type cursor struct {
-	Title string `json:"t,omitempty"`
-	Time  int64  `json:"s,omitempty"`
-	ID    int64  `json:"i"`
-	Off   int    `json:"o,omitempty"`
+	Title  string  `json:"t,omitempty"`
+	Time   int64   `json:"s,omitempty"`
+	Rating float64 `json:"r,omitempty"`
+	ID     int64   `json:"i"`
+	Off    int     `json:"o,omitempty"`
 }
 
 const itemColumns = `i.id, i.subscription_id, i.kind, i.source_id, i.title, i.display_title, i.year, i.category_id,
@@ -295,7 +297,14 @@ func (s *Store) Catalog(ctx context.Context, q Query) (Page, error) {
 		where, args = append(where, "i.subscription_id = ?"), append(args, q.SubscriptionID)
 	}
 	if q.CategoryID != "" {
-		where, args = append(where, "i.category_id = ?"), append(args, q.CategoryID)
+		// A title is in a category if any of its versions is.
+		// One indexed lookup per title (item_variants: kind, group_key).
+		where = append(where, `(i.category_id = ? OR (i.group_key <> '' AND EXISTS
+			(SELECT 1 FROM item v WHERE v.kind = ? AND v.group_key = i.group_key AND v.category_id = ? AND v.available = 1)))`)
+		args = append(args, q.CategoryID, q.Kind, q.CategoryID)
+	}
+	if q.MinRating > 0 {
+		where, args = append(where, "i.rating >= ?"), append(args, q.MinRating)
 	}
 
 	var sqlText string
@@ -311,6 +320,14 @@ func (s *Store) Catalog(ctx context.Context, q Query) (Page, error) {
 			ORDER BY item_search.rank, i.id LIMIT ? OFFSET ?`
 		args = append([]any{match}, args...)
 		args = append(args, q.Limit+1, cur.Off)
+	case q.Sort == "rating":
+		if q.Cursor != "" {
+			where = append(where, "(coalesce(i.rating, 0) < ? OR (coalesce(i.rating, 0) = ? AND i.id > ?))")
+			args = append(args, cur.Rating, cur.Rating, cur.ID)
+		}
+		sqlText = `SELECT ` + itemColumns + ` FROM item i WHERE ` + strings.Join(where, " AND ") +
+			` ORDER BY coalesce(i.rating, 0) DESC, i.id LIMIT ?`
+		args = append(args, q.Limit+1)
 	case q.Sort == "recent":
 		if q.Cursor != "" {
 			where = append(where, "(i.first_seen_at < ? OR (i.first_seen_at = ? AND i.id > ?))")
@@ -353,6 +370,10 @@ func (s *Store) Catalog(ctx context.Context, q Query) (Page, error) {
 		switch {
 		case strings.TrimSpace(q.Text) != "":
 			next = cursor{Off: cur.Off + q.Limit}
+		case q.Sort == "rating":
+			if err := s.r.QueryRowContext(ctx, `SELECT coalesce(rating, 0) FROM item WHERE id = ?`, last.ID).Scan(&next.Rating); err != nil {
+				return Page{}, err
+			}
 		case q.Sort == "recent":
 			// Re-read the exact stored value for the keyset comparison.
 			if err := s.r.QueryRowContext(ctx, `SELECT first_seen_at FROM item WHERE id = ?`, last.ID).Scan(&lastFirstSeen); err != nil {
@@ -441,4 +462,34 @@ func (s *Store) PlaybackItem(ctx context.Context, id int64) (PlaybackItem, error
 		return it, ErrNotFound
 	}
 	return it, err
+}
+
+// BrowseCategory is a category with how many titles it shows.
+type BrowseCategory struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Titles int    `json:"titles"`
+}
+
+// BrowseCategories lists the categories that have visible titles (a title
+// counts once, in every category one of its versions is in).
+func (s *Store) BrowseCategories(ctx context.Context, kind string, noAdult bool) ([]BrowseCategory, error) {
+	rows, err := s.r.QueryContext(ctx, `
+		SELECT c.source_id, min(c.name), count(DISTINCT CASE WHEN v.group_key <> '' THEN v.group_key ELSE CAST(v.id AS TEXT) END)
+		FROM item v JOIN category c ON c.subscription_id = v.subscription_id AND c.kind = v.kind AND c.source_id = v.category_id
+		WHERE v.kind = ? AND v.available = 1 AND v.visible = 1 AND (? = 0 OR v.adult = 0)
+		GROUP BY c.source_id ORDER BY min(c.name) COLLATE NOCASE`, kind, noAdult)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []BrowseCategory{}
+	for rows.Next() {
+		var c BrowseCategory
+		if err := rows.Scan(&c.ID, &c.Name, &c.Titles); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
 }

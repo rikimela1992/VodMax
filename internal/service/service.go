@@ -595,3 +595,11 @@ func (s *Service) catalogImages(ctx context.Context, items []store.CatalogItem) 
 func (s *Service) Categories(ctx context.Context, kind string, subID int64) ([]store.Category, error) {
 	return s.st.Categories(ctx, kind, subID)
 }
+
+// BrowseCategories lists the categories with titles the viewer can see.
+func (s *Service) BrowseCategories(ctx context.Context, kind string) ([]store.BrowseCategory, error) {
+	if kind != "movie" && kind != "series" && kind != "live" {
+		return nil, invalid("tipo non valido")
+	}
+	return s.st.BrowseCategories(ctx, kind, viewerOf(ctx).Kids)
+}

@@ -114,11 +114,11 @@ func newTVProvider() *tvProvider {
 					{"name":"Cielo HD","stream_id":126,"category_id":"2","stream_icon":"` + logo + `cielo.svg"},{"name":"Alma Tv","stream_id":300,"category_id":"2"},
 					{"name":"DAZN Calcio 1 HD","stream_id":400,"category_id":"3"}]`))
 			case "get_vod_categories":
-				w.Write([]byte(`[{"category_id":"10","category_name":"Horror"}]`))
+				w.Write([]byte(`[{"category_id":"10","category_name":"Horror"},{"category_id":"11","category_name":"Thriller"}]`))
 			case "get_vod_streams":
-				w.Write([]byte(`[{"name":"1408 (2007)","stream_id":555,"category_id":"10","container_extension":"mp4","tmdb":"3021"},
-					{"name":"1408 (2007) 4K","stream_id":557,"category_id":"10","container_extension":"mp4","tmdb":"3021"},
-					{"name":"Psycho (1960)","stream_id":556,"category_id":"10","container_extension":"mkv","tmdb":"539"}]`))
+				w.Write([]byte(`[{"name":"1408 (2007)","stream_id":555,"category_id":"10","container_extension":"mp4","tmdb":"3021","rating":"6.9"},
+					{"name":"1408 (2007) 4K","stream_id":557,"category_id":"11","container_extension":"mp4","tmdb":"3021","rating":"6.9"},
+					{"name":"Psycho (1960)","stream_id":556,"category_id":"10","container_extension":"mkv","tmdb":"539","rating":"8.5"}]`))
 			case "get_vod_info":
 				if id := r.URL.Query().Get("vod_id"); id == "555" || id == "557" {
 					w.Write([]byte(`{"info":{"plot":"Uno scrittore scettico...","cast":"John Cusack","director":"Mikael Håfström",
