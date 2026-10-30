@@ -505,8 +505,10 @@
         try {
           const m = await api("POST", "/api/v1/recording-rules/preview", read());
           result.replaceChildren(...(m.length ? m.map((x) => el("li", { className: "match " + x.state },
-            day(x.start) + " " + hhmm(x.start) + " · " + x.channel + " · " + x.title + " — " + (MATCH[x.state] || x.state) + (x.note ? ": " + x.note : ""),
-            x.airing && x.airing.kind === "live" ? el("small", { className: "live" }, " · " + t("diretta: {why}", { why: x.airing.why })) : null))
+            el("span", { className: "when" }, day(x.start) + " " + hhmm(x.start) + " · " + x.channel),
+            el("strong", {}, x.title),
+            el("span", { className: "what" }, (MATCH[x.state] || x.state) + (x.note ? ": " + x.note : ""),
+              x.airing && x.airing.kind === "live" ? el("small", { className: "live" }, " · " + t("diretta: {why}", { why: x.airing.why })) : null)))
             : [el("li", { className: "empty" }, t("Nessun programma corrispondente nella guida dei prossimi giorni"))]));
         } catch (e) { result.replaceChildren(el("li", { className: "empty" }, e.message)); }
       }, 400);
