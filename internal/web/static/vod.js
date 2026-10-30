@@ -103,7 +103,8 @@
       }); };
       return b;
     });
-    const guide = el("a", { className: "chip focusable", href: "/guide.html" }, t("Guida TV"));
+    const guide = el("a", { className: "chip focusable", href: "/guide.html" });
+    window.VodMax.label(guide, "calendar-days", t("Guida TV"));
     const items = channels.slice(0, 600).map((c) => {
       const p = c.now;
       const pct = p ? Math.min(100, Math.max(0, ((now - p.start) / (p.stop - p.start)) * 100)) : 0;
@@ -116,7 +117,7 @@
       b.onclick = () => { location.href = "/tv.html?channel=" + c.id; };
       return el("li", {}, b);
     });
-    main.replaceChildren(el("h2", {}, "TV"), el("div", { className: "tv-tools" }, ...chips, guide),
+    main.replaceChildren(el("h2", { className: "page-title" }, "TV"), el("div", { className: "tv-tools" }, ...chips, guide),
       query ? el("p", { className: "empty" }, t("{n} canali per “{query}” (nome o numero)", { n: channels.length, query: state.query })) : "",
       items.length ? el("ol", { className: "channels" }, ...items) : el("p", { className: "empty" }, list === "favorites"
         ? t("Nessun preferito: in TV premi il tasto giallo (F) su un canale.") : t("Nessun canale.")));
@@ -136,8 +137,8 @@
   }
 
   async function renderHome(main) {
-    main.replaceChildren(el("section", { className: "hero skeleton" }), el("h2", {}, t("Continua a guardare")), skeletonRow(true),
-      el("h2", {}, t("Nuovi film")), skeletonRow(false));
+    main.replaceChildren(el("section", { className: "hero skeleton" }), el("h2", { className: "section" }, t("Continua a guardare")), skeletonRow(true),
+      el("h2", { className: "section" }, t("Nuovi film")), skeletonRow(false));
     const [cont, films, series, favorites, recordings] = await Promise.all([
       api("GET", "/api/v1/continue"),
       api("GET", "/api/v1/catalog/movie?sort=recent&limit=24"),
@@ -146,14 +147,14 @@
       api("GET", "/api/v1/recordings").catch(() => []),
     ]);
     const hero = el("section", { className: "hero" });
-    const parts = [hero, el("h2", {}, t("Continua a guardare"))];
+    const parts = [hero, el("h2", { className: "section" }, t("Continua a guardare"))];
     parts.push(cont.length ? el("div", { className: "row" }, ...cont.map(continueCard))
       : el("p", { className: "empty" }, t("Qui compaiono i film e gli episodi iniziati e la prossima puntata delle serie che stai seguendo.")));
-    if (favorites.length) parts.push(el("h2", {}, t("In onda sui tuoi canali")), el("div", { className: "row" }, ...favorites.slice(0, 20).map(channelCard)));
-    parts.push(el("h2", {}, t("Nuovi film")), el("div", { className: "row" }, ...films.items.map(itemCard)));
-    parts.push(el("h2", {}, t("Nuove serie")), el("div", { className: "row" }, ...series.items.map(itemCard)));
+    if (favorites.length) parts.push(el("h2", { className: "section" }, t("In onda sui tuoi canali")), el("div", { className: "row" }, ...favorites.slice(0, 20).map(channelCard)));
+    parts.push(el("h2", { className: "section" }, t("Nuovi film")), el("div", { className: "row" }, ...films.items.map(itemCard)));
+    parts.push(el("h2", { className: "section" }, t("Nuove serie")), el("div", { className: "row" }, ...series.items.map(itemCard)));
     const done = recordings.filter((r) => r.status === "completed").slice(0, 12);
-    if (done.length) parts.push(el("h2", {}, t("Registrazioni recenti")), el("div", { className: "row" }, ...done.map(recordingCard)));
+    if (done.length) parts.push(el("h2", { className: "section" }, t("Registrazioni recenti")), el("div", { className: "row" }, ...done.map(recordingCard)));
     main.replaceChildren(...parts);
     // The featured title: the first thing to continue, else the newest film.
     const first = cont[0] ? heroFromContinue(cont[0]) : films.items[0] ? heroFromItem(films.items[0]) : null;
@@ -239,7 +240,7 @@
     if (b.minRating) q.set("min_rating", b.minRating);
     if (b.category) q.set("category", b.category);
     if (cursor) q.set("cursor", cursor);
-    if (!grid) main.replaceChildren(el("h2", {}, kind === "movie" ? t("Film") : t("Serie")), filterBar(kind, b), skeletonRow(false));
+    if (!grid) main.replaceChildren(el("h2", { className: "page-title" }, kind === "movie" ? t("Film") : t("Serie")), filterBar(kind, b), skeletonRow(false));
     const page = await api("GET", "/api/v1/catalog/" + kind + "?" + q);
     if (!grid) {
       grid = el("div", { className: "grid" });
@@ -322,7 +323,7 @@
     if (state.view === "series") sections.reverse(); // the current tab's kind first
     const parts = [];
     for (const [label, items] of sections) {
-      if (items.length) parts.push(el("h2", {}, label), el("div", { className: "grid" }, ...items.map(itemCard)));
+      if (items.length) parts.push(el("h2", { className: "section" }, label), el("div", { className: "grid" }, ...items.map(itemCard)));
     }
     if (!parts.length) parts.push(el("p", { className: "empty" }, t("Nessun risultato per “{query}”.", { query: state.query })));
     main.replaceChildren(...parts);
@@ -337,7 +338,7 @@
     const day = (ts) => new Date(ts * 1000).toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short" });
     const usage = [t("Usati {size}", { size: gb(space.used_bytes) }), space.free_bytes >= 0 ? t("liberi {size}", { size: gb(space.free_bytes) }) : "",
       space.max_gb ? t("limite {n} GB", { n: space.max_gb }) : "", space.keep_days ? t("si tengono {n} giorni", { n: space.keep_days }) : ""].filter(Boolean).join(" · ");
-    const parts = [el("h2", { className: "section" }, t("Registrazioni")), el("p", { className: "empty" }, usage)];
+    const parts = [el("h2", { className: "page-title" }, t("Registrazioni")), el("p", { className: "empty" }, usage)];
     if (!list.length) parts.push(el("p", { className: "empty" }, t("Nessuna registrazione. In TV premi R (tasto blu) sul programma in onda, " +
       "oppure registra dalla Guida, oppure crea una regola qui sotto.")));
     else {
@@ -377,7 +378,7 @@
   function downloadsSection(list) {
     const gb = (b) => b >= 1e9 ? (b / 1e9).toLocaleString(locale, { maximumFractionDigits: 2 }) + " GB"
       : Math.round(b / 1e6).toLocaleString(locale) + " MB";
-    const box = el("section", { id: "downloads" }, el("h2", { className: "section" }, t("Download")));
+    const box = el("section", { id: "downloads" }, el("h2", { className: "page-title" }, t("Download")));
     if (!list.length) {
       box.append(el("p", { className: "empty" }, t("Nessun download. Nella scheda di un film o di una serie premi “Scarica”: il server lo copia sul suo disco, " +
         "senza togliere la connessione a chi guarda, e lo trovi nelle raccolte «Scaricati».")));
@@ -392,7 +393,7 @@
         d.status !== "done" ? el("span", { className: "bar" }, el("div", { style: "width:" + pct + "%" })) : null));
       const buttons = el("div", { className: "dl-buttons" });
       const act = (label, method, path) => {
-        const b = el("button", { className: "focusable small" }, label);
+        const b = el("button", { className: "focusable small" + (method === "DELETE" ? " danger" : "") }, label);
         b.onclick = async () => {
           if (method === "DELETE" && !confirm(t("Eliminare “{title}” e il suo file?", { title: d.title }))) return;
           try { await api(method, path); render(); } catch (e) { flash(e.message); }
@@ -449,13 +450,13 @@
         r.spec.section ? t("sezione {section}", { section: r.spec.section }) : "", r.spec.live_only ? t("solo dirette") : "", r.keep ? t("tiene le ultime {n}", { n: r.keep }) : ""].filter(Boolean).join(" · ");
       const box = el("div", { className: "rule" }, el("strong", {}, r.enabled ? r.name : t("{name} (sospesa)", { name: r.name })), el("p", { className: "empty" }, desc),
         r.last_note ? el("p", { className: "empty" }, t("Ultimo controllo: {note}", { note: r.last_note })) : null);
-      const edit = el("button", { className: "button secondary focusable" }, t("Modifica"));
+      const edit = el("button", { className: "small focusable" }, t("Modifica"));
       edit.onclick = () => { edit.disabled = true; box.append(ruleForm(r)); };
-      const toggle = el("button", { className: "button secondary focusable" }, r.enabled ? t("Sospendi") : t("Riattiva"));
+      const toggle = el("button", { className: "small focusable" }, r.enabled ? t("Sospendi") : t("Riattiva"));
       toggle.onclick = async () => {
         try { await api("PUT", "/api/v1/recording-rules/" + r.id, ruleInput(r, { enabled: !r.enabled })); render(); } catch (e) { flash(e.message); }
       };
-      const del = el("button", { className: "button secondary focusable" }, t("Elimina"));
+      const del = el("button", { className: "small danger focusable" }, t("Elimina"));
       del.onclick = async () => {
         if (!confirm(t("Eliminare la regola “{name}”? Le registrazioni già fatte restano; quelle in programma vengono tolte.", { name: r.name }))) return;
         try { await api("DELETE", "/api/v1/recording-rules/" + r.id); render(); } catch (e) { flash(e.message); }
@@ -463,7 +464,7 @@
       box.append(el("div", { className: "actions" }, edit, toggle, del));
       out.push(box);
     }
-    out.push(el("h3", { className: "section" }, t("Nuova regola")), ruleForm());
+    out.push(el("section", { className: "form-card" }, el("h2", { className: "section" }, t("Nuova regola")), ruleForm()));
     return out;
   }
 
@@ -514,7 +515,7 @@
       }, 400);
     };
     const day = (ts) => new Date(ts * 1000).toLocaleDateString(locale, { weekday: "short", day: "numeric" });
-    const save = el("button", { className: "button focusable", type: "submit" }, existing ? t("Salva la regola") : t("Crea la regola"));
+    const save = el("button", { className: "small primary focusable", type: "submit" }, existing ? t("Salva la regola") : t("Crea la regola"));
     const form = el("form", { className: "rule-form" }, f(t("Nome"), name), f(t("Deve contenere (tutte)"), all), f(t("E almeno una di"), any),
       f(t("Escludi se contiene"), none), f(t("Sezione"), section), f(t("Canale"), channel),
       f(t("Solo dirette"), el("span", { className: "check" }, liveOnly, t("salta repliche, differite e sintesi"))), f(t("Tieni le ultime"), keep),

@@ -130,6 +130,31 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 main { padding: 0 var(--safe) 4rem; }
 h2 { margin: 1.8rem 0 0.8rem; font-size: 1.2rem; font-weight: 600; color: var(--text); letter-spacing: 0.01em; }
+
+/* One style for titles on every page (the settings set it): page title
+   white, section title in the accent with a line below. */
+.page-title { margin: 1.6rem 0 1rem; font-size: 1.6rem; font-weight: 700; color: var(--text); border: 0; padding: 0; }
+h2.section { margin: 2.2rem 0 1rem; padding-bottom: 0.6rem; font-size: 1.15rem; font-weight: 700; color: var(--accent); border-bottom: 1px solid var(--line); }
+.page-title + h2.section, h2.section:first-child { margin-top: 1.6rem; }
+
+/* Boxes: one item in a list (a subscription, a rule, a download). */
+.box { margin: 1rem 0; padding: 1.2rem 1.4rem; background: var(--raised); border: 1px solid var(--line); border-radius: 14px; }
+
+/* Small buttons: the actions of an item (Edit, Delete...). */
+button.small {
+  padding: 0.5em 1.1em;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+button.small.primary { color: var(--bg); background: var(--text); font-weight: 600; }
+button.small.danger { color: var(--bad); }
+button.small:disabled { opacity: 0.5; cursor: wait; }
+button.small:hover { border-color: var(--text); }
+button.small:focus { outline: none; color: #0b0c10; background: var(--focus); border-color: var(--focus); }
 .empty { color: var(--soft); }
 
 /* ---- Rows of cards (scroll sideways; focus scrolls them) ---- */
@@ -168,6 +193,7 @@ h2 { margin: 1.8rem 0 0.8rem; font-size: 1.2rem; font-weight: 600; color: var(--
   cursor: pointer;
   transition: background 0.15s, color 0.15s, transform 0.15s var(--ease);
 }
+a.chip { text-decoration: none; }
 .chip.active { color: #0b0c10; background: #d9dae0; }
 .chip:hover { color: var(--text); }
 .chip:focus, .chip:focus-visible { outline: none; color: #0b0c10; background: var(--focus); transform: scale(1.06); }

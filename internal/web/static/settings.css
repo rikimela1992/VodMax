@@ -3,13 +3,6 @@
 .settings h2 { color: var(--text); font-size: 1.3rem; margin-top: 1.5rem; }
 .settings p.note { color: var(--soft); margin: 0.3rem 0 1rem; }
 
-.box {
-  margin: 1rem 0;
-  padding: 1.2rem 1.4rem;
-  background: var(--raised);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-}
 
 .box h3 { margin: 0 0 0.4rem; font-size: 1.15rem; }
 .facts { display: flex; flex-wrap: wrap; gap: 0.4rem 1.6rem; color: var(--soft); margin: 0.6rem 0; }
@@ -18,19 +11,6 @@
 .bad { color: #ff9a92; }
 .box .buttons { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.8rem; }
 
-.settings button.small {
-  padding: 0.45em 1em;
-  font: inherit;
-  color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  cursor: pointer;
-}
-.settings button.small.primary { color: var(--bg); background: var(--text); }
-.settings button.small.danger { color: #ff9a92; }
-.settings button.small:disabled { opacity: 0.5; cursor: wait; }
-.settings button.small:focus, .settings button.small:hover { border-color: var(--text); outline: none; }
 
 .form { display: grid; grid-template-columns: 12rem 1fr; gap: 0.7rem 1rem; align-items: center; margin: 0.8rem 0; }
 .form label { color: var(--soft); }
@@ -73,8 +53,6 @@
 .form > * { min-width: 0; }
 .form input, .form select, .form textarea { width: 100%; }
 .form input:focus, .form select:focus, .form textarea:focus, .pick:focus { outline: none; border-color: var(--focus); box-shadow: 0 0 0 2px var(--focus); }
-.settings button.small { border-radius: 999px; padding: 0.5em 1.1em; }
-.settings button.small:focus { color: #0b0c10; background: var(--focus); border-color: var(--focus); }
 
 @media (max-width: 700px) {
   /* Label above the field. */
@@ -127,7 +105,8 @@
 
 .pane { min-width: 0; }
 .pane-head { display: none; }
-.pane .settings > h2:first-child { margin-top: 0.4rem; font-size: 1.6rem; }
+/* The page title, as .page-title on the other pages. */
+.pane .settings > h2:first-child { margin-top: 0.4rem; font-size: 1.6rem; font-weight: 700; }
 
 @media (max-width: 800px) {
   .shell { display: block; padding: 0.6rem 16px 3rem; }
