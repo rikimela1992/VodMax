@@ -93,7 +93,7 @@ video {
 .programme .time { color: var(--soft); font-variant-numeric: tabular-nums; }
 
 .progress { height: 4px; margin: 0.5rem 0 0.6rem 8.5em; background: var(--raised); border-radius: 2px; }
-.progress div { height: 100%; width: 0; background: var(--accent); border-radius: 2px; }
+.progress div { height: 100%; width: 0; background: var(--accent-grad); border-radius: 2px; }
 
 /* Channel list overlay. */
 .list {
@@ -216,7 +216,7 @@ video {
   border: 1px solid var(--fav);
   border-radius: 10px;
 }
-#server-problems.error { border-color: var(--accent); }
+#server-problems.error { border-color: var(--rec); }
 
 .pair-code { font-size: 3.2rem; font-weight: 700; letter-spacing: 0.2em; text-align: center; margin: 1.2rem 0; }
 .setup-panel .hint { color: var(--soft); font-size: 0.9rem; }
@@ -265,7 +265,7 @@ video {
   .controls [data-action="live"] { grid-area: 3 / 4 / 4 / 7; }
   .controls [data-action="fav"] { grid-area: 3 / 7 / 4 / 10; }
   .controls [data-action="rec"] { grid-area: 3 / 10 / 4 / 13; }
-  .controls #ctl-live.behind { color: #fff; background: var(--accent); }
+  .controls #ctl-live.behind { color: var(--bg); background: var(--accent); }
   .controls #ctl-live .lbl { max-width: 100%; white-space: normal; text-align: center; }
   /* The channel banner would sit under the bottom row. */
   body.controls-on .banner { display: none; }

@@ -11,8 +11,11 @@
   --text: #f5f5f7;
   --soft: #a9abb5;
   --faint: #6e717c;
-  --accent: #ff4d4f;
-  --accent-soft: rgba(255, 77, 79, 0.18);
+  /* Brand: "Aurora", mint to azure. Red stays for recording and errors. */
+  --accent: #00d6ca;
+  --accent-grad: linear-gradient(90deg, #00f5a0, #00b8f5);
+  --accent-soft: rgba(0, 214, 202, 0.18);
+  --rec: #ff4d4f;
   --focus: #ffffff;
   --line: rgba(255, 255, 255, 0.12);
   --fav: #f2c879;
@@ -202,7 +205,7 @@ h2 { margin: 1.8rem 0 0.8rem; font-size: 1.2rem; font-weight: 600; color: var(--
 .card .label { font-size: 0.92rem; line-height: 1.25; max-height: 2.5em; overflow: hidden; color: var(--soft); transition: color 0.15s; }
 .card .sub { font-size: 0.8rem; color: var(--faint); }
 .card .bar { height: 4px; background: rgba(255, 255, 255, 0.15); border-radius: 2px; overflow: hidden; }
-.card .bar div { height: 100%; background: var(--accent); }
+.card .bar div { height: 100%; background: var(--accent-grad); }
 .card:focus, .card:focus-visible { outline: none; }
 .card:focus .poster, .card:hover .poster {
   transform: scale(1.06);

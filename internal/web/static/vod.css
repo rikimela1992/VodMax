@@ -39,7 +39,7 @@
 .episodes li button:focus { background: var(--raised); outline: 2px solid var(--text); }
 .episodes .n { color: var(--soft); }
 .episodes .bar { align-self: center; height: 4px; background: var(--raised); border-radius: 2px; overflow: hidden; }
-.episodes .bar div { height: 100%; background: var(--accent); }
+.episodes .bar div { height: 100%; background: var(--accent-grad); }
 
 /* Recordings */
 .recs { list-style: none; margin: 0; padding: 0; }
@@ -59,7 +59,7 @@
 }
 .recs li button:focus { background: var(--raised); outline: 2px solid var(--text); }
 .recs .state { color: var(--soft); }
-.recs .state.recording { color: var(--accent); font-weight: 600; }
+.recs .state.recording { color: var(--rec); font-weight: 600; }
 
 /* Player */
 .player { position: fixed; inset: 0; z-index: 7; /* above the detail it starts from */ background: #000; }
@@ -78,7 +78,7 @@
 .player-bar.idle { opacity: 0; }
 .player-title { font-size: 1.3rem; font-weight: 600; margin-bottom: 0.8rem; }
 .player-progress { height: 6px; background: var(--raised); border-radius: 3px; overflow: hidden; }
-.player-progress div { height: 100%; width: 0; background: var(--accent); }
+.player-progress div { height: 100%; width: 0; background: var(--accent-grad); }
 .player-time { display: flex; justify-content: space-between; margin: 0.5rem 0; color: var(--soft); font-variant-numeric: tabular-nums; }
 .hint { color: var(--soft); font-size: 0.85rem; }
 
@@ -153,7 +153,7 @@
   border: 1px solid var(--fav);
   border-radius: 10px;
 }
-#server-problems.error { border-color: var(--accent); }
+#server-problems.error { border-color: var(--rec); }
 
 .pair-code { font-size: 3.2rem; font-weight: 700; letter-spacing: 0.2em; text-align: center; margin: 1.2rem 0; }
 .setup-panel .hint { color: var(--soft); font-size: 0.9rem; }
@@ -218,7 +218,7 @@ video::cue { font-size: 1.6rem; background: rgba(0, 0, 0, 0.65); }
 .channels .what strong { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .channels .what span { display: block; color: var(--soft); font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .channels .what .bar { height: 3px; margin-top: 0.3rem; background: var(--bg); border-radius: 2px; overflow: hidden; }
-.channels .what .bar div { height: 100%; background: var(--accent); }
+.channels .what .bar div { height: 100%; background: var(--accent-grad); }
 
 /* Seek bar: a taller area to click or drag, the time under the pointer. */
 .player-seek { position: relative; padding: 0.7rem 0; cursor: pointer; touch-action: none; }

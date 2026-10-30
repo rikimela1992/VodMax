@@ -1,6 +1,9 @@
 <div align="center">
 
-# VodMax
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/brand/vodmax-wordmark-dark.svg">
+  <img src="docs/brand/vodmax-wordmark-light.svg" alt="VodMax" width="360">
+</picture>
 
 **La tua TV in diretta, i tuoi film e le tue serie in un unico media center da ospitare in casa.**
 

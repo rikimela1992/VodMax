@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- A play mark on the VodMax red. -->
+<!-- The VodMax V (Sora ExtraBold) in the "Aurora" gradient, inside the
+     adaptive-icon safe zone. Source: docs/brand. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#FFFFFF" android:pathData="M44,36 L74,54 L44,72 Z" />
+    <path android:pathData="M62.85 74.56L45.94 74.56L34 33.44L44.82 33.44L53.77 67.18L51.80 66.23L57.21 66.23L55.18 67.18L63.52 33.44L74 33.44L62.85 74.56Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="34" android:startY="0" android:endX="74" android:endY="0">
+                <item android:offset="0" android:color="#FF00F5A0" />
+                <item android:offset="1" android:color="#FF00B8F5" />
+            </gradient>
+        </aapt:attr>
+    </path>
 </vector>

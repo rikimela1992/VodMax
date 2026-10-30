@@ -20,7 +20,7 @@
 }
 .prog small { display: block; color: var(--soft); font-size: 0.78rem; }
 .prog.on-air { background: #24262e; }
-.prog.rec::before { content: "⏺ "; color: var(--accent); }
+.prog.rec::before { content: "⏺ "; color: var(--rec); }
 .prog:focus, .prog:hover { outline: none; border-color: var(--text); background: #2b2e37; z-index: 1; }
 .now-line { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent); pointer-events: none; }
 
@@ -36,3 +36,10 @@
 .prog.past.replay { opacity: 0.85; }
 .prog.past.replay small::after { content: " · ↺ riguarda"; }
 .guide-row .name .archive { color: var(--soft); margin-left: 0.3rem; }
+
+/* Wide screens: the list tabs keep their full width, the time controls
+   take the rest (and wrap), so longer labels are never cut. */
+@media (min-width: 801px) {
+  .top #tabs.keep { flex: 0 0 auto; }
+  .guide-nav { flex: 1 1 auto; justify-content: flex-end; }
+}
