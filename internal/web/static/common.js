@@ -123,7 +123,8 @@ window.VodMax = (() => {
     let list;
     try { list = await api("GET", "/api/v1/profiles"); } catch { return; }
     const buttons = list.map((p) => el("button", { type: "button", className: "profile-choice focusable", onclick: () => choose(p) },
-      el("span", { className: "profile-name" }, p.name), el("span", { className: "profile-kind" }, (KIND[p.kind] ? t(KIND[p.kind]) : "") + (p.has_pin ? " 🔒" : ""))));
+      avatar(p, "big"), el("span", { className: "profile-name" }, p.name), el("span", { className: "profile-kind" }, KIND[p.kind] ? t(KIND[p.kind]) : "",
+        p.has_pin && window.VodMaxIcons ? VodMaxIcons.icon("lock", t("con PIN")) : "")));
     const box = overlay("profiles", el("h1", {}, t("Chi guarda?")), el("div", { className: "profile-grid" }, ...buttons),
       window.VodMaxI18n.picker("on-overlay"));
     if (buttons[0]) buttons[0].focus();
@@ -162,10 +163,149 @@ window.VodMax = (() => {
     const nav = document.getElementById("tabs");
     if (nav && who.profile && !document.getElementById("profile-chip")) {
       const chip = el("button", { id: "profile-chip", className: "tab focusable", type: "button",
-        title: t("Cambia profilo ({name})", { name: who.profile.name }), onclick: () => { store.set("profile", ""); showProfiles(); } });
-      chip.append(window.VodMaxIcons ? VodMaxIcons.icon("user") : "", el("span", { className: "tab-text" }, who.profile.name));
-      nav.append(chip);
+        title: t("Il mio profilo ({name})", { name: who.profile.name }), onclick: () => myProfile() });
+      chip.append(avatar(who.profile, "small"), el("span", { className: "tab-text" }, who.profile.name));
+      // Next to the search box, outside the menu bar (which scrolls sideways).
+      const search = document.getElementById("search");
+      const upd = document.getElementById("update-tab");
+      if (upd) upd.after(chip);
+      else if (search) { chip.style.marginLeft = "auto"; search.before(chip); } else nav.append(chip);
     }
+    if (who.pin_required) setAdminPIN(who.profile);
+  }
+
+  // ---- Avatars and "my profile" ----
+  const AVATAR_COLORS = ["#00d6ca", "#3d8bff", "#8b5cf6", "#ec4899", "#ff4d4f", "#ff8a1f", "#f5c518", "#22c55e"];
+  // A round badge: the chosen icon, or the initial, on the chosen colour.
+  function avatar(p, size) {
+    const a = el("span", { className: "avatar" + (size ? " " + size : "") });
+    a.style.background = p.color || AVATAR_COLORS[(p.id || 0) % AVATAR_COLORS.length];
+    if (p.avatar && window.VodMaxIcons) a.append(VodMaxIcons.icon(p.avatar));
+    else a.append(el("span", { className: "avatar-initial" }, (p.name || "?").trim().charAt(0).toUpperCase()));
+    return a;
+  }
+
+  // Arrows and Back inside a panel, the same on every page.
+  function panelKeys(box, onBack) {
+    const onKey = (e) => {
+      if (!document.body.contains(box)) { document.removeEventListener("keydown", onKey, true); return; }
+      const key = keyOf(e);
+      if (key === "Back" && onBack) {
+        if (e.target.tagName === "INPUT" && e.key === "Backspace") return;
+        e.preventDefault(); e.stopPropagation(); onBack(); return;
+      }
+      if (!key.startsWith("Arrow")) return;
+      const typing = e.target.tagName === "INPUT";
+      if (typing && (key === "ArrowLeft" || key === "ArrowRight")) return;
+      e.preventDefault(); e.stopPropagation();
+      const all = [...box.querySelectorAll("button, input, a, summary")].filter((x) => x.offsetParent !== null && !x.disabled);
+      const cur = document.activeElement;
+      if (!all.includes(cur)) { if (all[0]) all[0].focus(); return; }
+      const a = cur.getBoundingClientRect(), ax = a.left + a.width / 2, ay = a.top + a.height / 2;
+      let best = null, score = Infinity;
+      for (const x of all) {
+        if (x === cur) continue;
+        const b = x.getBoundingClientRect(), dx = b.left + b.width / 2 - ax, dy = b.top + b.height / 2 - ay;
+        const ok = { ArrowLeft: dx < -4, ArrowRight: dx > 4, ArrowUp: dy < -4, ArrowDown: dy > 4 }[key];
+        if (!ok) continue;
+        const along = key === "ArrowLeft" || key === "ArrowRight" ? Math.abs(dx) : Math.abs(dy);
+        const across = key === "ArrowLeft" || key === "ArrowRight" ? Math.abs(dy) : Math.abs(dx);
+        const sc = along + across * 3;
+        if (sc < score) { score = sc; best = x; }
+      }
+      if (best) { best.focus(); best.scrollIntoView({ block: "nearest" }); }
+    };
+    document.addEventListener("keydown", onKey, true);
+  }
+
+  // After a PIN change the earlier choice of the profile no longer works:
+  // choose it again with the new PIN and start over.
+  async function reselect(p, pin) {
+    const r = await api("POST", "/api/v1/profiles/" + p.id + "/select", { pin });
+    store.set("profile", r.profile_token);
+    location.reload();
+  }
+
+  // A PIN form: the current one when there is one, the new one twice.
+  function pinForm(hasPIN, done) {
+    const field = (label) => { const i = el("input", { type: "password", inputMode: "numeric", autocomplete: "off", maxLength: 8, className: "focusable" }); i.setAttribute("aria-label", label); return [el("label", {}, label, i), i]; };
+    const [l0, current] = field(t("PIN attuale"));
+    const [l1, pin] = field(t("Nuovo PIN (4–8 cifre)"));
+    const [l2, again] = field(t("Ripeti il nuovo PIN"));
+    const msg = el("p", { className: "hint" });
+    const form = el("form", { className: "pin-form" }, hasPIN ? l0 : null, l1, l2, el("button", { type: "submit", className: "focusable" }, t("Salva il PIN")), msg);
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!/^[0-9]{4,8}$/.test(pin.value)) { msg.textContent = t("Il PIN deve avere da 4 a 8 cifre."); return; }
+      if (pin.value !== again.value) { msg.textContent = t("I due PIN non coincidono."); return; }
+      try {
+        await api("PUT", "/api/v1/profile", { pin: pin.value, current_pin: current.value });
+        await done(pin.value);
+      } catch (err) { msg.textContent = err.message; }
+    });
+    return form;
+  }
+
+  // An admin profile without PIN while other profiles exist: anyone could
+  // enter it, so nothing else until a PIN is set (or another profile).
+  function setAdminPIN(p) {
+    if (document.getElementById("admin-pin")) return;
+    const box = overlay("admin-pin", el("h1", {}, t("Proteggi il profilo amministratore")),
+      el("p", {}, t("Ci sono altri profili: senza un PIN chiunque potrebbe entrare in “{name}” e cambiare le impostazioni. Scegli un PIN: lo chiederà una volta su ogni dispositivo.", { name: p.name })),
+      pinForm(false, (pin) => reselect(p, pin)),
+      el("button", { type: "button", className: "link focusable", onclick: () => { store.set("profile", ""); showProfiles(); } }, t("← Altri profili")));
+    box.classList.add("modal");
+    panelKeys(box, null);
+    const first = box.querySelector("input");
+    if (first) first.focus();
+  }
+
+  async function myProfile() {
+    let who, choice;
+    try { [who, choice] = await Promise.all([me(), api("GET", "/api/v1/avatars")]); } catch { return; }
+    const p = who.profile;
+    if (!p) { showProfiles(); return; }
+    const scrim = el("div", { className: "scrim me-scrim" });
+    const close = () => { box.remove(); scrim.remove(); const chip = document.getElementById("profile-chip"); if (chip) chip.focus(); };
+    scrim.onclick = close;
+    const msg = el("p", { className: "hint" });
+    const preview = el("div", { className: "me-preview" });
+    const colorOf = () => p.color || AVATAR_COLORS[p.id % AVATAR_COLORS.length];
+    const draw = () => {
+      preview.replaceChildren(avatar(p, "big"), el("div", {}, el("strong", {}, p.name), el("span", { className: "hint" }, KIND[p.kind] ? t(KIND[p.kind]) : "")));
+      for (const b of icons.children) { b.classList.toggle("active", b.dataset.avatar === (p.avatar || "")); b.firstChild.style.background = colorOf(); }
+      for (const b of colors.children) b.classList.toggle("active", b.dataset.color === colorOf());
+      const chip = document.getElementById("profile-chip");
+      if (chip) chip.firstChild.replaceWith(avatar(p, "small"));
+    };
+    const save = async (change) => {
+      try { await api("PUT", "/api/v1/profile", change); Object.assign(p, change); msg.textContent = ""; draw(); }
+      catch (e) { msg.textContent = e.message; }
+    };
+    const icons = el("div", { className: "avatar-grid" }, ...["", ...choice.avatars].map((name) => {
+      const b = el("button", { type: "button", className: "avatar-pick focusable", title: name ? name : t("Iniziale"), onclick: () => save({ avatar: name }) },
+        avatar({ ...p, avatar: name }, ""));
+      b.dataset.avatar = name;
+      return b;
+    }));
+    const colors = el("div", { className: "color-row" }, ...choice.colors.map((c) => {
+      const b = el("button", { type: "button", className: "color-pick focusable", title: c, onclick: () => save({ color: c }) });
+      b.style.background = c;
+      b.dataset.color = c;
+      return b;
+    }));
+    const box = el("section", { id: "my-profile", className: "panel", role: "dialog" },
+      el("div", { className: "me-head" }, preview,
+        el("button", { type: "button", className: "me-close focusable", "aria-label": t("Chiudi"), onclick: close }, "✕")),
+      el("h2", {}, t("Avatar")), icons, el("h2", {}, t("Colore")), colors, msg,
+      p.kind === "kids" ? null : el("details", { className: "me-pin" }, el("summary", { className: "focusable" }, p.has_pin ? t("Cambia il PIN") : t("Imposta un PIN")),
+        pinForm(p.has_pin, (pin) => reselect(p, pin))),
+      el("div", { className: "me-actions" },
+        el("button", { type: "button", className: "focusable", onclick: () => { close(); store.set("profile", ""); showProfiles(); } }, t("Cambia profilo"))));
+    document.body.append(scrim, box);
+    draw();
+    panelKeys(box, close);
+    (icons.querySelector(".active") || icons.firstChild).focus();
   }
 
   // ---- Phone: navigation bar at the bottom, like the streaming apps;
@@ -204,7 +344,7 @@ window.VodMax = (() => {
         entry("download", t("Download"), go("downloads"), "downloads-only"),
         entry("calendar-days", t("Guida TV"), () => { location.href = "/guide.html"; }),
         entry("settings", t("Impostazioni"), () => { location.href = "/settings.html"; }, "admin-only"),
-        entry("user", t("Cambia profilo"), () => { closeSheet(); store.set("profile", ""); showProfiles(); }),
+        entry("user", t("Il mio profilo"), () => { closeSheet(); myProfile(); }),
         native ? entry("rotate-cw", t("Aggiorna l'app"), () => { closeSheet(); if (updateInfo) updateBanner(updateInfo); }, "update-only") : "",
         native ? entry("tv", t("Cambia server"), () => native.changeServer()) : "");
       for (const a of sheet.querySelectorAll(".update-only")) a.hidden = !updateInfo;
@@ -296,9 +436,32 @@ window.VodMax = (() => {
     if (search && !document.getElementById("update-tab")) {
       const tab = el("button", { id: "update-tab", className: "tab focusable", type: "button", title: t("Aggiorna l'app"), "aria-label": t("Aggiorna l'app"), onclick: () => updateBanner(updateInfo) });
       tab.append(window.VodMaxIcons ? VodMaxIcons.icon("rotate-cw") : "", el("span", { className: "dot" }));
-      search.before(tab);
+      const chip = document.getElementById("profile-chip");
+      if (chip && chip.nextElementSibling === search) { chip.style.marginLeft = ""; chip.before(tab); } else search.before(tab);
     }
   }
+  // What a release brings, from its notes on GitHub: the English part, or
+  // the Italian summary after the "---" line. A little Markdown, as text.
+  function releaseNotes(text) {
+    const [en, it] = String(text || "").split(/\n-{3,}\n/);
+    let part = window.VodMaxI18n.lang === "it" && it ? it : en;
+    part = part.split(/\n## (Updating|Aggiornare)/)[0];
+    const plain = (x) => {
+      const s = x.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/\*\*|`/g, "").replace(/^In breve:\s*/, "").trim();
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    };
+    const out = [];
+    let list = null;
+    for (const line of part.split("\n")) {
+      const l = line.trim();
+      if (!l || /^## (What's new|Novità)/.test(l)) continue;
+      if (l.startsWith("- ")) { if (!list) out.push(list = el("ul")); list.append(el("li", {}, plain(l.slice(2)))); continue; }
+      list = null;
+      out.push(l.startsWith("## ") ? el("h3", {}, plain(l.slice(3))) : el("p", {}, plain(l)));
+    }
+    return out.length ? out : [el("p", {}, t("Nessuna nota per questa versione."))];
+  }
+
   function updateBanner(info) {
     const open = document.getElementById("update-banner");
     if (open) { const b = open.querySelector("button"); if (b) b.focus(); return; }
@@ -307,8 +470,12 @@ window.VodMax = (() => {
     const go = el("button", { type: "button", className: "focusable primary" }, t("Aggiorna"));
     const later = el("button", { type: "button", className: "focusable" }, t("Più tardi"));
     const skip = el("button", { type: "button", className: "focusable" }, t("Salta questa versione"));
-    const buttons = el("div", { className: "buttons" }, go, later, skip);
-    const box = el("div", { id: "update-banner", role: "dialog" }, msg, buttons);
+    const news = el("button", { type: "button", className: "focusable" }, t("Novità"));
+    const notes = el("div", { className: "update-notes", hidden: true }, ...releaseNotes(info.notes),
+      info.page ? el("a", { href: info.page, target: "_blank", rel: "noopener", className: "focusable" }, t("Tutte le novità su GitHub")) : null);
+    news.onclick = () => { notes.hidden = !notes.hidden; news.classList.toggle("active", !notes.hidden); };
+    const buttons = el("div", { className: "buttons" }, go, news, later, skip);
+    const box = el("div", { id: "update-banner", role: "dialog" }, msg, notes, buttons);
     go.onclick = () => {
       buttons.hidden = true;
       updateApp(info, (text, failed) => {

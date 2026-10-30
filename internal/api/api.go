@@ -37,6 +37,8 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	route("GET /api/v1/profiles", levelDevice, a.profiles)
 	route("POST /api/v1/profiles/{id}/select", levelDevice, a.selectProfile)
 	// Administration.
+	route("GET /api/v1/avatars", levelDevice, a.avatars)
+	route("PUT /api/v1/profile", levelViewer, a.putOwnProfile)
 	route("POST /api/v1/profiles", levelAdmin, a.addProfile)
 	route("PATCH /api/v1/profiles/{id}", levelAdmin, a.patchProfile)
 	route("DELETE /api/v1/profiles/{id}", levelAdmin, a.deleteProfile)
@@ -238,8 +240,10 @@ func (a *api) fail(w http.ResponseWriter, r *http.Request, err error) {
 		status = http.StatusForbidden
 	case errors.Is(err, service.ErrNoTimeshift):
 		status = http.StatusServiceUnavailable
-	case errors.Is(err, service.ErrPIN):
+	case errors.Is(err, service.ErrPIN), errors.Is(err, service.ErrCurrentPIN), errors.Is(err, service.ErrForbidden):
 		status = http.StatusForbidden
+	case errors.Is(err, service.ErrAdminPIN):
+		status = http.StatusBadRequest
 	case errors.Is(err, service.ErrPINLocked):
 		status = http.StatusTooManyRequests
 	case errors.Is(err, service.ErrPairing):
@@ -1075,7 +1079,26 @@ func (a *api) me(w http.ResponseWriter, r *http.Request) {
 		"profile":   id.Profile,
 		"admin":     id.Admin(),
 		"is_master": id.DeviceID == service.MasterDevice,
+		// An admin profile that must set its PIN before anything else.
+		"pin_required": id.NeedsPIN,
 	})
+}
+
+func (a *api) avatars(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string][]string{"avatars": service.Avatars, "colors": service.AvatarColors})
+}
+
+func (a *api) putOwnProfile(w http.ResponseWriter, r *http.Request) {
+	var in service.OwnProfileInput
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if err := a.svc.UpdateOwnProfile(r.Context(), identity(r), in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *api) profiles(w http.ResponseWriter, r *http.Request) {

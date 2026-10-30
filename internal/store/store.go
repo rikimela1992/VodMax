@@ -345,6 +345,8 @@ var migrations = []string{
 		UNIQUE (media, media_id)
 	);
 	CREATE INDEX download_queue ON download (status, id);`,
+	// 14: the avatar a person chooses for their profile.
+	`ALTER TABLE profile ADD COLUMN avatar TEXT NOT NULL DEFAULT ''`,
 }
 
 // noForeignKeys lists migrations (1-based) that rebuild a parent table:

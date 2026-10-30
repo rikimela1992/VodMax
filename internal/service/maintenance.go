@@ -372,15 +372,19 @@ func (s *Service) Status(ctx context.Context) (SystemStatus, error) {
 	}
 	s.mu.Unlock()
 	out.Problems = append(out.Problems, s.diskProblems(ctx)...)
-	// With a kids profile, an admin profile without PIN can be chosen on
-	// any device, settings and adult content included.
+	// An admin profile without PIN, with other profiles, can be chosen by
+	// anyone (it has no admin rights until the PIN is set); with a kids
+	// profile, so can an adult one.
 	if profiles, err := s.st.Profiles(ctx); err == nil {
 		kids := false
 		for _, p := range profiles {
 			kids = kids || p.Kind == "kids"
 		}
 		for _, p := range profiles {
-			if kids && p.Kind != "kids" && !p.HasPIN {
+			if p.Kind == "admin" && !p.HasPIN && len(profiles) > 1 {
+				out.Problems = append(out.Problems, Problem{Level: "error", Area: "profile",
+					Text: T(ctx, "Il profilo amministratore “%s” non ha un PIN: entrandoci si chiede di impostarlo", p.Name)})
+			} else if kids && p.Kind != "kids" && !p.HasPIN {
 				out.Problems = append(out.Problems, Problem{Level: "warning", Area: "profile",
 					Text: T(ctx, "Il profilo “%s” non ha un PIN: dai dispositivi dei bambini si può sceglierlo", p.Name)})
 			}

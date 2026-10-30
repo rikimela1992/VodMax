@@ -17,6 +17,18 @@ la famiglia, profilo bambini, abbinamento con un codice breve)
   (4–8 cifre, PBKDF2), 5 errori bloccano quel profilo su quel
   dispositivo per 5 minuti. La scelta produce un token firmato valido
   solo per quel dispositivo; cambiare il PIN la annulla ovunque.
+- **PIN dell'amministratore** (30 ottobre 2026, segnalazione dell'utente:
+  chiunque, anche da un profilo normale, poteva entrare nel profilo
+  amministratore senza PIN): quando esistono altri profili, un profilo
+  amministratore **deve avere un PIN**. Il server rifiuta di creare altri
+  profili, di togliere il PIN all'amministratore o di creare un
+  amministratore senza PIN. Sulle installazioni precedenti, chi entra in un
+  amministratore senza PIN non ha i diritti di amministratore finché non
+  imposta il PIN (una finestra obbligatoria lo chiede); il token di
+  amministrazione resta la chiave di emergenza.
+- **Il mio profilo**: ognuno sceglie il proprio avatar (una trentina di
+  icone Lucide, o l'iniziale) e il colore, e cambia il proprio PIN dando
+  quello attuale. I profili bambini scelgono l'avatar, non il PIN.
 - Un dispositivo può essere **bloccato su un profilo** (il tablet dei
   bambini): non sceglie, non vede gli altri.
 - **Bambini**: niente contenuti delle categorie per adulti, né in elenco
@@ -29,7 +41,8 @@ la famiglia, profilo bambini, abbinamento con un codice breve)
 
 | Livello | Cosa |
 |---|---|
-| dispositivo | `me`, elenco e scelta del profilo |
+| dispositivo | `me`, elenco e scelta del profilo, elenco degli avatar |
+| profilo | il proprio avatar, colore e PIN (`PUT /api/v1/profile`) |
 | profilo | catalogo, TV, film, serie, avanzamenti, registrazioni (vedere) |
 | non bambini | programmare e cancellare registrazioni |
 | amministratore | abbonamenti, VPN, selezione, backup, profili, dispositivi |

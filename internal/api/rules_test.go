@@ -100,6 +100,7 @@ type kidsLogin struct{ device, profile string }
 
 func addKids(t *testing.T, e *env) kidsLogin {
 	t.Helper()
+	e.do(t, "PATCH", "/api/v1/profiles/1", map[string]any{"pin": "9753"}, true) // needed with other profiles
 	_, body := e.do(t, "POST", "/api/v1/profiles", map[string]any{"name": "Bimbi", "kind": "kids"}, true)
 	var p struct{ ID int64 }
 	json.Unmarshal(body, &p)

@@ -17,14 +17,15 @@ type Profile struct {
 	PINEpoch  int64  `json:"-"`
 	HasPIN    bool   `json:"has_pin"`
 	Color     string `json:"color"`
+	Avatar    string `json:"avatar"` // an icon name; "" = the initial
 	CreatedAt int64  `json:"created_at"`
 }
 
-const profileColumns = `id, name, kind, pin_hash, pin_epoch, color, created_at`
+const profileColumns = `id, name, kind, pin_hash, pin_epoch, color, avatar, created_at`
 
 func scanProfile(row interface{ Scan(...any) error }) (Profile, error) {
 	var p Profile
-	err := row.Scan(&p.ID, &p.Name, &p.Kind, &p.PINHash, &p.PINEpoch, &p.Color, &p.CreatedAt)
+	err := row.Scan(&p.ID, &p.Name, &p.Kind, &p.PINHash, &p.PINEpoch, &p.Color, &p.Avatar, &p.CreatedAt)
 	p.HasPIN = p.PINHash != ""
 	return p, err
 }
@@ -58,8 +59,8 @@ func (s *Store) Profile(ctx context.Context, id int64) (Profile, error) {
 var ErrNameTaken = errors.New("esiste già un profilo con questo nome")
 
 func (s *Store) AddProfile(ctx context.Context, p Profile) (int64, error) {
-	res, err := s.w.ExecContext(ctx, `INSERT INTO profile (name, kind, pin_hash, color, created_at) VALUES (?, ?, ?, ?, ?)`,
-		p.Name, p.Kind, p.PINHash, p.Color, time.Now().Unix())
+	res, err := s.w.ExecContext(ctx, `INSERT INTO profile (name, kind, pin_hash, color, avatar, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		p.Name, p.Kind, p.PINHash, p.Color, p.Avatar, time.Now().Unix())
 	if isUnique(err) {
 		return 0, ErrNameTaken
 	}
@@ -69,15 +70,15 @@ func (s *Store) AddProfile(ctx context.Context, p Profile) (int64, error) {
 	return res.LastInsertId()
 }
 
-// UpdateProfile stores name, kind, colour and PIN; a PIN change bumps the
+// UpdateProfile stores name, kind, colour, avatar and PIN; a PIN change bumps the
 // epoch so earlier profile selections stop working.
 func (s *Store) UpdateProfile(ctx context.Context, p Profile, pinChanged bool) error {
 	bump := 0
 	if pinChanged {
 		bump = 1
 	}
-	res, err := s.w.ExecContext(ctx, `UPDATE profile SET name = ?, kind = ?, pin_hash = ?, color = ?, pin_epoch = pin_epoch + ? WHERE id = ?`,
-		p.Name, p.Kind, p.PINHash, p.Color, bump, p.ID)
+	res, err := s.w.ExecContext(ctx, `UPDATE profile SET name = ?, kind = ?, pin_hash = ?, color = ?, avatar = ?, pin_epoch = pin_epoch + ? WHERE id = ?`,
+		p.Name, p.Kind, p.PINHash, p.Color, p.Avatar, bump, p.ID)
 	if isUnique(err) {
 		return ErrNameTaken
 	}

@@ -2,7 +2,9 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"github.com/silirim/vodmax/internal/store"
 	"io"
 	"net/http"
 	"strconv"
@@ -89,6 +91,11 @@ func TestProfilesDevicesAndKids(t *testing.T) {
 		}
 		return r.ID
 	}
+	// A second profile needs the admin's PIN first.
+	if code, _ := e.do(t, "POST", "/api/v1/profiles", map[string]any{"name": "Bimbi", "kind": "kids"}, true); code != 400 {
+		t.Fatalf("profile added while the admin has no PIN: %d", code)
+	}
+	e.do(t, "PATCH", "/api/v1/profiles/1", map[string]any{"pin": "9753"}, true)
 	kids := addProfile(map[string]any{"name": "Bimbi", "kind": "kids"})
 	marco := addProfile(map[string]any{"name": "Marco", "kind": "standard", "pin": "2468"})
 	if code, _ := e.do(t, "POST", "/api/v1/profiles", map[string]any{"name": "Marco"}, true); code != 400 {
@@ -218,17 +225,94 @@ func TestProfilesDevicesAndKids(t *testing.T) {
 	}
 }
 
-func TestWarnAdminWithoutPINWhenKidsExist(t *testing.T) {
+func TestWarnAdultWithoutPINWhenKidsExist(t *testing.T) {
 	e := setup(t, true)
+	if _, body := e.do(t, "GET", "/api/v1/status", nil, true); strings.Contains(string(body), "PIN") {
+		t.Fatalf("warning with one profile: %s", body)
+	}
+	e.do(t, "PATCH", "/api/v1/profiles/1", map[string]any{"pin": "4321"}, true)
+	e.do(t, "POST", "/api/v1/profiles", map[string]any{"name": "Marco"}, true)
 	if _, body := e.do(t, "GET", "/api/v1/status", nil, true); strings.Contains(string(body), "PIN") {
 		t.Fatalf("warning without kids: %s", body)
 	}
 	e.do(t, "POST", "/api/v1/profiles", map[string]any{"name": "Bimbi", "kind": "kids"}, true)
-	if _, body := e.do(t, "GET", "/api/v1/status", nil, true); !strings.Contains(string(body), "Principale") {
+	if _, body := e.do(t, "GET", "/api/v1/status", nil, true); !strings.Contains(string(body), "Marco") {
 		t.Fatalf("no warning: %s", body)
 	}
+	// The admin keeps its PIN while other profiles exist.
+	if code, _ := e.do(t, "PATCH", "/api/v1/profiles/1", map[string]any{"pin": ""}, true); code != 400 {
+		t.Fatalf("admin PIN removed: %d", code)
+	}
+}
+
+// An installation from before the rule: an admin profile without PIN and
+// other profiles. Whoever chooses it gets no admin rights until a PIN is
+// set; then it asks for that PIN.
+func TestAdminWithoutPINMustSetOne(t *testing.T) {
+	e := setup(t, true)
+	st, err := store.Open(e.dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.AddProfile(context.Background(), store.Profile{Name: "Marco", Kind: "standard"}); err != nil {
+		t.Fatal(err)
+	}
+	st.Close()
+	if _, body := e.do(t, "GET", "/api/v1/status", nil, true); !strings.Contains(string(body), "Principale") {
+		t.Fatalf("no problem reported: %s", body)
+	}
+	phone := pair(t, e, "Telefono", nil)
+	code, tok := selectProfile(t, e, phone, 1, "")
+	if code != 200 {
+		t.Fatalf("select: %d", code)
+	}
+	_, me := e.call(t, "GET", "/api/v1/me", nil, phone, tok)
+	if !strings.Contains(string(me), `"pin_required":true`) || !strings.Contains(string(me), `"admin":false`) {
+		t.Fatalf("me: %s", me)
+	}
+	if code, _ := e.call(t, "GET", "/api/v1/subscriptions", nil, phone, tok); code != 403 {
+		t.Fatalf("settings without PIN: %d", code)
+	}
+	if code, _ := e.call(t, "PUT", "/api/v1/profile", map[string]string{"pin": "12"}, phone, tok); code != 400 {
+		t.Fatalf("short PIN: %d", code)
+	}
+	if code, b := e.call(t, "PUT", "/api/v1/profile", map[string]string{"pin": "2580"}, phone, tok); code != 204 {
+		t.Fatalf("set PIN: %d %s", code, b)
+	}
+	// The PIN change ends the earlier choice: now it takes the PIN.
+	if code, _ := selectProfile(t, e, phone, 1, ""); code != 403 {
+		t.Fatalf("admin without its PIN: %d", code)
+	}
+	_, tok = selectProfile(t, e, phone, 1, "2580")
+	if code, _ := e.call(t, "GET", "/api/v1/subscriptions", nil, phone, tok); code != 200 {
+		t.Fatalf("settings with PIN: %d", code)
+	}
+	// Changing it again needs the current one.
+	if code, _ := e.call(t, "PUT", "/api/v1/profile", map[string]string{"pin": "1111", "current_pin": "0000"}, phone, tok); code != 403 {
+		t.Fatalf("PIN changed without the current one: %d", code)
+	}
+}
+
+func TestOwnAvatar(t *testing.T) {
+	e := setup(t, true)
 	e.do(t, "PATCH", "/api/v1/profiles/1", map[string]any{"pin": "4321"}, true)
-	if _, body := e.do(t, "GET", "/api/v1/status", nil, true); strings.Contains(string(body), "PIN") {
-		t.Fatalf("warning after setting the PIN: %s", body)
+	kid := addKids(t, e)
+	if code, b := e.call(t, "PUT", "/api/v1/profile", map[string]string{"avatar": "rocket", "color": "#ec4899"}, kid.device, kid.profile); code != 204 {
+		t.Fatalf("avatar: %d %s", code, b)
+	}
+	_, b := e.call(t, "GET", "/api/v1/profiles", nil, kid.device, "")
+	if !strings.Contains(string(b), `"avatar":"rocket"`) || !strings.Contains(string(b), `"color":"#ec4899"`) {
+		t.Fatalf("profiles: %s", b)
+	}
+	if code, _ := e.call(t, "PUT", "/api/v1/profile", map[string]string{"avatar": "../../etc"}, kid.device, kid.profile); code != 400 {
+		t.Fatalf("unknown avatar: %d", code)
+	}
+	// A kids profile chooses its avatar, not its PIN.
+	if code, _ := e.call(t, "PUT", "/api/v1/profile", map[string]string{"pin": "1234"}, kid.device, kid.profile); code != 403 {
+		t.Fatalf("kids PIN: %d", code)
+	}
+	_, b = e.call(t, "GET", "/api/v1/avatars", nil, kid.device, "")
+	if !strings.Contains(string(b), "rocket") {
+		t.Fatalf("avatars: %s", b)
 	}
 }

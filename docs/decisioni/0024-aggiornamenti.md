@@ -23,3 +23,14 @@ Stato: **Approvata** (30 ottobre 2026: "Procedi")
   ha installato una versione precedente (chiave di debug) reinstalla una
   volta.
 - **webOS**: l'interfaccia viene dal server ed è sempre aggiornata.
+
+## Aggiornamento dell'app per ogni profilo (30 ottobre 2026)
+
+L'app si aggiorna da ogni profilo tranne i bambini: è il dispositivo di chi
+lo usa e non cambia niente del server (che resta dell'amministratore). Il
+banner ha **Aggiorna**, **Novità** (le note della versione, in italiano o in
+inglese, con il link alla pagina su GitHub), **Più tardi** (lo ripropone
+dopo tre giorni) e **Salta questa versione**. Finché c'è una versione nuova
+resta una voce «Aggiorna l'app»: icona con pallino accanto alla ricerca, e
+in «Altro» sul telefono.
+

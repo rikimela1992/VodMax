@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,6 +33,8 @@ var (
 	ErrPIN             = errors.New("PIN errato")
 	ErrPINLocked       = errors.New("troppi PIN errati: riprova tra qualche minuto")
 	ErrPairing         = errors.New("codice di abbinamento sconosciuto o scaduto")
+	ErrAdminPIN        = errors.New("un profilo amministratore deve avere un PIN quando ci sono altri profili")
+	ErrCurrentPIN      = errors.New("il PIN attuale non è corretto")
 )
 
 const (
@@ -54,10 +57,14 @@ type Identity struct {
 	Device   string
 	Lock     *int64
 	Profile  *store.Profile // nil until a profile is chosen
+	// NeedsPIN: an admin profile without PIN while other profiles exist.
+	// Anyone could choose it, so it gets no admin rights until its PIN is
+	// set (the master token keeps them).
+	NeedsPIN bool
 }
 
 func (i Identity) Admin() bool {
-	return i.DeviceID == MasterDevice || (i.Profile != nil && i.Profile.Kind == "admin")
+	return i.DeviceID == MasterDevice || (i.Profile != nil && i.Profile.Kind == "admin" && !i.NeedsPIN)
 }
 
 func (i Identity) Viewer() Viewer {
@@ -115,6 +122,11 @@ func (s *Service) Authenticate(ctx context.Context, token, profileToken, master 
 		return id, err
 	}
 	id.Profile = p
+	if p != nil && p.Kind == "admin" && !p.HasPIN && id.DeviceID != MasterDevice {
+		if list, err := s.st.Profiles(ctx); err == nil && len(list) > 1 {
+			id.NeedsPIN = true
+		}
+	}
 	return id, nil
 }
 
@@ -247,11 +259,20 @@ func checkPIN(stored, pin string) bool {
 
 // ProfileInput creates or changes a profile. PIN: nil keeps it, "" removes it.
 type ProfileInput struct {
-	Name  *string `json:"name"`
-	Kind  *string `json:"kind"`
-	PIN   *string `json:"pin"`
-	Color *string `json:"color"`
+	Name   *string `json:"name"`
+	Kind   *string `json:"kind"`
+	PIN    *string `json:"pin"`
+	Color  *string `json:"color"`
+	Avatar *string `json:"avatar"`
 }
+
+// Avatars and colours a profile can choose (icons of the web interface).
+var (
+	Avatars = []string{"cat", "dog", "rabbit", "panda", "bird", "fish", "turtle", "squirrel", "snail", "ghost",
+		"rocket", "crown", "gamepad-2", "music", "palette", "trophy", "bike", "car", "plane", "popcorn",
+		"pizza", "ice-cream-cone", "flower-2", "leaf", "sun", "moon", "snowflake", "zap", "heart", "sparkles"}
+	AvatarColors = []string{"#00d6ca", "#3d8bff", "#8b5cf6", "#ec4899", "#ff4d4f", "#ff8a1f", "#f5c518", "#22c55e"}
+)
 
 func (s *Service) applyProfile(p *store.Profile, in ProfileInput) (pinChanged bool, err error) {
 	if in.Name != nil {
@@ -267,7 +288,16 @@ func (s *Service) applyProfile(p *store.Profile, in ProfileInput) (pinChanged bo
 		return false, invalid("tipo di profilo non valido: admin, standard o kids")
 	}
 	if in.Color != nil {
+		if *in.Color != "" && !slices.Contains(AvatarColors, *in.Color) {
+			return false, invalid("colore non disponibile")
+		}
 		p.Color = *in.Color
+	}
+	if in.Avatar != nil {
+		if *in.Avatar != "" && !slices.Contains(Avatars, *in.Avatar) {
+			return false, invalid("avatar non disponibile")
+		}
+		p.Avatar = *in.Avatar
 	}
 	if in.PIN != nil {
 		if *in.PIN == "" {
@@ -289,6 +319,16 @@ func (s *Service) AddProfile(ctx context.Context, in ProfileInput) (int64, error
 	p := store.Profile{Kind: "standard"}
 	if _, err := s.applyProfile(&p, in); err != nil {
 		return 0, err
+	}
+	// With a second profile every admin needs a PIN.
+	list, err := s.st.Profiles(ctx)
+	if err != nil {
+		return 0, err
+	}
+	for _, x := range append(list, p) {
+		if x.Kind == "admin" && x.PINHash == "" && len(list) > 0 {
+			return 0, ErrAdminPIN
+		}
 	}
 	id, err := s.st.AddProfile(ctx, p)
 	if errors.Is(err, store.ErrNameTaken) {
@@ -312,11 +352,59 @@ func (s *Service) UpdateProfile(ctx context.Context, id int64, in ProfileInput) 
 			return err
 		}
 	}
+	if p.Kind == "admin" && p.PINHash == "" {
+		if list, err := s.st.Profiles(ctx); err != nil {
+			return err
+		} else if len(list) > 1 {
+			return ErrAdminPIN
+		}
+	}
 	err = s.st.UpdateProfile(ctx, p, changed)
 	if errors.Is(err, store.ErrNameTaken) {
 		return invalid("%v", err)
 	}
 	return err
+}
+
+// OwnProfileInput is what a person changes on their own profile: avatar,
+// colour and (not on a kids profile) the PIN, with the current one.
+type OwnProfileInput struct {
+	Avatar     *string `json:"avatar"`
+	Color      *string `json:"color"`
+	PIN        *string `json:"pin"`
+	CurrentPIN string  `json:"current_pin"`
+}
+
+func (s *Service) UpdateOwnProfile(ctx context.Context, id Identity, in OwnProfileInput) error {
+	if id.Profile == nil {
+		return ErrProfileRequired
+	}
+	p, err := s.st.Profile(ctx, id.Profile.ID)
+	if err != nil {
+		return err
+	}
+	change := ProfileInput{Avatar: in.Avatar, Color: in.Color}
+	if in.PIN != nil {
+		if p.Kind == "kids" {
+			return ErrForbidden
+		}
+		if p.HasPIN && !checkPIN(p.PINHash, in.CurrentPIN) {
+			return ErrCurrentPIN
+		}
+		change.PIN = in.PIN
+	}
+	changed, err := s.applyProfile(&p, change)
+	if err != nil {
+		return err
+	}
+	if p.Kind == "admin" && p.PINHash == "" {
+		if list, err := s.st.Profiles(ctx); err != nil {
+			return err
+		} else if len(list) > 1 {
+			return ErrAdminPIN
+		}
+	}
+	return s.st.UpdateProfile(ctx, p, changed)
 }
 
 func (s *Service) DeleteProfile(ctx context.Context, id int64) error {
