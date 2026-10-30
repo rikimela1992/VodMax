@@ -107,6 +107,15 @@ Install `ffmpeg` from your distribution for timeshift, recordings and MKV/AVI
 in the browser. To update later: `sudo vodmax-update` (the Android apps offer
 their updates by themselves).
 
+**Docker** — `ghcr.io/silirim/vodmax` (x86-64, ARM64, ARMv7, ffmpeg included):
+
+```sh
+docker run -d --name vodmax -p 8095:8095 -v ./vodmax-data:/var/lib/vodmax ghcr.io/silirim/vodmax
+```
+
+(the data folder must belong to uid 1000; a
+[compose file](packaging/docker-compose.yml) is ready).
+
 **Android / Android TV / Fire TV** — install `VodMax-<version>.apk`, then enter
 the server address or choose *Usa questo dispositivo da solo* (standalone).
 

@@ -54,6 +54,21 @@ vodmax-server -version
   movie folders under `/mnt`, `/srv` or `/media` and make them readable by
   `vodmax`.
 
+### With Docker
+
+The image `ghcr.io/silirim/vodmax` (x86-64, ARM64, ARMv7) contains the
+server and ffmpeg. With [`docker-compose.yml`](../packaging/docker-compose.yml):
+
+```sh
+mkdir vodmax-data && sudo chown 1000:1000 vodmax-data
+docker compose up -d
+docker compose exec vodmax cat /var/lib/vodmax/admin.token
+```
+
+Mount your movie folders read-only (e.g. `/srv/media:/srv/media:ro`) and use
+those paths for the collections. Update with
+`docker compose pull && docker compose up -d`.
+
 ### Updating
 
 The server checks the GitHub releases once a day (it contacts GitHub only

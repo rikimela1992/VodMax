@@ -104,6 +104,15 @@ Installa `ffmpeg` della tua distribuzione per pausa della diretta,
 registrazioni e MKV/AVI nel browser. Per aggiornare poi: `sudo vodmax-update`
 (le app Android propongono da sole il loro aggiornamento).
 
+**Docker**: `ghcr.io/silirim/vodmax` (x86-64, ARM64, ARMv7, con ffmpeg):
+
+```sh
+docker run -d --name vodmax -p 8095:8095 -v ./vodmax-data:/var/lib/vodmax ghcr.io/silirim/vodmax
+```
+
+(la cartella dei dati deve appartenere all'uid 1000; c'è un
+[file Compose](packaging/docker-compose.yml) pronto).
+
 **Android / Android TV / Fire TV**: installa `VodMax-<versione>.apk`, poi
 indica l'indirizzo del server oppure scegli *Usa questo dispositivo da solo*.
 

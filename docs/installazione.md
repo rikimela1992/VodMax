@@ -53,6 +53,21 @@ vodmax-server -version
   il file fornito, non vede `/home` né `/tmp`. Metti o monta le cartelle dei
   film sotto `/mnt`, `/srv` o `/media`, leggibili dall'utente `vodmax`.
 
+### Con Docker
+
+L'immagine `ghcr.io/silirim/vodmax` (x86-64, ARM64, ARMv7) contiene il server
+e ffmpeg. Con [`docker-compose.yml`](../packaging/docker-compose.yml):
+
+```sh
+mkdir vodmax-data && sudo chown 1000:1000 vodmax-data
+docker compose up -d
+docker compose exec vodmax cat /var/lib/vodmax/admin.token
+```
+
+Monta le cartelle dei film in sola lettura (es. `/srv/media:/srv/media:ro`) e
+usa quei percorsi per le raccolte. Si aggiorna con
+`docker compose pull && docker compose up -d`.
+
 ### Aggiornare
 
 Il server controlla le release su GitHub una volta al giorno (contatta solo

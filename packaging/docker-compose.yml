@@ -1,0 +1,20 @@
+# VodMax with Docker Compose:
+#   mkdir vodmax-data && sudo chown 1000:1000 vodmax-data
+#   docker compose up -d
+# then open http://<server>:8095 and paste the admin token:
+#   docker compose exec vodmax cat /var/lib/vodmax/admin.token
+# Updating: docker compose pull && docker compose up -d
+services:
+  vodmax:
+    image: ghcr.io/silirim/vodmax:latest
+    container_name: vodmax
+    restart: unless-stopped
+    ports:
+      - "8095:8095"
+    environment:
+      - TZ=Europe/Rome
+    volumes:
+      # Database, recordings, downloads, backups (owned by uid 1000).
+      - ./vodmax-data:/var/lib/vodmax
+      # Your movie and series folders, read-only, for the collections.
+      - /srv/media:/srv/media:ro
