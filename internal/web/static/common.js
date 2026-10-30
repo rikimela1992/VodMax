@@ -205,7 +205,9 @@ window.VodMax = (() => {
         entry("calendar-days", t("Guida TV"), () => { location.href = "/guide.html"; }),
         entry("settings", t("Impostazioni"), () => { location.href = "/settings.html"; }, "admin-only"),
         entry("user", t("Cambia profilo"), () => { closeSheet(); store.set("profile", ""); showProfiles(); }),
+        native ? entry("rotate-cw", t("Aggiorna l'app"), () => { closeSheet(); if (updateInfo) updateBanner(updateInfo); }, "update-only") : "",
         native ? entry("tv", t("Cambia server"), () => native.changeServer()) : "");
+      for (const a of sheet.querySelectorAll(".update-only")) a.hidden = !updateInfo;
       const scrim = el("div", { id: "more-scrim", className: "scrim", hidden: true, onclick: () => closeSheet() });
       document.body.append(scrim, sheet);
       me().then((who) => {
@@ -266,19 +268,46 @@ window.VodMax = (() => {
       : t("Conferma l'installazione nella finestra di Android."), Boolean(err));
     native.update(JSON.stringify({ url: apk.url, sha256: apk.sha256, version: info.latest }));
   }
-  // Once per session, a banner when a newer app is available.
+  // Any profile but a kids one may update the app on its own device (the
+  // server stays the admin's). The menu keeps an "Update the app" entry
+  // while a newer version exists; the banner comes by itself unless put
+  // off ("Later": three days) or skipped (that version, for good).
+  const SNOOZE = 3 * 24 * 3600 * 1000;
+  let updateInfo = null;
   async function offerAppUpdate() {
     if (!canUpdateApp()) return;
+    let info, who;
+    try { [info, who] = await Promise.all([api("GET", "/api/v1/update"), me()]); } catch { return; }
+    if (!appUpdate(info) || (who.profile && who.profile.kind === "kids")) return;
+    updateInfo = info;
+    showUpdateEntries();
     try { if (sessionStorage.getItem("vodmax.updateOffered")) return; } catch { /* private mode */ }
-    let info;
-    try { info = await api("GET", "/api/v1/update"); } catch { return; }
-    if (!appUpdate(info) || store.get("updateDismissed", "") === info.latest) return;
+    if (store.get("updateSkipped", "") === info.latest) return;
+    const snooze = store.get("updateSnoozed", null);
+    if (snooze && snooze.version === info.latest && Date.now() < snooze.until) return;
     try { sessionStorage.setItem("vodmax.updateOffered", "1"); } catch { /* private mode */ }
+    updateBanner(info);
+  }
+  function showUpdateEntries() {
+    if (!updateInfo) return;
+    for (const a of document.querySelectorAll(".update-only")) a.hidden = false;
+    // Next to the search box, outside the menu bar (which scrolls sideways).
+    const search = document.getElementById("search");
+    if (search && !document.getElementById("update-tab")) {
+      const tab = el("button", { id: "update-tab", className: "tab focusable", type: "button", title: t("Aggiorna l'app"), "aria-label": t("Aggiorna l'app"), onclick: () => updateBanner(updateInfo) });
+      tab.append(window.VodMaxIcons ? VodMaxIcons.icon("rotate-cw") : "", el("span", { className: "dot" }));
+      search.before(tab);
+    }
+  }
+  function updateBanner(info) {
+    const open = document.getElementById("update-banner");
+    if (open) { const b = open.querySelector("button"); if (b) b.focus(); return; }
     const msg = el("p", {}, t("È disponibile VodMax {version} per questa app.", { version: info.latest.replace(/^v/, "") }));
     const close = () => { box.remove(); document.removeEventListener("keydown", onKey, true); };
     const go = el("button", { type: "button", className: "focusable primary" }, t("Aggiorna"));
     const later = el("button", { type: "button", className: "focusable" }, t("Più tardi"));
-    const buttons = el("div", { className: "buttons" }, go, later);
+    const skip = el("button", { type: "button", className: "focusable" }, t("Salta questa versione"));
+    const buttons = el("div", { className: "buttons" }, go, later, skip);
     const box = el("div", { id: "update-banner", role: "dialog" }, msg, buttons);
     go.onclick = () => {
       buttons.hidden = true;
@@ -287,7 +316,8 @@ window.VodMax = (() => {
         if (failed) { buttons.hidden = false; go.focus(); }
       });
     };
-    later.onclick = () => { store.set("updateDismissed", info.latest); close(); };
+    later.onclick = () => { store.set("updateSnoozed", { version: info.latest, until: Date.now() + SNOOZE }); close(); };
+    skip.onclick = () => { store.set("updateSkipped", info.latest); close(); };
     const onKey = (e) => { if (keyOf(e) === "Back") { e.preventDefault(); e.stopPropagation(); close(); } };
     document.addEventListener("keydown", onKey, true);
     document.body.append(box);

@@ -88,11 +88,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
   padding: 1rem var(--safe);
   background: linear-gradient(180deg, rgba(11, 12, 16, 0.95) 60%, rgba(11, 12, 16, 0));
 }
-#tabs { display: flex; gap: 0.2rem; flex-wrap: nowrap; min-width: 0; flex: 1 1 auto; overflow-x: auto; scrollbar-width: none; padding: 4px; }
+#tabs { display: flex; gap: 0.2rem; flex-wrap: nowrap; min-width: 0; flex: 0 1 auto; overflow-x: auto; scrollbar-width: none; padding: 4px; }
 #tabs::-webkit-scrollbar { display: none; }
 .tab { flex: none; }
 .tab.icon-only .tab-text { display: none; }
-@media (max-width: 1800px) { #profile-chip .tab-text { display: none; } }
+#profile-chip .tab-text { display: none; } /* the name is in its tooltip */
 .tab {
   display: inline-flex;
   align-items: center;
@@ -114,8 +114,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 #search {
   margin-left: auto;
-  flex: 0 1 18rem;
+  /* The menu first: the search box takes what is left. */
+  flex: 1 1 0;
   min-width: 8rem;
+  max-width: 18rem;
   width: auto;
   padding: 0.55em 1.1em;
   font: inherit;
@@ -254,7 +256,7 @@ h2 { margin: 1.8rem 0 0.8rem; font-size: 1.2rem; font-weight: 600; color: var(--
 @media (max-width: 700px) {
   .top { flex-wrap: wrap; padding-top: 0.6rem; }
   #tabs { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
-  #search { width: 100%; flex: 1 1 100%; margin: 0; }
+  #search { width: 100%; flex: 1 1 0; max-width: none; margin: 0; }
   .tab { padding: 0.45em 0.8em; }
 }
 
@@ -356,3 +358,9 @@ body:has(#picker) #server-problems { display: none; }
 @media (max-width: 800px) {
   body.has-bnav #server-problems { left: 1rem; right: 1rem; bottom: calc(4.8rem + env(safe-area-inset-bottom)); max-width: none; font-size: 0.85rem; }
 }
+
+/* "Update the app" next to the search box, with a dot. */
+#update-tab { position: relative; flex: none; margin-left: auto; color: var(--accent); }
+#update-tab + #search { margin-left: 0; }
+#update-tab .dot { position: absolute; top: 0.3em; right: 0.35em; width: 0.5em; height: 0.5em; background: var(--accent); border-radius: 50%; }
+#update-tab:focus .dot { background: #0b0c10; }

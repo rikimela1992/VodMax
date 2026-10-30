@@ -40,5 +40,7 @@ VodMaxI18n.add("en", {
   "È disponibile VodMax {version} per questa app.": "VodMax {version} is available for this app.",
   "Aggiorna": "Update",
   "Più tardi": "Later",
+  "Salta questa versione": "Skip this version",
+  "Aggiorna l'app": "Update the app",
   "Download": "Downloads",
 });
