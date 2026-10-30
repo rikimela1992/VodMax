@@ -109,6 +109,7 @@ VodMaxI18n.add("en", {
   "Nuova regola": "New rule",
   "es. Juventus": "e.g. Juventus",
   "es. juventus": "e.g. juventus",
+  "se vuoto, il nome della regola": "if empty, the rule's name",
   "es. gara, qualifiche (facoltativo)": "e.g. race, qualifying (optional)",
   "es. replica, highlights": "e.g. replay, highlights",
   "Tutti i canali": "All channels",

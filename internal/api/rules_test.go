@@ -23,8 +23,12 @@ func preview(t *testing.T, e *env, body map[string]any) []ruleMatch {
 
 func TestRecordingRules(t *testing.T) {
 	e, _ := tvSetup(t)
-	if code, _ := e.do(t, "POST", "/api/v1/recording-rules", map[string]any{"name": "Vuota", "all": []string{" "}}, true); code != 400 {
+	if code, _ := e.do(t, "POST", "/api/v1/recording-rules", map[string]any{"name": "!!", "all": []string{" "}}, true); code != 400 {
 		t.Fatal("rule without words accepted")
+	}
+	// Without words the name is what to look for.
+	if p := preview(t, e, map[string]any{"name": "film della"}); len(p) != 1 || p[0].Title != "Film della sera" {
+		t.Fatalf("name as words: %+v", p)
 	}
 	film := map[string]any{"name": "Film", "all": []string{"film"}, "none": []string{"replica"}}
 	if p := preview(t, e, film); len(p) != 1 || p[0].Channel != "Rai 1" || p[0].State != "new" {

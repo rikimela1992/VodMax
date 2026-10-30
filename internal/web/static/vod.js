@@ -476,7 +476,7 @@
   function ruleForm(existing) {
     const f = (label, input) => el("label", { className: "rule-field" }, el("span", {}, label), input);
     const name = el("input", { className: "focusable", value: existing ? existing.name : "", placeholder: t("es. Juventus") });
-    const all = el("input", { className: "focusable", value: existing ? existing.spec.all.join(", ") : "", placeholder: t("es. juventus") });
+    const all = el("input", { className: "focusable", value: existing ? existing.spec.all.join(", ") : "", placeholder: t("se vuoto, il nome della regola") });
     const any = el("input", { className: "focusable", value: existing && existing.spec.any ? existing.spec.any.join(", ") : "", placeholder: t("es. gara, qualifiche (facoltativo)") });
     const none = el("input", { className: "focusable", value: existing && existing.spec.none ? existing.spec.none.join(", ") : "", placeholder: t("es. replica, highlights") });
     const section = el("select", { className: "focusable" }, el("option", { value: "" }, t("Tutti i canali")), el("option", { value: "sport" }, t("Solo Sport")), el("option", { value: "tv" }, t("Solo TV")));
@@ -493,13 +493,15 @@
     const liveOnly = el("input", { className: "focusable", type: "checkbox", checked: !!(existing && existing.spec.live_only) });
     const keep = el("input", { className: "focusable", type: "number", min: 0, value: existing ? existing.keep || "" : "", placeholder: t("tutte") });
     const result = el("ol", { className: "matches" });
-    const read = () => ({ name: name.value || "Anteprima", all: words(all.value), any: words(any.value), none: words(none.value),
+    // Without words, the name is what to look for ("Formula 1").
+    const allWords = () => words(all.value).length ? words(all.value) : words(name.value.replace(/,/g, " "));
+    const read = () => ({ name: name.value || "Anteprima", all: allWords(), any: words(any.value), none: words(none.value),
       section: section.value, live_only: liveOnly.checked, channel_id: Number(channel.value), keep: Number(keep.value) || 0, enabled: existing ? existing.enabled : true });
     let timer;
     const refresh = () => {
       clearTimeout(timer);
       timer = setTimeout(async () => {
-        if (!words(all.value).length) { result.replaceChildren(); return; }
+        if (!allWords().length) { result.replaceChildren(); return; }
         try {
           const m = await api("POST", "/api/v1/recording-rules/preview", read());
           result.replaceChildren(...(m.length ? m.map((x) => el("li", { className: "match " + x.state },

@@ -97,6 +97,9 @@ func cleanWords(list []string) []string {
 func (s *Service) checkRule(r *store.RecordingRule) error {
 	r.Name = strings.TrimSpace(r.Name)
 	r.Spec.All, r.Spec.Any, r.Spec.None = cleanWords(r.Spec.All), cleanWords(r.Spec.Any), cleanWords(r.Spec.None)
+	if len(r.Spec.All) == 0 && fold(r.Name) != "" { // "Formula 1": the name is what to look for
+		r.Spec.All = []string{r.Name}
+	}
 	switch {
 	case r.Name == "" || len(r.Name) > 60:
 		return invalid("nome della regola obbligatorio (max 60 caratteri)")
