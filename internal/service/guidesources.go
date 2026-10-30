@@ -202,7 +202,7 @@ func (s *Service) syncGuideSource(ctx context.Context, g store.GuideSource) (Gui
 			extended[ch] = true
 		}
 		programmes = append(programmes, store.GuideProgramme{Channel: ch, Start: p.Start.Unix(), Stop: p.Stop.Unix(),
-			Title: p.Title, Subtitle: p.Subtitle, Description: p.Description, Category: p.Category})
+			Title: p.Title, Subtitle: p.Subtitle, Description: p.Description, Category: p.Category, Airing: p.Airing})
 	}
 	if err := s.st.ReplaceGuide(ctx, source, channels, programmes); err != nil {
 		return GuideResult{}, err

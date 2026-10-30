@@ -31,6 +31,7 @@ Una decisione approvata si cambia solo con una nuova scheda che la sostituisce.
 | [0023](0023-lingue.md) | Lingue dell'interfaccia: italiano e inglese | **Approvata** |
 | [0024](0024-aggiornamenti.md) | Aggiornamenti: avviso dal server, app Android, `vodmax-update` | **Approvata** |
 | [0025](0025-download.md) | Download di film e serie sul disco del server | **Approvata** |
+| [0026](0026-solo-dirette.md) | Regole di registrazione: solo dirette | **Approvata** (passo 1) |
 
 ## Ordine consigliato per decidere
 

@@ -18,6 +18,9 @@ type RuleSpec struct {
 	None    []string `json:"none,omitempty"`    // none
 	Channel string   `json:"channel,omitempty"` // channel group key; "" any
 	Section string   `json:"section,omitempty"` // tv, sport, radio; "" any
+	// LiveOnly skips programmes that look like reruns or delayed
+	// broadcasts (see service.airingOf).
+	LiveOnly bool `json:"live_only,omitempty"`
 }
 
 // RecordingRule records matching programmes automatically.

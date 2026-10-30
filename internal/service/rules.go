@@ -1,10 +1,12 @@
 package service
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -115,13 +117,14 @@ func (s *Service) checkRule(r *store.RecordingRule) error {
 
 // RuleMatch is a programme a rule would record.
 type RuleMatch struct {
-	ChannelID int64  `json:"channel_id"`
-	Channel   string `json:"channel"`
-	Start     int64  `json:"start"`
-	Stop      int64  `json:"stop"`
-	Title     string `json:"title"`
-	State     string `json:"state"` // new, scheduled, cancelled, conflict, too_long
-	Note      string `json:"note,omitempty"`
+	ChannelID int64   `json:"channel_id"`
+	Channel   string  `json:"channel"`
+	Start     int64   `json:"start"`
+	Stop      int64   `json:"stop"`
+	Title     string  `json:"title"`
+	State     string  `json:"state"` // new, scheduled, cancelled, conflict, too_long, rerun
+	Note      string  `json:"note,omitempty"`
+	Airing    *Airing `json:"airing,omitempty"` // for live-only rules
 
 	group string
 	sub   int64
@@ -129,7 +132,8 @@ type RuleMatch struct {
 
 // ruleCandidates finds the programmes of the next guideFuture a rule
 // matches: one channel per event (the same match on several channels is
-// recorded once), ending at least five minutes from now.
+// recorded once), ending at least five minutes from now. For a live-only
+// rule each one says whether it looks live; reruns are in state "rerun".
 func (s *Service) ruleCandidates(ctx context.Context, spec store.RuleSpec) ([]RuleMatch, error) {
 	now := time.Now()
 	channels, err := s.st.TVChannels(ctx, DefaultProfile, false, spec.Section, false, now)
@@ -142,10 +146,25 @@ func (s *Service) ruleCandidates(ctx context.Context, spec store.RuleSpec) ([]Ru
 			guides = append(guides, c.GuideID)
 		}
 	}
-	progs, err := s.st.GuideWindow(ctx, guides, now.Add(5*time.Minute), now.Add(guideFuture))
+	from := now.Add(5 * time.Minute)
+	if spec.LiveOnly { // the week before tells reruns
+		from = now.Add(-store.GuideHistory)
+	}
+	progs, err := s.st.GuideWindow(ctx, guides, from, now.Add(guideFuture))
 	if err != nil {
 		return nil, err
 	}
+	aired := airingIndex{}
+	if spec.LiveOnly {
+		for _, c := range channels {
+			for _, p := range progs[c.GuideID] {
+				if ruleMatches(spec, p) {
+					aired.add(p, c.Name)
+				}
+			}
+		}
+	}
+	soon := now.Add(5 * time.Minute).Unix()
 	seen := map[string]bool{}
 	var out []RuleMatch
 	for _, c := range channels { // remote-control order: official channels first
@@ -157,7 +176,7 @@ func (s *Service) ruleCandidates(ctx context.Context, spec store.RuleSpec) ([]Ru
 			continue
 		}
 		for _, p := range progs[c.GuideID] {
-			if !ruleMatches(spec, p) {
+			if p.Stop <= soon || !ruleMatches(spec, p) {
 				continue
 			}
 			event := fold(p.Title) + "|" + fmt.Sprint(p.Start/600)
@@ -165,10 +184,19 @@ func (s *Service) ruleCandidates(ctx context.Context, spec store.RuleSpec) ([]Ru
 				continue
 			}
 			seen[event] = true
-			out = append(out, RuleMatch{ChannelID: c.ID, Channel: c.Name, Start: p.Start, Stop: p.Stop, Title: p.Title,
-				group: c.GroupKey, sub: it.SubscriptionID})
+			m := RuleMatch{ChannelID: c.ID, Channel: c.Name, Start: p.Start, Stop: p.Stop, Title: p.Title,
+				group: c.GroupKey, sub: it.SubscriptionID}
+			if spec.LiveOnly {
+				a := airingOf(ctx, p, c.Name, aired)
+				m.Airing = &a
+				if a.Kind == "rerun" {
+					m.State, m.Note = "rerun", a.Why
+				}
+			}
+			out = append(out, m)
 		}
 	}
+	slices.SortStableFunc(out, func(a, b RuleMatch) int { return cmp.Compare(a.Start, b.Start) })
 	return out, nil
 }
 
@@ -211,6 +239,9 @@ func (s *Service) PreviewRule(ctx context.Context, r store.RecordingRule) ([]Rul
 		return nil, err
 	}
 	for i := range list {
+		if list[i].State == "rerun" {
+			continue
+		}
 		if err := s.assess(ctx, &list[i]); err != nil {
 			return nil, err
 		}
@@ -248,10 +279,14 @@ func (s *Service) applyRule(ctx context.Context, r store.RecordingRule) (string,
 	if err != nil {
 		return "", err
 	}
-	added, already, cancelled := 0, 0, 0
+	added, already, cancelled, reruns := 0, 0, 0, 0
 	var conflicts []string
 	for i := range list {
 		m := &list[i]
+		if m.State == "rerun" {
+			reruns++
+			continue
+		}
 		if err := s.assess(ctx, m); err != nil {
 			return "", err
 		}
@@ -281,6 +316,9 @@ func (s *Service) applyRule(ctx context.Context, r store.RecordingRule) (string,
 	}
 	if cancelled > 0 {
 		note += T(ctx, ", %d annullate a mano", cancelled)
+	}
+	if reruns > 0 {
+		note += T(ctx, ", %d repliche saltate", reruns)
 	}
 	if len(list) == 0 {
 		note = T(ctx, "nessun programma corrispondente nella guida dei prossimi giorni")
@@ -316,13 +354,14 @@ type RuleInput struct {
 	None      []string `json:"none"`
 	ChannelID int64    `json:"channel_id"`
 	Section   string   `json:"section"`
+	LiveOnly  bool     `json:"live_only"`
 	Keep      int      `json:"keep"`
 	Enabled   *bool    `json:"enabled"`
 }
 
 func (s *Service) ruleFromInput(ctx context.Context, in RuleInput) (store.RecordingRule, error) {
 	r := store.RecordingRule{Name: in.Name, Keep: in.Keep, Enabled: in.Enabled == nil || *in.Enabled,
-		Spec: store.RuleSpec{All: in.All, Any: in.Any, None: in.None, Section: in.Section}}
+		Spec: store.RuleSpec{All: in.All, Any: in.Any, None: in.None, Section: in.Section, LiveOnly: in.LiveOnly}}
 	if in.ChannelID != 0 {
 		g, err := s.st.GroupKeyOf(ctx, in.ChannelID)
 		if err != nil {

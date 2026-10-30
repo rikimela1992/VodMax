@@ -347,6 +347,8 @@ var migrations = []string{
 	CREATE INDEX download_queue ON download (status, id);`,
 	// 14: the avatar a person chooses for their profile.
 	`ALTER TABLE profile ADD COLUMN avatar TEXT NOT NULL DEFAULT ''`,
+	// 15: what the guide says about a programme: live, rerun, premiere, new.
+	`ALTER TABLE epg_programme ADD COLUMN airing TEXT NOT NULL DEFAULT ''`,
 }
 
 // noForeignKeys lists migrations (1-based) that rebuild a parent table:

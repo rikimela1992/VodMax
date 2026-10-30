@@ -435,7 +435,8 @@
 
   // ---- Recording rules ----
   const words = (v) => v.split(",").map((w) => w.trim()).filter(Boolean);
-  const MATCH = { new: t("da registrare"), scheduled: t("in programma"), cancelled: t("annullata a mano"), conflict: t("non registrabile"), too_long: t("troppo lunga") };
+  const MATCH = { new: t("da registrare"), scheduled: t("in programma"), cancelled: t("annullata a mano"), conflict: t("non registrabile"), too_long: t("troppo lunga"),
+    rerun: t("replica, non la registra") };
 
   async function rulesSection() {
     const rules = await api("GET", "/api/v1/recording-rules");
@@ -445,7 +446,7 @@
     for (const r of rules) {
       const desc = [t("tutte: {words}", { words: r.spec.all.join(", ") }), r.spec.any && r.spec.any.length ? t("almeno una: {words}", { words: r.spec.any.join(", ") }) : "",
         r.spec.none && r.spec.none.length ? t("escluse: {words}", { words: r.spec.none.join(", ") }) : "", r.channel_name ? t("solo {channel}", { channel: r.channel_name }) : "",
-        r.spec.section ? t("sezione {section}", { section: r.spec.section }) : "", r.keep ? t("tiene le ultime {n}", { n: r.keep }) : ""].filter(Boolean).join(" · ");
+        r.spec.section ? t("sezione {section}", { section: r.spec.section }) : "", r.spec.live_only ? t("solo dirette") : "", r.keep ? t("tiene le ultime {n}", { n: r.keep }) : ""].filter(Boolean).join(" · ");
       const box = el("div", { className: "rule" }, el("strong", {}, r.enabled ? r.name : t("{name} (sospesa)", { name: r.name })), el("p", { className: "empty" }, desc),
         r.last_note ? el("p", { className: "empty" }, t("Ultimo controllo: {note}", { note: r.last_note })) : null);
       const edit = el("button", { className: "button secondary focusable" }, t("Modifica"));
@@ -467,7 +468,7 @@
   }
 
   function ruleInput(r, extra) {
-    return { name: r.name, all: r.spec.all, any: r.spec.any || [], none: r.spec.none || [], section: r.spec.section || "", keep: r.keep,
+    return { name: r.name, all: r.spec.all, any: r.spec.any || [], none: r.spec.none || [], section: r.spec.section || "", live_only: !!r.spec.live_only, keep: r.keep,
       channel_id: 0, enabled: r.enabled, ...extra };
   }
 
@@ -489,10 +490,11 @@
         if (o) channel.value = o.value;
       }
     }).catch(() => {});
+    const liveOnly = el("input", { className: "focusable", type: "checkbox", checked: !!(existing && existing.spec.live_only) });
     const keep = el("input", { className: "focusable", type: "number", min: 0, value: existing ? existing.keep || "" : "", placeholder: t("tutte") });
     const result = el("ol", { className: "matches" });
     const read = () => ({ name: name.value || "Anteprima", all: words(all.value), any: words(any.value), none: words(none.value),
-      section: section.value, channel_id: Number(channel.value), keep: Number(keep.value) || 0, enabled: existing ? existing.enabled : true });
+      section: section.value, live_only: liveOnly.checked, channel_id: Number(channel.value), keep: Number(keep.value) || 0, enabled: existing ? existing.enabled : true });
     let timer;
     const refresh = () => {
       clearTimeout(timer);
@@ -501,7 +503,8 @@
         try {
           const m = await api("POST", "/api/v1/recording-rules/preview", read());
           result.replaceChildren(...(m.length ? m.map((x) => el("li", { className: "match " + x.state },
-            day(x.start) + " " + hhmm(x.start) + " · " + x.channel + " · " + x.title + " — " + (MATCH[x.state] || x.state) + (x.note ? ": " + x.note : "")))
+            day(x.start) + " " + hhmm(x.start) + " · " + x.channel + " · " + x.title + " — " + (MATCH[x.state] || x.state) + (x.note ? ": " + x.note : ""),
+            x.airing && x.airing.kind === "live" ? el("small", { className: "live" }, " · " + t("diretta: {why}", { why: x.airing.why })) : null))
             : [el("li", { className: "empty" }, t("Nessun programma corrispondente nella guida dei prossimi giorni"))]));
         } catch (e) { result.replaceChildren(el("li", { className: "empty" }, e.message)); }
       }, 400);
@@ -509,7 +512,8 @@
     const day = (ts) => new Date(ts * 1000).toLocaleDateString(locale, { weekday: "short", day: "numeric" });
     const save = el("button", { className: "button focusable", type: "submit" }, existing ? t("Salva la regola") : t("Crea la regola"));
     const form = el("form", { className: "rule-form" }, f(t("Nome"), name), f(t("Deve contenere (tutte)"), all), f(t("E almeno una di"), any),
-      f(t("Escludi se contiene"), none), f(t("Sezione"), section), f(t("Canale"), channel), f(t("Tieni le ultime"), keep),
+      f(t("Escludi se contiene"), none), f(t("Sezione"), section), f(t("Canale"), channel),
+      f(t("Solo dirette"), el("span", { className: "check" }, liveOnly, t("salta repliche, differite e sintesi"))), f(t("Tieni le ultime"), keep),
       el("p", { className: "empty" }, t("Anteprima di cosa registrerebbe:")), result, save);
     form.addEventListener("input", refresh);
     form.addEventListener("change", refresh);
@@ -1176,6 +1180,7 @@
       return;
     }
     const active = document.activeElement;
+    if (key === "OK" && active && active.type === "checkbox") { active.click(); e.preventDefault(); return; }
     if (active && active.tagName === "INPUT" && active !== $("search")) return; // e.g. the token form
     const typing = active === $("search");
     if (typing && !["ArrowDown", "Back", "OK"].includes(key)) return;

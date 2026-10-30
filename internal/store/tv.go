@@ -22,6 +22,7 @@ type GuideProgramme struct {
 	Subtitle    string
 	Description string
 	Category    string
+	Airing      string
 }
 
 // guideIDExpr resolves the guide channel of item i: by XMLTV id or by
@@ -55,14 +56,14 @@ func (s *Store) ReplaceGuide(ctx context.Context, source string, channels []Guid
 			return err
 		}
 	}
-	stmt, err := tx.PrepareContext(ctx, `INSERT OR REPLACE INTO epg_programme (channel, start, stop, title, subtitle, description, category, source)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+	stmt, err := tx.PrepareContext(ctx, `INSERT OR REPLACE INTO epg_programme (channel, start, stop, title, subtitle, description, category, airing, source)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 	for _, p := range programmes {
-		if _, err := stmt.ExecContext(ctx, p.Channel, p.Start, p.Stop, p.Title, p.Subtitle, p.Description, p.Category, source); err != nil {
+		if _, err := stmt.ExecContext(ctx, p.Channel, p.Start, p.Stop, p.Title, p.Subtitle, p.Description, p.Category, p.Airing, source); err != nil {
 			return err
 		}
 	}
@@ -77,6 +78,7 @@ type Programme struct {
 	Subtitle    string `json:"subtitle,omitempty"`
 	Description string `json:"description,omitempty"`
 	Category    string `json:"category,omitempty"`
+	Airing      string `json:"airing,omitempty"` // live, rerun, premiere, new: from the guide
 }
 
 // TVChannel is one entry of the channel list: the primary variant of a
@@ -345,7 +347,7 @@ func (s *Store) GuideWindow(ctx context.Context, guides []string, from, to time.
 		for _, g := range batch {
 			args = append(args, g)
 		}
-		rows, err := s.r.QueryContext(ctx, `SELECT channel, start, stop, title, subtitle, description, category FROM epg_programme
+		rows, err := s.r.QueryContext(ctx, `SELECT channel, start, stop, title, subtitle, description, category, airing FROM epg_programme
 			WHERE stop > ? AND start < ? AND channel IN (?`+strings.Repeat(", ?", n-1)+`) ORDER BY channel, start`, args...)
 		if err != nil {
 			return nil, err
@@ -353,7 +355,7 @@ func (s *Store) GuideWindow(ctx context.Context, guides []string, from, to time.
 		for rows.Next() {
 			var ch string
 			var p Programme
-			if err := rows.Scan(&ch, &p.Start, &p.Stop, &p.Title, &p.Subtitle, &p.Description, &p.Category); err != nil {
+			if err := rows.Scan(&ch, &p.Start, &p.Stop, &p.Title, &p.Subtitle, &p.Description, &p.Category, &p.Airing); err != nil {
 				rows.Close()
 				return nil, err
 			}

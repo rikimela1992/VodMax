@@ -14,7 +14,7 @@ const sample = `<?xml version="1.0" encoding="UTF-8"?>
     <title lang="it">TG1</title><desc lang="it">Edizione delle 20.</desc><category>News</category>
   </programme>
   <programme start="20261029203000 +0100" stop="20261029230000 +0100" channel="Rai1.it">
-    <title>Un film &amp; altro</title><sub-title>Prima visione</sub-title>
+    <title>Un film &amp; altro</title><sub-title>Prima visione</sub-title><previously-shown start="20250101"/>
   </programme>
   <programme start="20261029200000 +0100" stop="20261029200000 +0100" channel="Rai1.it"><title>Durata zero</title></programme>
   <programme start="20261029200000 +0100" stop="20261029220000 +0100" channel="Canale5.it"><title>Scartato dal filtro</title></programme>
@@ -38,6 +38,9 @@ func TestParse(t *testing.T) {
 	p := g.Programmes[1]
 	if p.Title != "Un film & altro" || p.Subtitle != "Prima visione" || p.Stop.Sub(p.Start) != 150*time.Minute {
 		t.Fatalf("programme: %+v", p)
+	}
+	if g.Programmes[0].Airing != "" || p.Airing != "rerun" {
+		t.Fatalf("airing: %q %q", g.Programmes[0].Airing, p.Airing)
 	}
 	if g.Programmes[0].Start.UTC().Hour() != 19 {
 		t.Fatalf("offset not applied: %v", g.Programmes[0].Start)

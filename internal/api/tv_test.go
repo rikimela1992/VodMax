@@ -61,8 +61,9 @@ func newTVProvider() *tvProvider {
 				<programme start="%s" stop="%s" channel="Rai1.it"><title>TG1</title></programme>
 				<programme start="%s" stop="%s" channel="Rai1.it"><title>Film della sera</title></programme>
 				<programme start="%s" stop="%s" channel="cielo.guide"><title>Case da sogno</title></programme>
+				<programme start="%s" stop="%s" channel="cielo.guide"><title>Calcio: Juventus - Inter</title><previously-shown/></programme>
 				</tv>`, f(now.Add(-10*time.Minute)), f(now.Add(20*time.Minute)), f(now.Add(20*time.Minute)), f(now.Add(2*time.Hour)),
-				f(now.Add(-time.Hour)), f(now.Add(time.Hour)))
+				f(now.Add(-time.Hour)), f(now.Add(time.Hour)), f(now.Add(3*time.Hour)), f(now.Add(5*time.Hour)))
 		case strings.HasPrefix(r.URL.Path, "/movie/"), strings.HasPrefix(r.URL.Path, "/series/"):
 			p.mu.Lock()
 			p.active++
@@ -167,7 +168,7 @@ func tvSetup(t *testing.T) (*env, *tvProvider) {
 	e.do(t, "POST", "/api/v1/subscriptions", map[string]any{"name": "B", "kind": "xtream", "vpn_id": 1,
 		"server": p.URL, "username": "u", "password": "p"}, true)
 	code, body := e.do(t, "POST", "/api/v1/subscriptions/1/sync", nil, true)
-	if code != 200 || !strings.Contains(string(body), `"programmes":3`) {
+	if code != 200 || !strings.Contains(string(body), `"programmes":4`) {
 		t.Fatalf("sync with guide: %d %s", code, body)
 	}
 	return e, p

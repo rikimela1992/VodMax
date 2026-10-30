@@ -92,7 +92,7 @@ func (s *Service) SyncGuide(ctx context.Context, subID int64) (GuideResult, erro
 	programmes := make([]store.GuideProgramme, 0, len(g.Programmes))
 	for _, p := range g.Programmes {
 		programmes = append(programmes, store.GuideProgramme{Channel: p.Channel, Start: p.Start.Unix(), Stop: p.Stop.Unix(),
-			Title: p.Title, Subtitle: p.Subtitle, Description: p.Description, Category: p.Category})
+			Title: p.Title, Subtitle: p.Subtitle, Description: p.Description, Category: p.Category, Airing: p.Airing})
 	}
 	if err := s.st.ReplaceGuide(ctx, fmt.Sprintf("sub:%d", subID), channels, programmes); err != nil {
 		return GuideResult{}, err

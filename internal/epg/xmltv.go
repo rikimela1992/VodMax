@@ -24,6 +24,7 @@ type Programme struct {
 	Subtitle    string
 	Description string
 	Category    string
+	Airing      string // live, rerun, premiere, new: what the guide says; "" nothing
 }
 
 // Guide is the part of an XMLTV document VodMax keeps.
@@ -84,13 +85,17 @@ func Parse(r io.Reader, opts Options) (*Guide, error) {
 			}
 		case "programme":
 			var p struct {
-				Start    string   `xml:"start,attr"`
-				Stop     string   `xml:"stop,attr"`
-				Channel  string   `xml:"channel,attr"`
-				Title    []string `xml:"title"`
-				SubTitle []string `xml:"sub-title"`
-				Desc     []string `xml:"desc"`
-				Category []string `xml:"category"`
+				Start    string    `xml:"start,attr"`
+				Stop     string    `xml:"stop,attr"`
+				Channel  string    `xml:"channel,attr"`
+				Title    []string  `xml:"title"`
+				SubTitle []string  `xml:"sub-title"`
+				Desc     []string  `xml:"desc"`
+				Category []string  `xml:"category"`
+				Live     *struct{} `xml:"live"` // not in the DTD, used by some grabbers
+				Previous *struct{} `xml:"previously-shown"`
+				Premiere *struct{} `xml:"premiere"`
+				New      *struct{} `xml:"new"`
 			}
 			if err := dec.DecodeElement(&p, &el); err != nil {
 				return g, err
@@ -107,9 +112,24 @@ func Parse(r io.Reader, opts Options) (*Guide, error) {
 			g.Programmes = append(g.Programmes, Programme{
 				Channel: ch, Start: start, Stop: stop, Title: strings.TrimSpace(p.Title[0]),
 				Subtitle: first(p.SubTitle), Description: first(p.Desc), Category: first(p.Category),
+				Airing: airing(p.Live != nil, p.Previous != nil, p.Premiere != nil, p.New != nil),
 			})
 		}
 	}
+}
+
+func airing(live, previous, premiere, new bool) string {
+	switch {
+	case live:
+		return "live"
+	case previous:
+		return "rerun"
+	case premiere:
+		return "premiere"
+	case new:
+		return "new"
+	}
+	return ""
 }
 
 func first(v []string) string {

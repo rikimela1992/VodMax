@@ -1,0 +1,138 @@
+package service
+
+import (
+	"context"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/silirim/vodmax/internal/store"
+)
+
+// A recording rule can ask for live broadcasts only: a match recorded
+// should be the match being played, not last night's rerun or a classic
+// of 2006. The guide rarely says so plainly, so airingOf weighs what it
+// has: the flags of the XMLTV guide, words of the title and description,
+// the years mentioned, the channel (timeshift "+1" channels, "Classic"
+// channels) and whether the same programme was already on air.
+
+// Airing is the guess for one programme: Kind is live, rerun or "" (no
+// idea), Why says what it rests on.
+type Airing struct {
+	Kind string `json:"kind,omitempty"`
+	Why  string `json:"why,omitempty"`
+}
+
+var (
+	// Words of the title or subtitle that mark a rerun.
+	rerunTitleWords = []string{"replica", "repliche", "differita", "differite", "highlights", "highlight", "sintesi", "best of", "amarcord",
+		"rivivi", "rivivere", "rivediamo", "partita storica", "partite storiche", "match storico", "rerun", "replay", "repeat", "delayed"}
+	// The description talks about the programme less exactly: only
+	// phrases that say how it is broadcast.
+	rerunDescWords = []string{"in differita", "replica della", "replica del", "gia trasmesso", "gia trasmessa", "registrata il",
+		"registrato il", "rerun of", "repeat of"}
+	liveWords = []string{"in diretta", "diretta", "live", "dal vivo", "en direct", "en vivo"}
+
+	yearRE         = regexp.MustCompile(`\b(19[5-9][0-9]|20[0-9][0-9])\b`)
+	rerunChannelRE = regexp.MustCompile(`(\+\s?[1-9]\b|\bclassics?\b|\bstory\b|\bstoria\b|\btimeshift\b)`)
+)
+
+// repeatGap is how far apart two airings of the same programme must
+// start to be one programme and its rerun rather than one event on two
+// channels; repeatWithin is how far back an earlier airing counts.
+const (
+	repeatGap    = 90 * time.Minute
+	repeatWithin = 4 * 24 * time.Hour
+)
+
+// airingIndex lists when each programme was on air, to recognise reruns.
+type airingIndex map[string][]aired
+
+type aired struct {
+	start, stop int64
+	channel     string
+}
+
+func airingKey(p store.Programme) string { return fold(p.Title + " " + p.Subtitle) }
+
+func (ix airingIndex) add(p store.Programme, channel string) {
+	k := airingKey(p)
+	for _, a := range ix[k] {
+		if a.start/1800 == p.Start/1800 {
+			return // the same airing on another channel
+		}
+	}
+	ix[k] = append(ix[k], aired{p.Start, p.Stop, channel})
+}
+
+// earlier finds a previous airing of p. A title on every day ("Serie A",
+// "Calcio") says nothing, so titles aired more often than a big match and
+// its reruns do not count.
+func (ix airingIndex) earlier(p store.Programme) *aired {
+	list := ix[airingKey(p)]
+	if len(list) > 6 {
+		return nil
+	}
+	for i := range list {
+		a := &list[i]
+		gap := time.Duration(p.Start-a.start) * time.Second
+		if a.stop <= p.Start && gap >= repeatGap && gap <= repeatWithin {
+			return a
+		}
+	}
+	return nil
+}
+
+// firstWord finds the first of words in folded text, as whole words
+// ("live" is not "Liverpool").
+func firstWord(text string, words []string) string {
+	for _, w := range words {
+		if strings.Contains(" "+text+" ", " "+w+" ") {
+			return w
+		}
+	}
+	return ""
+}
+
+// airingOf guesses whether p, on channel, is live.
+func airingOf(ctx context.Context, p store.Programme, channel string, ix airingIndex) Airing {
+	switch p.Airing {
+	case "live":
+		return Airing{"live", T(ctx, "la guida la indica come diretta")}
+	case "rerun":
+		return Airing{"rerun", T(ctx, "la guida la indica come già trasmessa")}
+	}
+	title := fold(p.Title + " " + p.Subtitle)
+	desc := fold(p.Description)
+	if w := firstWord(title, rerunTitleWords); w != "" {
+		return Airing{"rerun", T(ctx, "il titolo dice “%s”", w)}
+	}
+	if w := firstWord(desc, rerunDescWords); w != "" {
+		return Airing{"rerun", T(ctx, "la descrizione dice “%s”", w)}
+	}
+	// A year before last in the title: a match of the past. Seasons
+	// ("2025/26") count by their first year, so last year is still now.
+	year := time.Unix(p.Start, 0).Year()
+	latest := 0
+	for _, y := range yearRE.FindAllString(p.Title+" "+p.Subtitle, -1) {
+		n, _ := strconv.Atoi(y)
+		latest = max(latest, n)
+	}
+	if latest > 0 && latest < year-1 {
+		return Airing{"rerun", T(ctx, "il titolo parla del %d", latest)}
+	}
+	if m := rerunChannelRE.FindString(strings.ToLower(channel)); m != "" {
+		return Airing{"rerun", T(ctx, "canale in differita o di repertorio (%s)", strings.TrimSpace(m))}
+	}
+	if a := ix.earlier(p); a != nil {
+		return Airing{"rerun", T(ctx, "già in onda %s su %s", time.Unix(a.start, 0).Format("02/01 15:04"), a.channel)}
+	}
+	if w := firstWord(title+" "+desc, liveWords); w != "" {
+		return Airing{"live", T(ctx, "la guida dice “%s”", w)}
+	}
+	if p.Airing == "premiere" || p.Airing == "new" {
+		return Airing{"live", T(ctx, "prima visione secondo la guida")}
+	}
+	return Airing{}
+}

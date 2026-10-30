@@ -78,6 +78,22 @@ func TestRecordingRules(t *testing.T) {
 	if p := preview(t, e, film); len(p) != 1 || p[0].State != "cancelled" {
 		t.Fatalf("cancelled preview: %+v", p)
 	}
+	// Live only: the guide says the match was already shown.
+	match := map[string]any{"name": "Juve", "all": []string{"juventus"}}
+	if p := preview(t, e, match); len(p) != 1 || p[0].State != "new" {
+		t.Fatalf("match preview: %+v", p)
+	}
+	match["live_only"] = true
+	if p := preview(t, e, match); len(p) != 1 || p[0].State != "rerun" || !strings.Contains(p[0].Note, "già trasmessa") {
+		t.Fatalf("live-only preview: %+v", p)
+	}
+	if code, body := e.do(t, "POST", "/api/v1/recording-rules", match, true); code != 201 || !strings.Contains(string(body), "1 repliche saltate") ||
+		!strings.Contains(string(body), `"live_only":true`) {
+		t.Fatalf("live-only rule: %d %s", code, body)
+	}
+	if l := recs(); len(l) != 0 {
+		t.Fatalf("rerun recorded: %+v", l)
+	}
 	// Kids profiles cannot manage rules.
 	kid := addKids(t, e)
 	if code, _ := e.call(t, "GET", "/api/v1/recording-rules", nil, kid.device, kid.profile); code != 403 {
