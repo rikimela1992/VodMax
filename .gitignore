@@ -23,4 +23,3 @@ keystore.properties
 *.sqlite3
 *.db
 cache/
-build/

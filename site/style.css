@@ -55,3 +55,4 @@ footer img { display: block; margin-bottom: 1rem; }
   .gallery { grid-template-columns: 1fr; }
   body { font-size: 16px; }
 }
+.downloads pre.cmd { margin: 0.9rem 0 0; padding: 0.6em 0.8em; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; font-size: 0.75rem; white-space: pre-wrap; word-break: break-all; color: var(--soft); }
