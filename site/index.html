@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VodMax — self-hosted media center for live TV, movies and series</title>
+<meta name="description" content="VodMax is a free, self-hosted media center: live TV with a full TV guide, pause and recordings, movies and series from your playlists and folders. Apps for Android, Android TV, Fire TV and LG webOS.">
+<meta property="og:title" content="VodMax">
+<meta property="og:description" content="Your live TV, your movies and your series in one self-hosted media center.">
+<meta property="og:image" content="https://vodmax.silirim.com/screenshots/home.jpg">
+<meta property="og:url" content="https://vodmax.silirim.com/">
+<meta name="theme-color" content="#0b0c10">
+<link rel="icon" href="brand/vodmax-icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a href="#" class="logo"><img src="brand/vodmax-wordmark-dark.svg" alt="VodMax" width="150"></a>
+  <nav>
+    <a href="#features"><span data-l="en">Features</span><span data-l="it">Funzioni</span></a>
+    <a href="#screens"><span data-l="en">Screenshots</span><span data-l="it">Schermate</span></a>
+    <a href="#download">Download</a>
+    <a href="https://github.com/silirim/VodMax">GitHub</a>
+    <button type="button" id="lang" aria-label="Language / Lingua">IT</button>
+  </nav>
+</header>
+
+<main>
+<section class="hero">
+  <h1><span data-l="en">Your live TV, your movies and your series.<br><em>One media center, in your home.</em></span><span data-l="it">La tua TV, i tuoi film e le tue serie.<br><em>Un media center, a casa tua.</em></span></h1>
+  <p class="lead"><span data-l="en">Live channels with a full TV guide, pause and recordings like a set-top box, movies and series from your playlists and your own folders — on the TV, the phone and the browser. Free and open source.</span><span data-l="it">Canali con la guida completa, pausa e registrazioni come un decoder, film e serie dalle tue playlist e dalle tue cartelle: sulla TV, sul telefono e nel browser. Libero e open source.</span></p>
+  <div class="cta">
+    <a class="button primary" href="#download"><span data-l="en">Download</span><span data-l="it">Scarica</span> <span class="ver"></span></a>
+    <a class="button" href="https://github.com/silirim/VodMax"><span data-l="en">View on GitHub</span><span data-l="it">Vedi su GitHub</span></a>
+  </div>
+  <img class="shot hero-shot" src="screenshots/home.jpg" alt="VodMax home" width="1600" height="900">
+</section>
+
+<section id="features">
+  <h2><span data-l="en">Everything in one place</span><span data-l="it">Tutto in un posto</span></h2>
+  <div class="grid">
+    <article><h3>📺 <span data-l="en">Live TV like a decoder</span><span data-l="it">Diretta come un decoder</span></h3><p><span data-l="en">Channel numbers, P+/P−, favourites, now and next, browse other channels without zapping.</span><span data-l="it">Numeri dei canali, P+/P−, preferiti, ora e a seguire, guardi gli altri canali senza cambiare.</span></p></article>
+    <article><h3>🗓️ <span data-l="en">TV guide</span><span data-l="it">Guida TV</span></h3><p><span data-l="en">A programme grid from XMLTV; record or replay straight from the guide.</span><span data-l="it">Griglia dei programmi da XMLTV; registri o riguardi direttamente dalla guida.</span></p></article>
+    <article><h3>⏸️ <span data-l="en">Pause, rewind, recordings</span><span data-l="it">Pausa, riavvolgimento, registrazioni</span></h3><p><span data-l="en">Pause live TV, start over, record what is on or by rule ("every match").</span><span data-l="it">Metti in pausa la diretta, riparti dall'inizio, registra il programma in onda o per regola ("ogni partita").</span></p></article>
+    <article><h3>🎬 <span data-l="en">Movies and series</span><span data-l="it">Film e serie</span></h3><p><span data-l="en">Posters, plots, continue watching, next episode, audio and subtitle languages.</span><span data-l="it">Locandine, trame, continua a guardare, episodio successivo, lingua dell'audio e sottotitoli.</span></p></article>
+    <article><h3>📁 <span data-l="en">Your folders too</span><span data-l="it">Anche le tue cartelle</span></h3><p><span data-l="en">Movie and series folders named like Jellyfin, Kodi or Plex libraries, with .nfo files and artwork.</span><span data-l="it">Cartelle di film e serie con i nomi di Jellyfin, Kodi o Plex, con file .nfo e locandine.</span></p></article>
+    <article><h3>🔒 <span data-l="en">Private by design</span><span data-l="it">Riservato</span></h3><p><span data-l="en">Playlists only through a VPN (built-in WireGuard), encrypted credentials, no telemetry.</span><span data-l="it">Playlist solo tramite VPN (WireGuard integrata), credenziali cifrate, nessuna telemetria.</span></p></article>
+    <article><h3>👪 <span data-l="en">For the whole family</span><span data-l="it">Per tutta la famiglia</span></h3><p><span data-l="en">Profiles, kids profiles, devices paired with a short code; Italian and English.</span><span data-l="it">Profili, profili bambini, dispositivi abbinati con un codice; italiano e inglese.</span></p></article>
+    <article><h3>⚡ <span data-l="en">Built for huge catalogs</span><span data-l="it">Per cataloghi enormi</span></h3><p><span data-l="en">Hundreds of thousands of titles, instant search, one card per title instead of dozens of copies.</span><span data-l="it">Centinaia di migliaia di titoli, ricerca immediata, una scheda per titolo invece di decine di copie.</span></p></article>
+  </div>
+</section>
+
+<section id="screens">
+  <h2><span data-l="en">Made for the remote</span><span data-l="it">Fatto per il telecomando</span></h2>
+  <div class="gallery">
+    <figure><img class="shot" src="screenshots/tv.jpg" alt="" loading="lazy"><figcaption><span data-l="en">Live TV</span><span data-l="it">Diretta</span></figcaption></figure>
+    <figure><img class="shot" src="screenshots/guide.jpg" alt="" loading="lazy"><figcaption><span data-l="en">TV guide</span><span data-l="it">Guida TV</span></figcaption></figure>
+    <figure><img class="shot" src="screenshots/movies.jpg" alt="" loading="lazy"><figcaption><span data-l="en">Movies</span><span data-l="it">Film</span></figcaption></figure>
+    <figure><img class="shot" src="screenshots/series.jpg" alt="" loading="lazy"><figcaption><span data-l="en">Series</span><span data-l="it">Serie</span></figcaption></figure>
+    <figure><img class="shot" src="screenshots/tv-list.jpg" alt="" loading="lazy"><figcaption><span data-l="en">Channel list</span><span data-l="it">Elenco dei canali</span></figcaption></figure>
+    <figure><img class="shot" src="screenshots/settings.jpg" alt="" loading="lazy"><figcaption><span data-l="en">Collections</span><span data-l="it">Raccolte</span></figcaption></figure>
+  </div>
+  <p class="small"><span data-l="en">Demo data: invented channels, Blender Studio open movies titles.</span><span data-l="it">Dati di esempio: canali inventati, titoli dei film aperti del Blender Studio.</span></p>
+</section>
+
+<section id="download">
+  <h2>Download <span class="ver"></span></h2>
+  <div class="grid downloads">
+    <article><h3><span data-l="en">Server</span><span data-l="it">Server</span> · Linux</h3><p><span data-l="en">A mini PC, a NAS, a Raspberry Pi or a container keeps catalog, guide and recordings for the whole home.</span><span data-l="it">Un mini PC, un NAS, un Raspberry Pi o un container tiene catalogo, guida e registrazioni per tutta la casa.</span></p>
+      <p class="links"><a data-asset="_linux_amd64.tar.gz" href="https://github.com/silirim/VodMax/releases">x86-64</a> <a data-asset="_linux_arm64.tar.gz" href="https://github.com/silirim/VodMax/releases">ARM64</a> <a data-asset="_linux_armv7.tar.gz" href="https://github.com/silirim/VodMax/releases">ARMv7</a></p></article>
+    <article><h3>Android · Android TV · Fire TV</h3><p><span data-l="en">Native player for every format. Works with your server or on its own; updates itself.</span><span data-l="it">Player nativo per ogni formato. Funziona con il tuo server o da solo; si aggiorna da sé.</span></p>
+      <p class="links"><a data-asset=".apk" href="https://github.com/silirim/VodMax/releases">APK</a></p></article>
+    <article><h3>LG webOS</h3><p><span data-l="en">The TV app, for LG TVs in Developer Mode. Other TVs: the browser.</span><span data-l="it">L'app per le TV LG in Modalità sviluppatore. Altre TV: il browser.</span></p>
+      <p class="links"><a data-asset="_all.ipk" href="https://github.com/silirim/VodMax/releases">IPK</a></p></article>
+  </div>
+  <p class="center"><a class="button" href="https://github.com/silirim/VodMax/blob/main/docs/install.md" data-l="en">Step-by-step guide</a><a class="button" href="https://github.com/silirim/VodMax/blob/main/docs/installazione.md" data-l="it">Guida passo passo</a></p>
+</section>
+</main>
+
+<footer>
+  <img src="brand/vodmax-icon.svg" alt="" width="40" height="40">
+  <p><span data-l="en">VodMax is free software under the <a href="https://github.com/silirim/VodMax/blob/main/LICENSE">AGPL-3.0</a>. A commercial license is available for closed products: contact <a href="https://github.com/silirim">silirim</a>.</span><span data-l="it">VodMax è software libero con licenza <a href="https://github.com/silirim/VodMax/blob/main/LICENSE">AGPL-3.0</a>. Per prodotti chiusi è disponibile una licenza commerciale: contatta <a href="https://github.com/silirim">silirim</a>.</span></p>
+  <p class="small"><span data-l="en">VodMax does not provide any content: playlists and folders are added by whoever uses it. This product uses the TMDB API but is not endorsed or certified by TMDB.</span><span data-l="it">VodMax non fornisce contenuti: playlist e cartelle le aggiunge chi lo usa. Questo prodotto usa le API di TMDB ma non è approvato né certificato da TMDB.</span></p>
+</footer>
+<script src="site.js"></script>
+</body>
+</html>
