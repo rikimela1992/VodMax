@@ -500,7 +500,8 @@ window.VodMax = (() => {
       if (!problems.length) { if (box) box.remove(); return; }
       if (!box) {
         box = Object.assign(document.createElement("a"), { id: "server-problems" });
-        document.body.append(box);
+        // A page can give it a place of its own instead of floating.
+        (document.getElementById("problems-slot") || document.body).append(box);
       }
       const error = problems.some((p) => p.level === "error");
       box.className = error ? "error" : "warning";

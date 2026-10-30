@@ -95,8 +95,28 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     location.href = "/";
   }
 
+  // Each h2 with what follows it becomes a card, so sections stand apart.
+  // A page that opens with a list of boxes (subscriptions, profiles...)
+  // keeps its heading as the page title above them.
+  function cards(main) {
+    const groups = [];
+    for (const node of [...main.children]) {
+      if (node.tagName === "H2" || !groups.length) groups.push([]);
+      groups[groups.length - 1].push(node);
+    }
+    groups.forEach((g, i) => {
+      if (g[0].tagName !== "H2") return;
+      const rest = g.slice(1);
+      if (i === 0 && rest.some((n) => n.classList.contains("box")) && rest.every((n) => n.classList.contains("box") || n.classList.contains("note"))) return;
+      const card = el("section", { className: "card" });
+      g[0].before(card);
+      card.append(...g);
+    });
+  }
+
   async function render() {
     document.body.classList.toggle("at-list", !state.view);
+    document.body.classList.toggle("view-system", state.view === "system");
     for (const b of document.querySelectorAll(".item[data-view]")) b.classList.toggle("active", b.dataset.view === state.view);
     if (!state.view) return;
     $("pane-title").textContent = TITLES[state.view] || "";
@@ -105,6 +125,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     main.replaceChildren(el("p", { className: "note" }, t("Caricamento…")));
     try {
       await ({ subscriptions: renderSubscriptions, libraries: renderLibraries, vpn: renderVPN, rules: renderRules, categories: renderCategories, system: renderSystem, profiles: renderProfiles, devices: renderDevices, guide: renderGuideSources, language: renderLanguage })[state.view](main);
+      cards(main);
     } catch (e) {
       main.replaceChildren(el("p", { className: "note bad" }, e.message));
     }
