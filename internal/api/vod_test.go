@@ -259,3 +259,34 @@ func TestBrowseByRatingAndCategory(t *testing.T) {
 		t.Fatalf("categories: %s", body)
 	}
 }
+
+// A title whose category is excluded leaves "continue watching" (its
+// progress is kept and comes back with the category).
+func TestContinueFollowsSelection(t *testing.T) {
+	e, _ := tvSetup(t)
+	film := strconv.FormatInt(findItem(t, e, "movie", "1408"), 10)
+	e.do(t, "PUT", "/api/v1/progress/movie/"+film, map[string]int{"position": 600, "duration": 6000}, true)
+	series := findItem(t, e, "series", "twin")
+	_, body := e.do(t, "GET", "/api/v1/series/"+strconv.FormatInt(series, 10)+"/episodes", nil, true)
+	var eps []struct{ ID int64 }
+	json.Unmarshal(body, &eps)
+	e.do(t, "PUT", "/api/v1/progress/episode/"+strconv.FormatInt(eps[0].ID, 10), map[string]int{"position": 600, "duration": 2800}, true)
+	cont := func() string { _, b := e.do(t, "GET", "/api/v1/continue", nil, true); return string(b) }
+	if c := cont(); !strings.Contains(c, `"title":"1408"`) || !strings.Contains(c, "Twin Peaks") {
+		t.Fatalf("before: %s", c)
+	}
+	for _, cat := range []string{"movie/10", "movie/11", "series/20"} {
+		if code, b := e.do(t, "PUT", "/api/v1/subscriptions/1/categories/"+cat, map[string]any{"enabled": false}, true); code != 204 {
+			t.Fatalf("exclude %s: %d %s", cat, code, b)
+		}
+	}
+	if c := cont(); strings.Contains(c, "1408") || strings.Contains(c, "Twin Peaks") {
+		t.Fatalf("excluded titles still in continue: %s", c)
+	}
+	for _, cat := range []string{"movie/10", "movie/11", "series/20"} {
+		e.do(t, "PUT", "/api/v1/subscriptions/1/categories/"+cat, map[string]any{"enabled": nil}, true)
+	}
+	if c := cont(); !strings.Contains(c, `"position":600`) || !strings.Contains(c, "Twin Peaks") {
+		t.Fatalf("back with the category: %s", c)
+	}
+}

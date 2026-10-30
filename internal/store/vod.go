@@ -175,12 +175,15 @@ type ContinueEntry struct {
 }
 
 // Continue lists unfinished films and episodes, most recent first. For a
-// series only the latest episode appears.
+// series only the latest episode appears. Titles the catalog selection
+// hides (an excluded category) are left out, unless another visible
+// variant of the same title exists; their progress is kept.
 func (s *Store) Continue(ctx context.Context, profileID int64, noAdult bool, limit int) ([]ContinueEntry, error) {
 	rows, err := s.r.QueryContext(ctx, `
 		SELECT 'movie', i.id, i.display_title, 0, '', 0, 0, i.year, p.position, p.duration, p.updated_at, i.id, i.image <> ''
 		FROM progress p JOIN item i ON i.id = p.media_id
 		WHERE p.profile_id = ? AND p.media = 'movie' AND p.completed = 0 AND i.available = 1 AND (? = 0 OR i.adult = 0)
+			AND (i.visible = 1 OR (i.group_key <> '' AND EXISTS (SELECT 1 FROM item v WHERE v.kind = i.kind AND v.group_key = i.group_key AND v.visible = 1 AND v.available = 1)))
 			AND (i.group_key = '' OR p.updated_at = (SELECT max(p2.updated_at) FROM progress p2 JOIN item i2 ON i2.id = p2.media_id
 				WHERE p2.profile_id = p.profile_id AND p2.media = 'movie' AND i2.group_key = i.group_key))
 		UNION ALL
@@ -188,6 +191,7 @@ func (s *Store) Continue(ctx context.Context, profileID int64, noAdult bool, lim
 			i.id, i.image <> ''
 		FROM progress p JOIN episode e ON e.id = p.media_id JOIN item i ON i.id = e.series_item_id
 		WHERE p.profile_id = ? AND p.media = 'episode' AND p.completed = 0 AND i.available = 1 AND (? = 0 OR i.adult = 0)
+			AND (i.visible = 1 OR (i.group_key <> '' AND EXISTS (SELECT 1 FROM item v WHERE v.kind = i.kind AND v.group_key = i.group_key AND v.visible = 1 AND v.available = 1)))
 			AND p.updated_at = (SELECT max(p2.updated_at) FROM progress p2 JOIN episode e2 ON e2.id = p2.media_id
 				JOIN item i2 ON i2.id = e2.series_item_id
 				WHERE p2.profile_id = p.profile_id AND p2.media = 'episode'
@@ -247,6 +251,7 @@ func (s *Store) nextEpisodes(ctx context.Context, profileID int64, noAdult bool)
 		JOIN episode n ON n.id = (SELECT x.id FROM episode x WHERE x.series_item_id = e.series_item_id
 			AND (x.season > e.season OR (x.season = e.season AND x.number > e.number)) ORDER BY x.season, x.number LIMIT 1)
 		WHERE p.profile_id = ? AND p.media = 'episode' AND p.completed = 1 AND i.available = 1 AND (? = 0 OR i.adult = 0)
+			AND (i.visible = 1 OR (i.group_key <> '' AND EXISTS (SELECT 1 FROM item v WHERE v.kind = i.kind AND v.group_key = i.group_key AND v.visible = 1 AND v.available = 1)))
 			AND p.updated_at = (SELECT max(p2.updated_at) FROM progress p2 JOIN episode e2 ON e2.id = p2.media_id
 				WHERE p2.profile_id = p.profile_id AND p2.media = 'episode' AND e2.series_item_id = e.series_item_id)
 			AND NOT EXISTS (SELECT 1 FROM progress q WHERE q.profile_id = p.profile_id AND q.media = 'episode' AND q.media_id = n.id AND q.completed = 1)
