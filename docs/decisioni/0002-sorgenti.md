@@ -14,7 +14,7 @@ Prima versione:
 
 | Sorgente | Contenuti | Note |
 |---|---|---|
-| **Xtream Codes API** | Diretta, film, serie, EPG, catch-up | Lo standard di fatto dei provider IPTV. Metadati già strutturati. |
+| **Xtream Codes API** | Diretta, film, serie, EPG, catch-up | Lo standard di fatto dei servizi di playlist. Metadati già strutturati. |
 | **Playlist M3U / M3U8** | Diretta, VOD | Con `tvg-id`, `tvg-logo`, `group-title`. |
 | **EPG XMLTV** | Guida TV | Da URL o file; abbinamento canali per `tvg-id` e nome. |
 

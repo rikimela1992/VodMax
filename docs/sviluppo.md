@@ -1,0 +1,77 @@
+# Sviluppo
+
+Struttura del codice, avvio del server dai sorgenti e API HTTP.
+
+## Struttura del codice
+
+| Pacchetto | Cosa fa |
+|---|---|
+| `internal/vpn` | Lettura dei file WireGuard `.conf`; tunnel WireGuard in user space con stack di rete proprio. DNS compreso, tutto resta nel tunnel. |
+| `internal/provider` | L'unico client HTTP ammesso verso i provider: si collega solo tramite il tunnel, ignora i proxy di sistema, toglie le credenziali dagli errori. |
+| `internal/playlist/m3u` | Lettura di playlist M3U estese (`tvg-*`, `group-title`, catch-up, `#EXTVLCOPT`). |
+| `internal/playlist/xtream` | Client Xtream Codes: account, diretta, film, serie, episodi, URL di riproduzione e catch-up. |
+| `internal/secret` | Cifratura AES-256-GCM delle credenziali con chiave locale (`secret.key`, 0600). |
+| `internal/store` | SQLite: lettori e scrittore separati (WAL), id stabili, import "tutto o niente" con protezione dai cali anomali, ricerca FTS5 senza accenti, paginazione a cursore. |
+| `internal/catalog` | Conversione delle playlist in catalogo; titoli puliti (anno separato, tag di qualità tolti), separatori scartati. |
+| `internal/service`, `internal/api` | Logica e API HTTP `/api/v1` (VPN, abbonamenti, sincronizzazione, catalogo, categorie), protetta da token. |
+| `internal/library` | Raccolte locali: titoli e anni dai nomi dei file, episodi (`S01E03`, `1x03`, `Stagione N`), `.nfo` e immagini accanto ai video. |
+| `internal/lineup` | Riconoscimento dei canali nazionali e numerazione LCN ufficiale. |
+| `internal/epg` | Lettura in streaming delle guide XMLTV. |
+| `internal/web` | Interfaccia da telecomando: menu (`/`: Home, Film, Serie, Registrazioni), TV (`/tv.html`), Impostazioni (`/settings.html`: abbonamenti, VPN, selezione del catalogo con anteprima, categorie); HTML/JS senza framework, mpegts.js 1.8.2 incluso. Un link `/#token=…` salva il token di accesso. |
+| `cmd/vodmax-server` | Il server. |
+| `cmd/vodmax-probe` | Strumento di prova: `.conf`, tunnel, login Xtream. |
+
+## Avvio del server
+
+```sh
+go build ./cmd/vodmax-server
+./vodmax-server -data ./vodmax-data -listen 127.0.0.1:8095
+```
+
+Al primo avvio crea in `-data` il database, la chiave di cifratura
+(`secret.key`) e il token di amministrazione (`admin.token`). Ogni chiamata
+API, tranne `/api/v1/health`, richiede `Authorization: Bearer <token>`.
+
+| Metodo e percorso | Scopo |
+|---|---|
+| `POST /api/v1/vpn` `{name, config}` | Registra una VPN WireGuard (testo `.conf`) |
+| `POST /api/v1/vpn/{id}/connect` · `/disconnect` | Collega o scollega il tunnel |
+| `POST /api/v1/subscriptions` `{name, kind, vpn_id, server, username, password}` o `{…, url}` | Aggiunge un abbonamento Xtream o M3U |
+| `POST /api/v1/subscriptions` `{name, kind: "local", path, content: movie\|series}` | Aggiunge una raccolta locale (cartella del server, senza VPN) |
+| `GET /api/v1/folders?path=` | Cartelle del server, per scegliere una raccolta |
+| `POST /api/v1/subscriptions/{id}/sync` | Sincronizza il catalogo (`?allow_drop=true` per accettare un calo anomalo) |
+| `GET /api/v1/catalog/{live\|movie\|series}` | Catalogo selezionato, una scheda per titolo: `q`, `section` (tv, sport, radio), `category`, `subscription`, `sort=recent`, `cursor`, `limit`, `all=true` per vedere anche l'escluso |
+| `GET /api/v1/categories/{kind}` | Categorie |
+| `GET` · `PUT /api/v1/subscriptions/{id}/rules` | Regole di selezione (paesi, adulti, SD, anno minimo) |
+| `POST /api/v1/subscriptions/{id}/rules/preview` | Effetto di nuove regole senza salvarle |
+| `GET /api/v1/subscriptions/{id}/selection` | Conteggi: offerti, visibili, schede, per sezione |
+| `GET /api/v1/subscriptions/{id}/categories?kind=` | Categorie con classificazione, correzioni e motivo dell'esclusione |
+| `PUT /api/v1/subscriptions/{id}/categories/{kind}/{categoria}` | Correzione manuale: `enabled`, `section`, `country`, `adult` (`null` = automatico) |
+| `PUT /api/v1/items/{id}/hidden` | Nasconde o ripristina un singolo titolo o canale |
+| `GET /api/v1/items/{id}/variants` | Le versioni dello stesso titolo, migliore per prima |
+| `GET /api/v1/tv/channels` | Canali in ordine da telecomando con numero, ora e a seguire: `section`, `list=favorites` |
+| `GET /api/v1/tv/channels/{id}/guide` | Guida di un canale (`hours`, massimo 72) |
+| `PUT /api/v1/tv/favorites/{id}` `{favorite}` | Aggiunge o toglie un canale dai preferiti |
+| `POST /api/v1/subscriptions/{id}/guide/sync` | Aggiorna la guida (fatto anche a ogni sincronizzazione) |
+| `POST /api/v1/live/{id}/ticket` `{viewer}` | Permesso di visione monouso (30 s) → `{url}` |
+| `GET /stream/live/{permesso}` | Il flusso MPEG-TS ritrasmesso dal server (`?force=1` per prendere il controllo della connessione) |
+| `GET /api/v1/series/{id}/episodes` | Episodi di una serie, con avanzamento |
+| `GET` · `PUT /api/v1/progress/{movie\|episode}/{id}` | Avanzamento (`position`, `duration` in secondi) |
+| `GET /api/v1/continue` | Continua a guardare |
+| `POST /api/v1/vod/{movie\|episode}/{id}/session` `{viewer, mode?}` | Sessione di riproduzione: `direct` (MP4, intervalli) o `remux` (ffmpeg, `?t=` secondi) |
+| `GET` · `POST /api/v1/recordings` | Registrazioni; `{channel_id}` registra il programma in onda, oppure `start`/`stop` esatti |
+| `DELETE /api/v1/recordings/{id}` · `POST …/{id}/ticket` | Annulla o elimina; permesso di visione |
+| `GET /img/logo/{id}?s=firma` | Logo del canale scaricato tramite VPN e in cache (indirizzo firmato, fornito dall'elenco dei canali) |
+
+## Test
+
+Serve Go (versione indicata in `go.mod`).
+
+```sh
+go vet ./...
+go test -race ./...
+```
+
+I test del tunnel creano due VPN interne nello stesso processo e verificano
+che il traffico passi dal tunnel, che a VPN chiusa non parta nessuna
+connessione e che un server VPN irraggiungibile non causi fughe di traffico.

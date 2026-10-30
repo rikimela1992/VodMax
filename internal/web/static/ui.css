@@ -89,7 +89,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 #tabs::-webkit-scrollbar { display: none; }
 .tab { flex: none; }
 .tab.icon-only .tab-text { display: none; }
-@media (max-width: 1500px) { #profile-chip .tab-text { display: none; } }
+@media (max-width: 1800px) { #profile-chip .tab-text { display: none; } }
 .tab {
   display: inline-flex;
   align-items: center;

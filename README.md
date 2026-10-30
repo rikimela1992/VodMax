@@ -1,174 +1,157 @@
+<div align="center">
+
 # VodMax
 
-Media center in stile Plex / Jellyfin / IPTV Extreme: aggiungi i tuoi
-**abbonamenti** (playlist M3U o accessi Xtream Codes, con guida TV) e ritrovi
-tutto in una sola Home, una sola ricerca, una sola lista, insieme alle tue
-**raccolte** (cartelle di film e serie sul server). Ogni abbonamento passa
-da una **VPN** registrata.
+**Your live TV, your movies and your series in one self-hosted media center.**
 
-Un'unica applicazione che funziona da sola su un dispositivo (**Agent**) e
-che può diventare il **Server** della casa per gli altri dispositivi.
+Live channels with a full TV guide, pause and recordings like a set-top box,
+movies and series from your playlists and your own folders — on the TV, the
+phone and the browser.
 
-> Stato: **sviluppo iniziale**, provato su un catalogo reale, su una TV LG
-> webOS e su Android. Pacchetti pronti (server Linux, APK, IPK) nelle
-> [release](https://github.com/rikimela1992/VodMax/releases). Funzionano:
->
-> - VPN interna (che si ricollega da sola); abbonamenti Xtream e M3U;
->   sincronizzazione solo tramite VPN, ogni notte e a richiesta;
-> - **selezione del catalogo** (paesi, adulti, anno minimo, categorie, una
->   scheda per titolo) con anteprima;
-> - **TV** come un decoder (numerazione da telecomando, preferiti, comandi a
->   schermo), **guida a griglia** anche da fonti XMLTV esterne;
-> - **raccolte locali**: cartelle di film e serie lette dai nomi dei file,
->   dai `.nfo` e dalle locandine accanto ai video;
-> - **film e serie** con "Continua a guardare", lingua dell'audio e
->   sottotitoli, schede dal provider e (con una chiave) da TMDB;
-> - **registrazioni** dal programma in onda, dalla guida o **per regola**,
->   con controllo delle connessioni e dello spazio;
-> - **profili** (anche bambini) e **dispositivi abbinati** con un codice;
-> - **backup** cifrati e copie automatiche; avvisi su VPN, abbonamenti,
->   guida e disco.
->
-> Pagine: menu `/`, TV `/tv.html`, guida `/guide.html`, impostazioni
-> `/settings.html`. App: Android (telefono e TV) e LG webOS in `clients/`.
+[![CI](https://github.com/rikimela1992/VodMax/actions/workflows/ci.yml/badge.svg)](https://github.com/rikimela1992/VodMax/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/rikimela1992/VodMax?include_prereleases&sort=semver)](https://github.com/rikimela1992/VodMax/releases)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
+[![Go](https://img.shields.io/github/go-mod/go-version/rikimela1992/VodMax)](go.mod)
 
-## L'idea in breve
+[Features](#features) · [Screenshots](#screenshots) · [Install](#install) · [Quick start](#quick-start) · [Italiano](README.it.md)
 
-| Modalità | Dove gira | Cosa fa |
-|---|---|---|
-| **Agent** | Android (telefono, TV box, Android TV) | Player autonomo come IPTV Extreme / TiviMate: aggiungi una sorgente (M3U, Xtream Codes, EPG XMLTV) e guardi. Nessun server necessario. |
-| **Agent → Server** | Lo stesso Android, acceso in casa | Con un interruttore l'Agent espone catalogo, profili, progressi ed EPG agli altri dispositivi della rete. |
-| **Server** | Linux / Docker / NAS | Stessa logica, senza interfaccia locale: sempre acceso, registrazioni, più utenti, interfaccia web. |
+<img src="docs/screenshots/home.jpg" alt="VodMax home: continue watching, movies and series" width="100%">
 
-Un dispositivo che trova un Server in rete può collegarsi a lui invece di
-gestire le sorgenti da solo: profili, preferiti e "Continua a guardare"
-diventano condivisi.
+</div>
 
-## Abbonamenti
+## Why VodMax
 
-Solo **playlist**: M3U / M3U8 (URL o file) e Xtream Codes, con guida TV
-XMLTV. Dettagli nella
-[decisione 0011](docs/decisioni/0011-abbonamenti-e-tipi-di-account.md).
+Jellyfin and Plex are great for files on disk, but slow and awkward with
+live TV and with playlists of hundreds of thousands of titles. Playlist
+players are fast but stay on one device and remember nothing elsewhere.
+VodMax is both: a **server for the home** that keeps the catalog, the guide,
+the recordings and everyone's progress, and **apps** that feel like a TV
+decoder with the remote.
 
-Accanto agli abbonamenti, le **raccolte**: cartelle del server con film o
-serie, che non passano dalla VPN
-([decisione 0022](docs/decisioni/0022-raccolte-locali.md)).
+- **Built for huge catalogs** — hundreds of thousands of titles in one
+  SQLite database, full-text search, one card per title instead of dozens of
+  copies.
+- **Live TV first** — channel numbers, P+/P−, favourites, now/next banner,
+  pause and rewind, catch-up and recordings.
+- **One place** — playlists (M3U, Xtream Codes) and local folders of movies
+  and series in the same home, search and "continue watching".
+- **Private by design** — playlist traffic goes only through a VPN (the
+  built-in WireGuard tunnel or one you run on the router); credentials are
+  encrypted; no telemetry.
 
-**Nessun contatto col provider senza VPN.** Server e app hanno una VPN
-WireGuard interna: se non è collegata, gli abbonamenti restano bloccati.
-Dettagli nella [decisione 0012](docs/decisioni/0012-connessioni-vpn.md).
+## Features
 
-## Principi
-
-- **Nessun contenuto incluso.** VodMax è un player: le sorgenti le aggiunge
-  l'utente. Nessun provider, URL o credenziale nel codice.
-- **Veloce con cataloghi enormi.** Obiettivo: Home e liste sotto i 300 ms con
-  oltre 200.000 elementi (il caso che oggi rende lento Jellyfin).
-- **Funziona offline dal server.** L'Agent non dipende mai da un Server per
-  guardare le proprie sorgenti.
-- **Un solo nucleo.** Agent e Server condividono la stessa logica; cambia solo
-  chi la ospita.
-
-## Documentazione
-
-- [Decisioni di base](docs/decisioni/README.md): una scheda per ogni scelta,
-  con opzioni, raccomandazione e domande aperte.
-- [Spunti dal VodMax precedente](docs/spunti-vodmax-precedente.md): cosa
-  riprendere (grafica e soluzioni) e cosa evitare. Nessun codice riutilizzato.
-
-## Struttura del codice
-
-| Pacchetto | Cosa fa |
+| | |
 |---|---|
-| `internal/vpn` | Lettura dei file WireGuard `.conf`; tunnel WireGuard in user space con stack di rete proprio. DNS compreso, tutto resta nel tunnel. |
-| `internal/provider` | L'unico client HTTP ammesso verso i provider: si collega solo tramite il tunnel, ignora i proxy di sistema, toglie le credenziali dagli errori. |
-| `internal/playlist/m3u` | Lettura di playlist M3U estese (`tvg-*`, `group-title`, catch-up, `#EXTVLCOPT`). |
-| `internal/playlist/xtream` | Client Xtream Codes: account, diretta, film, serie, episodi, URL di riproduzione e catch-up. |
-| `internal/secret` | Cifratura AES-256-GCM delle credenziali con chiave locale (`secret.key`, 0600). |
-| `internal/store` | SQLite: lettori e scrittore separati (WAL), id stabili, import "tutto o niente" con protezione dai cali anomali, ricerca FTS5 senza accenti, paginazione a cursore. |
-| `internal/catalog` | Conversione delle playlist in catalogo; titoli puliti (anno separato, tag di qualità tolti), separatori scartati. |
-| `internal/service`, `internal/api` | Logica e API HTTP `/api/v1` (VPN, abbonamenti, sincronizzazione, catalogo, categorie), protetta da token. |
-| `internal/lineup` | Riconoscimento dei canali nazionali e numerazione LCN ufficiale. |
-| `internal/epg` | Lettura in streaming delle guide XMLTV. |
-| `internal/web` | Interfaccia da telecomando: menu (`/`: Home, Film, Serie, Registrazioni), TV (`/tv.html`), Impostazioni (`/settings.html`: abbonamenti, VPN, selezione del catalogo con anteprima, categorie); HTML/JS senza framework, mpegts.js 1.8.2 incluso. Un link `/#token=…` salva il token di accesso. |
-| `cmd/vodmax-server` | Il server. |
-| `cmd/vodmax-probe` | Strumento di prova: `.conf`, tunnel, login Xtream. |
+| 📺 **Live TV** | Remote-friendly zapping (numbers, P+/P−, favourites only), channel list, now/next, official channel numbering, sport and radio sections |
+| 🗓️ **TV guide** | Programme grid from XMLTV (playlist guide and external sources), record or replay from the guide |
+| ⏸️ **Timeshift & catch-up** | Pause and rewind live TV, start the programme from the beginning, replay from the playlist's archive |
+| ⏺️ **Recordings (DVR)** | Record what is on, from the guide or by rule ("every match", "the news"), with disk and connection checks |
+| 🎬 **Movies & series** | Posters, plots and cast, continue watching, next episode, audio and subtitle languages, MKV/AVI/HEVC converted on the fly |
+| 📁 **Local collections** | Folders of movies or series named like Jellyfin/Kodi/Plex libraries, `.nfo` files and artwork next to the videos |
+| 🧹 **Catalog selection** | Keep only the countries, years and categories you want, with a live preview |
+| 👪 **Profiles** | Per-person progress and favourites, kids profiles, devices paired with a short code |
+| 🔒 **Built-in VPN** | WireGuard in user space inside the server and the app: without the VPN, playlists are never contacted |
+| 💾 **Backups** | Encrypted backups and automatic copies, health warnings for VPN, playlists, guide and disk |
+| 🖼️ **Metadata** | From the playlist, from `.nfo` files, or from TMDB with your own key |
 
-## Avvio del server
+### Apps
+
+| Platform | |
+|---|---|
+| **Browser** | The full interface, made for the remote and the mouse |
+| **Android, Android TV, Fire TV** | Native player (Media3) for every format; can also run **standalone, without a server** |
+| **LG webOS** | TV app (webOS 22+ recommended) |
+| **Linux server** | x86-64, ARM64 (Raspberry Pi 4/5), ARMv7; one binary, SQLite |
+
+## Screenshots
+
+| | |
+|---|---|
+| <img src="docs/screenshots/tv.jpg" alt="Live TV with now and next"> | <img src="docs/screenshots/guide.jpg" alt="TV guide grid"> |
+| Live TV: browse other channels without zapping | TV guide |
+| <img src="docs/screenshots/tv-list.jpg" alt="Channel list"> | <img src="docs/screenshots/movies.jpg" alt="Movies"> |
+| Channel list with favourites | Movies |
+| <img src="docs/screenshots/detail.jpg" alt="Movie details"> | <img src="docs/screenshots/series.jpg" alt="Series with seasons and episodes"> |
+| Movie details | Series, seasons and progress |
+| <img src="docs/screenshots/settings.jpg" alt="Local collections settings"> | <img src="docs/screenshots/phone-home.jpg" alt="Phone home" width="45%"> <img src="docs/screenshots/phone-tv.jpg" alt="Phone channel list" width="45%"> |
+| Local collections with the folder picker | On the phone |
+
+<sub>Screenshots use demo data: invented channels and guide, and the titles
+of the Blender Studio open movies with generated artwork. The interface is in
+Italian; more languages are planned.</sub>
+
+## Install
+
+Download the packages from the
+[latest release](https://github.com/rikimela1992/VodMax/releases).
+
+**Server (Linux)**
 
 ```sh
-go build ./cmd/vodmax-server
-./vodmax-server -data ./vodmax-data -listen 127.0.0.1:8095
+tar xzf vodmax-server_*_linux_amd64.tar.gz && cd vodmax-server_*/
+sudo useradd --system --home /var/lib/vodmax --shell /usr/sbin/nologin vodmax
+sudo install -m 755 vodmax-server /usr/local/bin/
+sudo install -d -o vodmax -g vodmax -m 700 /var/lib/vodmax
+sudo cp vodmax.service /etc/systemd/system/ && sudo systemctl enable --now vodmax
 ```
 
-Al primo avvio crea in `-data` il database, la chiave di cifratura
-(`secret.key`) e il token di amministrazione (`admin.token`). Ogni chiamata
-API, tranne `/api/v1/health`, richiede `Authorization: Bearer <token>`.
+Install `ffmpeg` from your distribution for timeshift, recordings and MKV/AVI
+in the browser.
 
-| Metodo e percorso | Scopo |
-|---|---|
-| `POST /api/v1/vpn` `{name, config}` | Registra una VPN WireGuard (testo `.conf`) |
-| `POST /api/v1/vpn/{id}/connect` · `/disconnect` | Collega o scollega il tunnel |
-| `POST /api/v1/subscriptions` `{name, kind, vpn_id, server, username, password}` o `{…, url}` | Aggiunge un abbonamento Xtream o M3U |
-| `POST /api/v1/subscriptions/{id}/sync` | Sincronizza il catalogo (`?allow_drop=true` per accettare un calo anomalo) |
-| `GET /api/v1/catalog/{live\|movie\|series}` | Catalogo selezionato, una scheda per titolo: `q`, `section` (tv, sport, radio), `category`, `subscription`, `sort=recent`, `cursor`, `limit`, `all=true` per vedere anche l'escluso |
-| `GET /api/v1/categories/{kind}` | Categorie |
-| `GET` · `PUT /api/v1/subscriptions/{id}/rules` | Regole di selezione (paesi, adulti, SD, anno minimo) |
-| `POST /api/v1/subscriptions/{id}/rules/preview` | Effetto di nuove regole senza salvarle |
-| `GET /api/v1/subscriptions/{id}/selection` | Conteggi: offerti, visibili, schede, per sezione |
-| `GET /api/v1/subscriptions/{id}/categories?kind=` | Categorie con classificazione, correzioni e motivo dell'esclusione |
-| `PUT /api/v1/subscriptions/{id}/categories/{kind}/{categoria}` | Correzione manuale: `enabled`, `section`, `country`, `adult` (`null` = automatico) |
-| `PUT /api/v1/items/{id}/hidden` | Nasconde o ripristina un singolo titolo o canale |
-| `GET /api/v1/items/{id}/variants` | Le versioni dello stesso titolo, migliore per prima |
-| `GET /api/v1/tv/channels` | Canali in ordine da telecomando con numero, ora e a seguire: `section`, `list=favorites` |
-| `GET /api/v1/tv/channels/{id}/guide` | Guida di un canale (`hours`, massimo 72) |
-| `PUT /api/v1/tv/favorites/{id}` `{favorite}` | Aggiunge o toglie un canale dai preferiti |
-| `POST /api/v1/subscriptions/{id}/guide/sync` | Aggiorna la guida (fatto anche a ogni sincronizzazione) |
-| `POST /api/v1/live/{id}/ticket` `{viewer}` | Permesso di visione monouso (30 s) → `{url}` |
-| `GET /stream/live/{permesso}` | Il flusso MPEG-TS ritrasmesso dal server (`?force=1` per prendere il controllo della connessione) |
-| `GET /api/v1/series/{id}/episodes` | Episodi di una serie, con avanzamento |
-| `GET` · `PUT /api/v1/progress/{movie\|episode}/{id}` | Avanzamento (`position`, `duration` in secondi) |
-| `GET /api/v1/continue` | Continua a guardare |
-| `POST /api/v1/vod/{movie\|episode}/{id}/session` `{viewer, mode?}` | Sessione di riproduzione: `direct` (MP4, intervalli) o `remux` (ffmpeg, `?t=` secondi) |
-| `GET` · `POST /api/v1/recordings` | Registrazioni; `{channel_id}` registra il programma in onda, oppure `start`/`stop` esatti |
-| `DELETE /api/v1/recordings/{id}` · `POST …/{id}/ticket` | Annulla o elimina; permesso di visione |
-| `GET /img/logo/{id}?s=firma` | Logo del canale scaricato tramite VPN e in cache (indirizzo firmato, fornito dall'elenco dei canali) |
+**Android / Android TV / Fire TV** — install `VodMax-<version>.apk`, then enter
+the server address or choose *Usa questo dispositivo da solo* (standalone).
 
-## Sviluppo
+**LG webOS** — install `app.vodmax.client_<version>_all.ipk` with the
+[webOS CLI](https://webostv.developer.lge.com/develop/tools/cli-introduction)
+on a TV in Developer Mode.
 
-Serve Go (versione indicata in `go.mod`).
+Build from source: [docs/sviluppo.md](docs/sviluppo.md) and
+`scripts/release.sh`.
 
-```sh
-go vet ./...
-go test -race ./...
-```
+## Quick start
 
-I test del tunnel creano due VPN interne nello stesso processo e verificano
-che il traffico passi dal tunnel, che a VPN chiusa non parta nessuna
-connessione e che un server VPN irraggiungibile non causi fughe di traffico.
+1. Open `http://<server>:8095` and paste the admin token from
+   `/var/lib/vodmax/admin.token`.
+2. **Impostazioni → VPN** (Settings): import your WireGuard `.conf`, or
+   declare a VPN you already run on the router.
+3. **Impostazioni → Abbonamenti** (Subscriptions): add an M3U or Xtream Codes
+   playlist, then *Sincronizza ora*.
+4. **Impostazioni → Raccolte** (Collections): add a folder of movies or series.
+5. **Impostazioni → Dispositivi** (Devices): pair TVs and phones with the code
+   they show.
 
-## Contenuti
+## Documentation
 
-VodMax **non fornisce contenuti**: è un player e un media center. Abbonamenti,
-playlist, guide e cartelle li aggiunge chi lo usa, che ne è responsabile:
-usa solo sorgenti per cui hai i diritti.
+- [Design decisions](docs/decisioni/README.md) (Italian): one page per choice,
+  with options and reasons.
+- [Development, code structure and HTTP API](docs/sviluppo.md) (Italian).
 
-Copertine e schede possono venire da TMDB, con una chiave personale.
-Questo prodotto usa le API di TMDB ma non è approvato né certificato da
+## Content
+
+VodMax **does not provide any content**. It is a player and a media center:
+playlists, guides and folders are added by whoever uses it, who is
+responsible for them. Use only sources you have the rights to.
+
+This product uses the TMDB API but is not endorsed or certified by
 [TMDB](https://www.themoviedb.org).
 
-## Licenza
+## Contributing
 
-VodMax è software libero con licenza
-**[GNU Affero General Public License v3.0](LICENSE)** (AGPL-3.0): puoi usarlo,
-studiarlo, modificarlo e ridistribuirlo; chi distribuisce una versione
-modificata, o la offre come servizio in rete, deve renderne disponibile il
-codice con la stessa licenza.
+Issues and pull requests are welcome: read [CONTRIBUTING.md](CONTRIBUTING.md)
+(contributions are accepted under a contributor license agreement) and
+[SECURITY.md](SECURITY.md) for vulnerabilities.
 
-**Licenza commerciale.** Per includere VodMax in un prodotto o servizio
-senza pubblicarne il codice è disponibile una licenza commerciale:
-contatta l'autore ([rikimela1992 su GitHub](https://github.com/rikimela1992)).
+## License
 
-Contributi: vedi [CONTRIBUTING.md](CONTRIBUTING.md). Le librerie incluse
-mantengono le loro licenze (Apache-2.0, MIT, ISC, BSD), indicate accanto ai
-file.
+VodMax is free software under the
+**[GNU Affero General Public License v3.0](LICENSE)**: you can use, study,
+change and share it; whoever distributes a modified version, or offers it as
+a network service, must make its source available under the same license.
+
+**Commercial license.** To include VodMax in a product or service without
+publishing its source, a commercial license is available: contact the author
+([rikimela1992 on GitHub](https://github.com/rikimela1992)).
+
+Bundled libraries keep their own licenses (Apache-2.0, MIT, ISC, BSD),
+listed next to their files.

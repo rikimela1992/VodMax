@@ -117,7 +117,7 @@ func TestScanSeries(t *testing.T) {
 	}
 	tp := res.Items[1]
 	if tp.SourceID != "Twin Peaks (1990)" || tp.DisplayTitle != "I segreti di Twin Peaks" || tp.Year != 1990 ||
-		tp.Image != "local:Twin Peaks (1990)/poster.jpg" {
+		tp.Image != "local:Twin Peaks (1990)/poster.jpg" || tp.Quality != 2 {
 		t.Errorf("serie: %+v", tp)
 	}
 	eps := res.Episodes["Twin Peaks (1990)"]

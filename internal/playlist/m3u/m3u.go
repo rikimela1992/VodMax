@@ -1,4 +1,4 @@
-// Package m3u parses extended M3U playlists as published by IPTV providers.
+// Package m3u parses extended M3U playlists as published by playlist providers.
 package m3u
 
 import (

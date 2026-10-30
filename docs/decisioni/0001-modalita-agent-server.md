@@ -7,7 +7,7 @@ nucleo.
 
 ## Contesto
 
-Si vuole un'app che, come IPTV Extreme, funzioni da sola su un dispositivo,
+Si vuole un'app che, come i player di playlist più diffusi, funzioni da sola su un dispositivo,
 ma che possa anche fare da server per la casa. Serve anche una versione
 server pura, sempre accesa, senza schermo.
 
@@ -35,7 +35,7 @@ Un dispositivo può essere:
 
 - **Solo server + client sottili** (modello Jellyfin/Plex): semplice da
   pensare, ma senza server non si guarda niente. Scartata come unico modello.
-- **Solo app autonoma** (modello IPTV Extreme / TiviMate): ogni dispositivo
+- **Solo app autonoma** (modello dei player di playlist come TiviMate): ogni dispositivo
   rifà tutto da solo, nessuna condivisione. Scartata come unico modello.
 - **Codice separato per Agent e Server**: doppio lavoro e comportamenti
   diversi. Scartata.

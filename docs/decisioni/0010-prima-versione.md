@@ -4,7 +4,7 @@ Stato: **Proposta**
 
 ## Obiettivo della 0.1
 
-Un **Agent Android autonomo** che sostituisce un player IPTV classico:
+Un **Agent Android autonomo** che sostituisce un classico player di playlist:
 
 - aggiungere uno o più abbonamenti (playlist M3U o Xtream Codes) con EPG
   XMLTV (vedi 0011);

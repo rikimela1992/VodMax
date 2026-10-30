@@ -4,9 +4,9 @@ Stato: **Approvata** (29 ottobre 2026)
 
 ## Contesto
 
-Oggi a casa il servizio è diviso fra più componenti: gateway IPTV (provider,
+Oggi a casa il servizio è diviso fra più componenti: gateway delle playlist (provider,
 account, playlist, EPG, diretta, pannello, prenotazioni automatiche),
-Tvheadend (registrazioni dei canali IPTV, nessun sintonizzatore fisico),
+Tvheadend (registrazioni dei canali in streaming, nessun sintonizzatore fisico),
 Replay (riproduzione registrazioni, conversione HEVC, copie), Jellyfin
 (metadati e copertine TMDB, player sulla TV webOS) e il VodMax di
 laboratorio (interfaccia). L'obiettivo è che il nuovo VodMax li sostituisca

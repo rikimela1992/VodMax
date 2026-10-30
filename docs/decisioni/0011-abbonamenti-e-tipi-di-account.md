@@ -5,8 +5,8 @@ Stato: **Approvata** (29 ottobre 2026) · Estende la [0002](0002-sorgenti.md)
 ## Decisione
 
 Un **abbonamento** è una **playlist** di un provider. VodMax ne unisce i
-contenuti in una sola Home, una sola ricerca, una sola lista, come IPTV
-Extreme / TiviMate.
+contenuti in una sola Home, una sola ricerca, una sola lista, come i player
+di playlist più diffusi (per esempio TiviMate).
 
 | Tipo di playlist | Come si aggiunge | Contenuti |
 |---|---|---|

@@ -1,5 +1,5 @@
 // Package xtream is a client for the Xtream Codes player API
-// (player_api.php), the de facto standard of IPTV providers.
+// (player_api.php), the de facto standard of playlist providers.
 package xtream
 
 import (

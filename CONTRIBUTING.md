@@ -15,7 +15,7 @@ di sicurezza leggi [SECURITY.md](SECURITY.md).
 ## Accordo di contribuzione (CLA)
 
 VodMax è distribuito con l'AGPL-3.0 e, a chi lo chiede, con una licenza
-commerciale (vedi il [README](README.md#licenza)). Per poterlo fare l'autore
+commerciale (vedi il [README](README.it.md#licenza)). Per poterlo fare l'autore
 deve avere i diritti su tutto il codice. Inviando un contributo (pull
 request, patch o altro) dichiari che:
 

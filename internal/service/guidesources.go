@@ -18,7 +18,7 @@ import (
 
 // External XMLTV guides (an EPG site, the home Tvheadend...) fill in the
 // channels the provider's guide leaves without programmes. They are not
-// the IPTV provider: they are fetched directly, not through the VPN. A
+// the playlist provider: they are fetched directly, not through the VPN. A
 // source only takes channels that no other source has.
 
 func extSource(id int64) string { return fmt.Sprintf("ext:%d", id) }

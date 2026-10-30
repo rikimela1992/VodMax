@@ -1,4 +1,4 @@
-// Package provider builds the only HTTP client allowed to talk to IPTV
+// Package provider builds the only HTTP client allowed to talk to playlist
 // providers. It dials exclusively through the internal VPN.
 package provider
 

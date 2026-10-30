@@ -209,7 +209,8 @@ func scanSeries(root string) (*Result, error) {
 			continue
 		}
 		title, year, _ := ParseName(name)
-		it := store.Item{Kind: "series", SourceID: name, Title: name, DisplayTitle: title, Year: year, CategoryID: Category}
+		it := store.Item{Kind: "series", SourceID: name, Title: name, DisplayTitle: title, Year: year, CategoryID: Category,
+			Quality: 2} // unknown, as for provider titles without a tag
 		applyNFO(&it, ReadNFO(filepath.Join(root, name, "tvshow.nfo")))
 		it.Image = imageRef(root, firstExisting(root, folderArt(name, "poster", "folder", "cover")))
 		var newest int64
