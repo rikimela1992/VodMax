@@ -35,6 +35,9 @@ import (
 	"github.com/rikimela1992/vodmax/internal/store"
 )
 
+// version is set at build time (-ldflags "-X main.version=…").
+var version = "dev"
+
 func main() {
 	data := flag.String("data", "./vodmax-data", "cartella dei dati")
 	listen := flag.String("listen", "127.0.0.1:8095", "indirizzo HTTP")
@@ -42,7 +45,12 @@ func main() {
 	ffmpeg := flag.String("ffmpeg", "ffmpeg", "eseguibile ffmpeg (per film in MKV/AVI nel browser)")
 	ffprobe := flag.String("ffprobe", "ffprobe", "eseguibile ffprobe")
 	device := flag.Bool("device", false, "dentro l'app Android, per quel dispositivo: senza registrazioni né pausa della diretta")
+	showVersion := flag.Bool("version", false, "mostra la versione ed esce")
 	flag.Parse()
+	if *showVersion {
+		fmt.Println("vodmax-server", version)
+		return
+	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	if *recordings == "" {
 		*recordings = filepath.Join(*data, "recordings")
@@ -105,7 +113,7 @@ func run(data, listen, recordings, ffmpeg, ffprobe string, device bool, log *slo
 		defer cancel()
 		srv.Shutdown(shutdown)
 	}()
-	log.Info("VodMax server avviato", "listen", listen, "data", data, "dispositivo", device)
+	log.Info("VodMax server avviato", "versione", version, "listen", listen, "data", data, "dispositivo", device)
 	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
