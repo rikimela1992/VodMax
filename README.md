@@ -9,8 +9,9 @@ da una **VPN** registrata.
 Un'unica applicazione che funziona da sola su un dispositivo (**Agent**) e
 che può diventare il **Server** della casa per gli altri dispositivi.
 
-> Stato: **sviluppo iniziale**, provato su un catalogo reale (non ancora su
-> una TV). Funzionano:
+> Stato: **sviluppo iniziale**, provato su un catalogo reale, su una TV LG
+> webOS e su Android. Pacchetti pronti (server Linux, APK, IPK) nelle
+> [release](https://github.com/rikimela1992/VodMax/releases). Funzionano:
 >
 > - VPN interna (che si ricollega da sola); abbonamenti Xtream e M3U;
 >   sincronizzazione solo tramite VPN, ogni notte e a richiesta;
@@ -146,8 +147,28 @@ I test del tunnel creano due VPN interne nello stesso processo e verificano
 che il traffico passi dal tunnel, che a VPN chiusa non parta nessuna
 connessione e che un server VPN irraggiungibile non causi fughe di traffico.
 
+## Contenuti
+
+VodMax **non fornisce contenuti**: è un player e un media center. Abbonamenti,
+playlist, guide e cartelle li aggiunge chi lo usa, che ne è responsabile:
+usa solo sorgenti per cui hai i diritti.
+
+Copertine e schede possono venire da TMDB, con una chiave personale.
+Questo prodotto usa le API di TMDB ma non è approvato né certificato da
+[TMDB](https://www.themoviedb.org).
+
 ## Licenza
 
-Da decidere prima della pubblicazione (vedi
-[decisione 0009](docs/decisioni/0009-licenza-e-pubblicazione.md)). Finché il
-repository è privato, tutti i diritti sono riservati.
+VodMax è software libero con licenza
+**[GNU Affero General Public License v3.0](LICENSE)** (AGPL-3.0): puoi usarlo,
+studiarlo, modificarlo e ridistribuirlo; chi distribuisce una versione
+modificata, o la offre come servizio in rete, deve renderne disponibile il
+codice con la stessa licenza.
+
+**Licenza commerciale.** Per includere VodMax in un prodotto o servizio
+senza pubblicarne il codice è disponibile una licenza commerciale:
+contatta l'autore ([rikimela1992 su GitHub](https://github.com/rikimela1992)).
+
+Contributi: vedi [CONTRIBUTING.md](CONTRIBUTING.md). Le librerie incluse
+mantengono le loro licenze (Apache-2.0, MIT, ISC, BSD), indicate accanto ai
+file.

@@ -1,8 +1,23 @@
 # 0009 — Licenza e pubblicazione
 
-Stato: **Proposta**
+Stato: **Approvata** (30 ottobre 2026): **AGPL-3.0 con licenza commerciale**
+per chi vuole un uso chiuso; repository pubblico.
 
-## Situazione
+## Decisione
+
+- Licenza **AGPL-3.0** per tutto il progetto (server, interfaccia, app).
+- **Doppia licenza**: chi vuole includere VodMax in un prodotto o servizio
+  senza pubblicarne il codice può chiedere all'autore una licenza
+  commerciale.
+- Per poterla offrire l'autore deve avere i diritti su tutto il codice: i
+  contributi esterni si accettano con il **CLA** di `CONTRIBUTING.md`.
+- Più avanti: valutare la registrazione del marchio "VodMax".
+- Controlli fatti prima della pubblicazione: cronologia Git completa (nessun
+  segreto, indirizzo di casa o nome di provider; gitleaks nella CI),
+  dipendenze con licenze compatibili, avviso sui contenuti e attribuzione
+  TMDB nel README e nelle Impostazioni.
+
+## Situazione prima della decisione
 
 Repository **privato** finché la prima versione non è pronta e controllata.
 Senza un file di licenza, tutti i diritti restano riservati.

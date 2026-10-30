@@ -71,7 +71,7 @@ con l'uso di un decoder Sky:
 
 ## Prova dell'interfaccia (29 ottobre 2026)
 
-Chromium 140 automatico, catalogo reale dell'account B, server sul gateway:
+Chromium 140 automatico, catalogo reale di un account di prova, server di prova in rete locale:
 banner con numero, logo, qualità, preferito, ora e a seguire; scorrimento
 senza cambiare; lista con loghi; preferiti; numeri; tasto giallo; P+/P− e
 "solo preferiti" (3 → 22 → 1). Il browser ha contattato **solo** il server
@@ -79,7 +79,7 @@ VodMax. Questo Chromium non decodifica H.264/AAC, quindi la riproduzione
 vera non è stata provata, e il player non ha aperto flussi inutili.
 
 **Riproduzione verificata** lo stesso giorno dall'utente con Chrome su un PC di
-casa (sessione temporanea del server sul gateway, account B tramite VPN):
+casa (server di prova in rete locale, account di prova tramite VPN):
 "va da dio".
 
 ## Ancora da fare

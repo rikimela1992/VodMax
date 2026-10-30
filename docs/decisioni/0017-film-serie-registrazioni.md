@@ -53,7 +53,7 @@ Il provider accetta le richieste a intervalli (206) e risponde in 0,5–10 s.
    ▶ +30 s, Indietro esce salvando. Navigazione con le frecce verso
    l'elemento più vicino.
 
-## Prove (29 ottobre 2026, account B, server sul gateway)
+## Prove (29 ottobre 2026, account di prova, server di prova in rete locale)
 
 - Interstellar MP4 14,5 GB: intervalli a 0, 500 MB e 2 GB in 0,5 s.
 - MKV: analisi ffprobe 0,4 s; conversione dal minuto 10 con primo dato in

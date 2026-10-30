@@ -14,7 +14,7 @@ Una decisione approvata si cambia solo con una nuova scheda che la sostituisce.
 | [0006](0006-riproduzione.md) | Riproduzione | Proposta |
 | [0007](0007-registrazioni.md) | Registrazioni e catch-up | Proposta |
 | [0008](0008-sicurezza.md) | Sicurezza, accesso e privacy | Proposta |
-| [0009](0009-licenza-e-pubblicazione.md) | Licenza e pubblicazione | Proposta |
+| [0009](0009-licenza-e-pubblicazione.md) | Licenza AGPL-3.0 con licenza commerciale; pubblicazione | **Approvata** |
 | [0010](0010-prima-versione.md) | Perimetro della prima versione | Proposta |
 | [0011](0011-abbonamenti-e-tipi-di-account.md) | Abbonamenti: solo playlist (M3U, Xtream Codes) | **Approvata** |
 | [0012](0012-connessioni-vpn.md) | VPN interna obbligatoria per contattare il provider | **Approvata** (principio) |

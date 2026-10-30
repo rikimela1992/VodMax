@@ -615,7 +615,9 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
         "la locandina dove il provider non ce l'ha o l'ha rotta, la trama in italiano quando manca, lo sfondo e il cast. " +
         "La chiave si crea su themoviedb.org → Impostazioni → API. Resta cifrata sul server e non viene mai mostrata."),
       el("p", {}, m.tmdb ? el("span", { className: "ok" }, "✓ TMDB attivo") : el("span", { className: "note" }, "TMDB non configurato")),
-      form, remove ? el("div", { className: "buttons" }, remove) : null];
+      form, remove ? el("div", { className: "buttons" }, remove) : null,
+      // Attribution required by TMDB's terms of use.
+      el("p", { className: "note" }, "Questo prodotto usa le API di TMDB ma non è approvato né certificato da TMDB.")];
   }
 
   // ---- Backup ----

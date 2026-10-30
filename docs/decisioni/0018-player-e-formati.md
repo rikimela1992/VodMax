@@ -83,10 +83,10 @@ piattaforme.
   2 ore (10–360 minuti, Impostazioni → Sistema → Diretta TV). Un buffer
   per dispositivo: cambiando canale, aprendo un film o lasciando la
   pagina si cancella. Player: hls.js 1.7.3 (o l'HLS del dispositivo).
-- Misure sul gateway (Rai 1 HD): pronto in 0,9–1,4 s, ffmpeg ~42 MB di
+- Misure sul server di prova (Rai 1 HD): pronto in 0,9–1,4 s, ffmpeg ~42 MB di
   memoria e CPU trascurabile, circa 1,8 GB di disco all'ora.
 - "Ritardo minimo" resta disponibile (flusso diretto, mpegts.js).
-- Catch-up: archivio del provider (50 canali di B, quasi tutti 7 giorni)
+- Catch-up: archivio del provider (50 canali nell'account di prova, quasi tutti 7 giorni)
   con l'ora nel fuso del server Xtream (server_info.timezone); si usa
   la variante del canale che ha l'archivio. Riprodotto come un film
   (remux in MP4, salti chiedendo l'archivio dal minuto giusto): circa
