@@ -325,6 +325,26 @@ var migrations = []string{
 		SELECT id, name, kind, vpn_id, settings, secret, created_at, synced_at, sync_status, sync_error, account, rules FROM subscription;
 	DROP TABLE subscription;
 	ALTER TABLE subscription_new RENAME TO subscription;`,
+	// 13: downloads of films and episodes to the server's disk.
+	`CREATE TABLE download (
+		id              INTEGER PRIMARY KEY,
+		media           TEXT NOT NULL CHECK (media IN ('movie', 'episode')),
+		media_id        INTEGER NOT NULL,      -- the film item or the episode
+		subscription_id INTEGER NOT NULL,
+		source_id       TEXT NOT NULL,
+		extension       TEXT NOT NULL DEFAULT '',
+		title           TEXT NOT NULL,
+		path            TEXT NOT NULL,         -- inside the downloads folder
+		meta            TEXT NOT NULL DEFAULT '{}', -- JSON: what the .nfo and the poster need
+		status          TEXT NOT NULL CHECK (status IN ('queued', 'downloading', 'paused', 'done', 'failed')),
+		bytes           INTEGER NOT NULL DEFAULT 0,
+		total           INTEGER NOT NULL DEFAULT 0,
+		error           TEXT NOT NULL DEFAULT '',
+		created_at      INTEGER NOT NULL,
+		updated_at      INTEGER NOT NULL,
+		UNIQUE (media, media_id)
+	);
+	CREATE INDEX download_queue ON download (status, id);`,
 }
 
 // noForeignKeys lists migrations (1-based) that rebuild a parent table:

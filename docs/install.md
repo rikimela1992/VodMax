@@ -46,7 +46,9 @@ vodmax-server -version
   outside use your own VPN (WireGuard, Tailscale...) rather than opening the
   port.
 - **Data**: everything is in `/var/lib/vodmax` (database, encryption key,
-  admin token, recordings, backups).
+  admin token, recordings, downloads, backups). Downloads can go to another
+  disk with `-downloads /path` in `vodmax.service` (the folder must be
+  writable by `vodmax`, e.g. listed in `ReadWritePaths`).
 - **Folders for collections**: the service runs as the `vodmax` user and,
   with the provided unit, cannot see `/home` or `/tmp`. Put or mount your
   movie folders under `/mnt`, `/srv` or `/media` and make them readable by

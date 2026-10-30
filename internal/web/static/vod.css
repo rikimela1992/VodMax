@@ -272,3 +272,18 @@ video::cue { font-size: 1.6rem; background: rgba(0, 0, 0, 0.65); }
   .channels .num { font-size: 0.85rem; }
   .channels img, .channels .nologo { width: 2.8rem; height: 2rem; }
 }
+
+/* Downloads, above the recordings. */
+.downloads { list-style: none; padding: 0; margin: 0.6rem 0 1.6rem; display: grid; gap: 0.6rem; }
+.downloads li { display: flex; gap: 1rem; align-items: center; padding: 0.8rem 1rem; background: var(--raised); border-radius: 12px; }
+.downloads .dl-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.downloads .dl-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.downloads .state.downloading { color: var(--accent); }
+.downloads .state.failed { color: var(--bad); }
+.downloads .bar { display: block; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: 0.3rem; }
+.downloads .bar div { height: 100%; background: var(--accent-grad); }
+.downloads .dl-buttons { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.downloads button.small { padding: 0.4em 0.9em; font: inherit; font-size: 0.9rem; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
+.downloads button.small:focus { color: #0b0c10; background: var(--focus); outline: none; }
+.dl-state { align-self: center; }
+@media (max-width: 700px) { .downloads li { flex-direction: column; align-items: stretch; } }

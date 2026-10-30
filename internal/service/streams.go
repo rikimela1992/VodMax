@@ -20,14 +20,17 @@ import (
 //     closes the previous one first (zapping, seeking, next episode);
 //   - when all connections are used, a viewer gets ConnectionBusy and may
 //     take over the oldest viewer stream ("force");
-//   - recordings are never taken over by viewers.
+//   - recordings are never taken over by viewers;
+//   - downloads run in the background: they only take a free connection
+//     and give it up to anyone who wants to watch, without asking.
 
 type conn struct {
-	viewer    string
-	recording bool
-	cancel    context.CancelFunc
-	done      chan struct{}
-	once      sync.Once
+	viewer     string
+	recording  bool
+	background bool
+	cancel     context.CancelFunc
+	done       chan struct{}
+	once       sync.Once
 }
 
 func (c *conn) finish() { c.once.Do(func() { close(c.done) }) }
@@ -72,12 +75,22 @@ func (s *Service) maxConnections(ctx context.Context, subID int64) (int, error) 
 // returns a context that is cancelled when the stream must stop, and the
 // release function to call when it ends.
 func (s *Service) acquire(ctx context.Context, subID int64, viewer string, force, recording bool) (context.Context, func(), error) {
+	return s.acquireConn(ctx, subID, viewer, force, recording, false)
+}
+
+// acquireBackground reserves a connection only if one is free; it is
+// cancelled as soon as anyone else needs it.
+func (s *Service) acquireBackground(ctx context.Context, subID int64, key string) (context.Context, func(), error) {
+	return s.acquireConn(ctx, subID, key, false, false, true)
+}
+
+func (s *Service) acquireConn(ctx context.Context, subID int64, viewer string, force, recording, background bool) (context.Context, func(), error) {
 	max, err := s.maxConnections(ctx, subID)
 	if err != nil {
 		return nil, nil, err
 	}
 	streamCtx, cancel := context.WithCancel(ctx)
-	c := &conn{viewer: viewer, recording: recording, cancel: cancel, done: make(chan struct{})}
+	c := &conn{viewer: viewer, recording: recording, background: background, cancel: cancel, done: make(chan struct{})}
 	var stop []*conn
 	m := &s.conns
 	m.mu.Lock()
@@ -95,8 +108,15 @@ func (s *Service) acquire(ctx context.Context, subID int64, viewer string, force
 	}
 	if max > 0 && len(kept) >= max {
 		victim := -1
+		// A background stream gives way to anything else; it takes nothing.
 		for i, other := range kept {
-			if !other.recording && (force || recording) {
+			if other.background && !background {
+				victim = i
+				break
+			}
+		}
+		for i, other := range kept {
+			if victim < 0 && !background && !other.recording && (force || recording) {
 				victim = i
 				break
 			}

@@ -51,6 +51,7 @@ telecomando.
 | ⏸️ **Pausa e archivio** | Pausa e riavvolgimento della diretta, programma dall'inizio, archivio della playlist |
 | ⏺️ **Registrazioni** | Il programma in onda, dalla guida o per regola ("ogni partita", "il telegiornale"), con controllo di disco e connessioni |
 | 🎬 **Film e serie** | Locandine, trama e cast, continua a guardare, episodio successivo, lingua dell'audio e sottotitoli, MKV/AVI/HEVC convertiti al volo |
+| ⬇️ **Download** | Film, episodi, stagioni o serie intere copiati sul disco del server, da guardare senza la playlist; uno alla volta e solo con una connessione libera (chi guarda ha la precedenza), anche solo di notte |
 | 📁 **Raccolte locali** | Cartelle di film o serie con i nomi di Jellyfin/Kodi/Plex, file `.nfo` e immagini accanto ai video |
 | 🧹 **Selezione del catalogo** | Solo i paesi, gli anni e le categorie che vuoi, con anteprima |
 | 👪 **Profili** | Avanzamenti e preferiti per persona, profili bambini, dispositivi abbinati con un codice |

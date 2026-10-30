@@ -569,7 +569,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       parts.push(el("h2", {}, "App"), el("p", { className: "note" }, t("VodMax per Android {version}, collegata a {server}.", { version: window.VodMax.native.version(), server: location.origin })),
         appButtons, appStatus);
     }
-    parts.push(...await liveSection(), ...await recordingLimits(), ...(await metadataSection()).filter(Boolean), ...await backupSection());
+    parts.push(...await downloadSection(), ...await liveSection(), ...await recordingLimits(), ...(await metadataSection()).filter(Boolean), ...await backupSection());
     main.replaceChildren(...parts);
   }
 
@@ -604,6 +604,36 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     parts.push(el("label", { className: "check" }, auto, t("Controlla ogni giorno se c'è una nuova versione (contatta solo GitHub, senza inviare dati)")),
       el("div", { className: "buttons" }, check));
     return parts;
+  }
+
+  // ---- Downloads ----
+  async function downloadSection() {
+    // Not on a device running alone: there the list answers with an error.
+    if (!(await api("GET", "/api/v1/downloads").then(() => true, () => false))) return [];
+    const set = await api("GET", "/api/v1/settings/downloads");
+    const night = input({ type: "checkbox", checked: set.night_only });
+    const hours = (v) => {
+      const sel = el("select", { className: "focusable" }, ...Array.from({ length: 24 }, (_, h) => el("option", { value: h }, String(h).padStart(2, "0") + ":00")));
+      sel.value = v;
+      return sel;
+    };
+    const from = hours(set.from_hour), to = hours(set.to_hour);
+    const save = el("button", { className: "small primary focusable full", type: "submit" }, t("Salva"));
+    const form = el("form", { className: "form" }, el("label", {}, t("Quando")), el("label", { className: "check" }, night, t("Solo in una fascia oraria")),
+      ...field(t("Dalle"), from), ...field(t("Alle"), to), save);
+    const sync = () => { from.disabled = to.disabled = !night.checked; };
+    night.onchange = sync;
+    sync();
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        await api("PUT", "/api/v1/settings/downloads", { night_only: night.checked, from_hour: Number(from.value), to_hour: Number(to.value) });
+        flash(t("Impostazioni dei download salvate"));
+      } catch (err) { flash(err.message); }
+    };
+    return [el("h2", {}, t("Download")),
+      el("p", { className: "note" }, t("Film ed episodi scaricati vanno nella cartella dei download del server e compaiono nelle raccolte «Scaricati». " +
+        "Si scarica uno alla volta e solo con una connessione libera: chi guarda ha sempre la precedenza. L'elenco è nella pagina Registrazioni.")), form];
   }
 
   // ---- Live TV ----

@@ -51,6 +51,7 @@ decoder with the remote.
 | ⏸️ **Timeshift & catch-up** | Pause and rewind live TV, start the programme from the beginning, replay from the playlist's archive |
 | ⏺️ **Recordings (DVR)** | Record what is on, from the guide or by rule ("every match", "the news"), with disk and connection checks |
 | 🎬 **Movies & series** | Posters, plots and cast, continue watching, next episode, audio and subtitle languages, MKV/AVI/HEVC converted on the fly |
+| ⬇️ **Downloads** | Copy movies, episodes, seasons or whole series to the server's disk, to watch them without the playlist; one at a time, only on a free connection (whoever watches comes first), optionally at night |
 | 📁 **Local collections** | Folders of movies or series named like Jellyfin/Kodi/Plex libraries, `.nfo` files and artwork next to the videos |
 | 🧹 **Catalog selection** | Keep only the countries, years and categories you want, with a live preview |
 | 👪 **Profiles** | Per-person progress and favourites, kids profiles, devices paired with a short code |

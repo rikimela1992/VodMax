@@ -75,6 +75,13 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	route("GET /api/v1/items/{id}/variants", levelViewer, a.variants)
 	route("GET /api/v1/items/{id}/details", levelViewer, a.details)
 	route("POST /api/v1/debug/player", levelViewer, a.playerLog)
+	route("GET /api/v1/downloads", levelMember, a.listDownloads)
+	route("POST /api/v1/downloads", levelMember, a.addDownload)
+	route("POST /api/v1/downloads/{id}/pause", levelMember, a.pauseDownload)
+	route("POST /api/v1/downloads/{id}/resume", levelMember, a.resumeDownload)
+	route("DELETE /api/v1/downloads/{id}", levelMember, a.deleteDownload)
+	route("GET /api/v1/settings/downloads", levelViewer, a.getDownloadSettings)
+	route("PUT /api/v1/settings/downloads", levelAdmin, a.putDownloadSettings)
 	route("GET /api/v1/update", levelDevice, a.getUpdate)
 	route("POST /api/v1/update/check", levelAdmin, a.checkUpdate)
 	route("PUT /api/v1/settings/updates", levelAdmin, a.putUpdateSettings)
@@ -1254,6 +1261,69 @@ func (a *api) details(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, d)
+}
+
+func (a *api) listDownloads(w http.ResponseWriter, r *http.Request) {
+	list, err := a.svc.Downloads(r.Context())
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+func (a *api) addDownload(w http.ResponseWriter, r *http.Request) {
+	var in service.DownloadRequest
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	res, err := a.svc.AddDownload(r.Context(), in)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, res)
+}
+
+func (a *api) pauseDownload(w http.ResponseWriter, r *http.Request) {
+	a.downloadAction(w, r, a.svc.PauseDownload)
+}
+func (a *api) resumeDownload(w http.ResponseWriter, r *http.Request) {
+	a.downloadAction(w, r, a.svc.ResumeDownload)
+}
+func (a *api) deleteDownload(w http.ResponseWriter, r *http.Request) {
+	a.downloadAction(w, r, a.svc.DeleteDownload)
+}
+
+func (a *api) downloadAction(w http.ResponseWriter, r *http.Request, do func(context.Context, int64) error) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if err := do(r.Context(), id); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) getDownloadSettings(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, a.svc.DownloadSettings(r.Context()))
+}
+
+func (a *api) putDownloadSettings(w http.ResponseWriter, r *http.Request) {
+	var in service.DownloadSettings
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if err := a.svc.SetDownloadSettings(r.Context(), in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, a.svc.DownloadSettings(r.Context()))
 }
 
 // getUpdate: the newest release known to the server (also to devices: the

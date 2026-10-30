@@ -133,6 +133,7 @@ type ItemDetails struct {
 	Trailer       string   `json:"trailer,omitempty"`  // YouTube id
 	Backdrop      string   `json:"backdrop,omitempty"` // signed local URL
 	Sources       []string `json:"sources"`
+	Local         bool     `json:"local,omitempty"` // a file of a collection (nothing to download)
 }
 
 func (s *Service) Details(ctx context.Context, itemID int64) (ItemDetails, error) {
@@ -167,6 +168,7 @@ func (s *Service) Details(ctx context.Context, itemID int64) (ItemDetails, error
 	if t.Title != "" {
 		d.Sources = append(d.Sources, "tmdb")
 	}
+	_, d.Local, _ = s.local(ctx, m.SubscriptionID)
 	return d, nil
 }
 

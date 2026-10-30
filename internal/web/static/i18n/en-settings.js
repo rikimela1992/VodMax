@@ -314,4 +314,11 @@ VodMaxI18n.add("en", {
   "Controllo giornaliero disattivato": "Daily check off",
   "Controlla ora": "Check now",
   "Controlla ogni giorno se c'è una nuova versione (contatta solo GitHub, senza inviare dati)": "Check every day for a new version (contacts GitHub only, sends no data)",
+  "Quando": "When",
+  "Solo in una fascia oraria": "Only within a time window",
+  "Dalle": "From",
+  "Alle": "To",
+  "Impostazioni dei download salvate": "Download settings saved",
+  "Download": "Downloads",
+  "Film ed episodi scaricati vanno nella cartella dei download del server e compaiono nelle raccolte «Scaricati». Si scarica uno alla volta e solo con una connessione libera: chi guarda ha sempre la precedenza. L'elenco è nella pagina Registrazioni.": "Downloaded movies and episodes go to the server's downloads folder and appear in the “Scaricati” (Downloads) collections. One at a time, and only on a free connection: whoever is watching always comes first. The list is on the Recordings page.",
 });

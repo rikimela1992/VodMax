@@ -1,0 +1,125 @@
+package api
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"io"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+)
+
+type downloadRow struct {
+	ID     int64  `json:"id"`
+	Title  string `json:"title"`
+	Path   string `json:"path"`
+	Status string `json:"status"`
+	Bytes  int64  `json:"bytes"`
+	Error  string `json:"error"`
+}
+
+func waitDownloads(t *testing.T, e *env, n int) []downloadRow {
+	t.Helper()
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		_, body := e.do(t, "GET", "/api/v1/downloads", nil, true)
+		var list []downloadRow
+		json.Unmarshal(body, &list)
+		done := 0
+		for _, d := range list {
+			if d.Status == "done" {
+				done++
+			}
+		}
+		if len(list) == n && done == n {
+			return list
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("downloads not done: %s", body)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+func TestDownloads(t *testing.T) {
+	e, p := tvSetup(t)
+	dir := t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	if err := e.svc.StartDownloads(ctx, dir, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
+		t.Fatal(err)
+	}
+	film := findItem(t, e, "movie", "1408")
+	// A previous, interrupted attempt: the download resumes from it.
+	movie := filepath.Join(dir, "Movies", "1408 (2007)", "1408 (2007).mp4")
+	os.MkdirAll(filepath.Dir(movie), 0o755)
+	os.WriteFile(movie+".part", fakeFilm[:1000], 0o644)
+
+	code, body := e.do(t, "POST", "/api/v1/downloads", map[string]any{"media": "movie", "id": film}, true)
+	if code != 201 || !strings.Contains(string(body), `"added":1`) {
+		t.Fatalf("add: %d %s", code, body)
+	}
+	if _, body := e.do(t, "POST", "/api/v1/downloads", map[string]any{"media": "movie", "id": film}, true); !strings.Contains(string(body), `"already":1`) {
+		t.Fatalf("again: %s", body)
+	}
+	waitDownloads(t, e, 1)
+	got, err := os.ReadFile(movie)
+	if err != nil || !bytes.Equal(got, fakeFilm) {
+		t.Fatalf("film file: %v (%d bytes)", err, len(got))
+	}
+	if !strings.Contains(strings.Join(p.ranges, ","), "bytes=1000-") {
+		t.Fatalf("not resumed: %v", p.ranges)
+	}
+	if _, err := os.Stat(filepath.Join(filepath.Dir(movie), "1408 (2007).nfo")); err != nil {
+		t.Fatal("no .nfo next to the film")
+	}
+	// The downloaded copy is a collection, preferred to the provider's.
+	_, body = e.do(t, "GET", "/api/v1/subscriptions", nil, true)
+	if !strings.Contains(string(body), "Scaricati · Film") {
+		t.Fatalf("collection: %s", body)
+	}
+	_, body = e.do(t, "GET", "/api/v1/catalog/movie?q=1408", nil, true)
+	var page struct {
+		Items []struct {
+			SubscriptionID int64 `json:"subscription_id"`
+		} `json:"items"`
+	}
+	json.Unmarshal(body, &page)
+	if len(page.Items) != 1 || page.Items[0].SubscriptionID == 1 {
+		t.Fatalf("local copy first: %s", body)
+	}
+
+	// A whole series: each episode in its season folder.
+	series := findItem(t, e, "series", "twin")
+	if code, body := e.do(t, "POST", "/api/v1/downloads", map[string]any{"media": "series", "id": series}, true); code != 201 || !strings.Contains(string(body), `"added":3`) {
+		t.Fatalf("series: %d %s", code, body)
+	}
+	list := waitDownloads(t, e, 4)
+	var eps []string
+	for _, d := range list {
+		if strings.HasPrefix(d.Path, "TV Shows/") {
+			eps = append(eps, d.Path)
+		}
+	}
+	if len(eps) != 3 || !strings.Contains(strings.Join(eps, "|"), "TV Shows/Twin Peaks/Season 2/") {
+		t.Fatalf("episodes: %v", eps)
+	}
+
+	// Deleting removes the file and leaves the collection without it.
+	id := strconv.FormatInt(list[0].ID, 10)
+	if code, _ := e.do(t, "DELETE", "/api/v1/downloads/"+id, nil, true); code != 204 {
+		t.Fatalf("delete: %d", code)
+	}
+	if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(list[0].Path))); !os.IsNotExist(err) {
+		t.Fatalf("file still there: %v", err)
+	}
+	// A window that starts and ends at the same hour is refused.
+	if code, _ := e.do(t, "PUT", "/api/v1/settings/downloads", map[string]any{"night_only": true, "from_hour": 3, "to_hour": 3}, true); code != 400 {
+		t.Fatal("empty window accepted")
+	}
+}

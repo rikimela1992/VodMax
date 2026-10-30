@@ -30,6 +30,7 @@ Una decisione approvata si cambia solo con una nuova scheda che la sostituisce.
 | [0022](0022-raccolte-locali.md) | Raccolte locali: cartelle di film e serie | **Approvata** |
 | [0023](0023-lingue.md) | Lingue dell'interfaccia: italiano e inglese | **Approvata** |
 | [0024](0024-aggiornamenti.md) | Aggiornamenti: avviso dal server, app Android, `vodmax-update` | **Approvata** |
+| [0025](0025-download.md) | Download di film e serie sul disco del server | **Approvata** |
 
 ## Ordine consigliato per decidere
 

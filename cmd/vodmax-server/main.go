@@ -44,6 +44,7 @@ func main() {
 	recordings := flag.String("recordings", "", "cartella delle registrazioni (predefinita: <data>/recordings)")
 	ffmpeg := flag.String("ffmpeg", "ffmpeg", "eseguibile ffmpeg (per film in MKV/AVI nel browser)")
 	ffprobe := flag.String("ffprobe", "ffprobe", "eseguibile ffprobe")
+	downloads := flag.String("downloads", "", "cartella dei download di film e serie (predefinita: <data>/downloads)")
 	device := flag.Bool("device", false, "dentro l'app Android, per quel dispositivo: senza registrazioni né pausa della diretta")
 	showVersion := flag.Bool("version", false, "mostra la versione ed esce")
 	flag.Parse()
@@ -52,16 +53,19 @@ func main() {
 		return
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	if *downloads == "" {
+		*downloads = filepath.Join(*data, "downloads")
+	}
 	if *recordings == "" {
 		*recordings = filepath.Join(*data, "recordings")
 	}
-	if err := run(*data, *listen, *recordings, *ffmpeg, *ffprobe, *device, log); err != nil {
+	if err := run(*data, *listen, *recordings, *downloads, *ffmpeg, *ffprobe, *device, log); err != nil {
 		log.Error("avvio fallito", "err", err)
 		os.Exit(1)
 	}
 }
 
-func run(data, listen, recordings, ffmpeg, ffprobe string, device bool, log *slog.Logger) error {
+func run(data, listen, recordings, downloads, ffmpeg, ffprobe string, device bool, log *slog.Logger) error {
 	if err := os.MkdirAll(data, 0o700); err != nil {
 		return err
 	}
@@ -100,6 +104,9 @@ func run(data, listen, recordings, ffmpeg, ffprobe string, device bool, log *slo
 			return err
 		}
 		if err := svc.SetTimeshiftDir(filepath.Join(data, "timeshift"), log); err != nil {
+			return err
+		}
+		if err := svc.StartDownloads(ctx, downloads, log); err != nil {
 			return err
 		}
 	}

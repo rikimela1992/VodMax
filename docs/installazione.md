@@ -45,7 +45,10 @@ vodmax-server -version
   `vodmax.service` (`-listen`). Tienila dentro la rete di casa; da fuori usa
   una tua VPN (WireGuard, Tailscale…) invece di aprire la porta.
 - **Dati**: tutto in `/var/lib/vodmax` (database, chiave di cifratura,
-  token di amministrazione, registrazioni, backup).
+  token di amministrazione, registrazioni, download, backup). I download
+  possono andare su un altro disco con `-downloads /percorso` in
+  `vodmax.service` (la cartella deve essere scrivibile dall'utente `vodmax`,
+  per esempio aggiunta a `ReadWritePaths`).
 - **Cartelle delle raccolte**: il servizio gira come utente `vodmax` e, con
   il file fornito, non vede `/home` né `/tmp`. Metti o monta le cartelle dei
   film sotto `/mnt`, `/srv` o `/media`, leggibili dall'utente `vodmax`.

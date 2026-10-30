@@ -3,8 +3,19 @@ package service
 // messagesEN translates the Italian messages (format strings, exactly as
 // written in the code) into English.
 var messagesEN = map[string]string{
-	"controllo degli aggiornamenti non riuscito: %v": "update check failed: %v",
-	"nessuna versione pubblicata":                    "no published version",
+	"su questo dispositivo non si scarica: i download sono del server di casa": "this device does not download: downloads belong to the home server",
+	"fascia oraria non valida (ore 0-23, inizio diverso dalla fine)":           "invalid time window (hours 0-23, start different from end)",
+	"i profili bambini non scaricano":                                          "kids profiles cannot download",
+	"nessun episodio da scaricare":                                             "no episode to download",
+	"cosa scaricare: movie, episode, season o series":                          "what to download: movie, episode, season or series",
+	"è già un file della raccolta":                                             "it is already a file of the collection",
+	"si scaricano per ora solo i titoli degli abbonamenti Xtream":              "for now only titles of Xtream subscriptions can be downloaded",
+	"download già completato":                                                  "download already completed",
+	"spazio su disco insufficiente":                                            "not enough disk space",
+	"in attesa di una connessione libera":                                      "waiting for a free connection",
+	"in pausa: la connessione serve a chi guarda":                              "paused: the connection is needed by someone watching",
+	"controllo degli aggiornamenti non riuscito: %v":                           "update check failed: %v",
+	"nessuna versione pubblicata":                                              "no published version",
 	// Access and profiles
 	"dispositivo non abbinato o token non valido":      "device not paired or invalid token",
 	"scegli chi sta guardando":                         "choose who's watching",

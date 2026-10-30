@@ -355,7 +355,65 @@
       })));
     }
     if (!kids) parts.push(...await rulesSection());
+    const dl = kids ? null : await downloadList(true);
+    if (dl) parts.splice(2, 0, downloadsSection(dl));
     main.replaceChildren(...parts);
+    watchDownloads(dl);
+  }
+
+  // The downloads, above the recordings; refreshed while one is running.
+  function downloadsSection(list) {
+    const gb = (b) => b >= 1e9 ? (b / 1e9).toLocaleString(locale, { maximumFractionDigits: 2 }) + " GB"
+      : Math.round(b / 1e6).toLocaleString(locale) + " MB";
+    const box = el("section", { id: "downloads" }, el("h2", {}, t("Download")));
+    if (!list.length) {
+      box.append(el("p", { className: "empty" }, t("Nessun download. Nella scheda di un film o di una serie premi “Scarica”: il server lo copia sul suo disco, " +
+        "senza togliere la connessione a chi guarda, e lo trovi nelle raccolte «Scaricati».")));
+      return box;
+    }
+    box.append(el("ol", { className: "downloads" }, ...list.map((d) => {
+      const pct = d.total ? Math.min(100, (d.bytes / d.total) * 100) : 0;
+      const size = d.total ? gb(d.bytes) + " / " + gb(d.total) : d.bytes ? gb(d.bytes) : "";
+      const row = el("li", {}, el("div", { className: "dl-main" }, el("strong", {}, d.title),
+        el("span", { className: "state " + d.status }, (dlState[d.status] || d.status) + (size ? " · " + size : "")),
+        d.error ? el("small", { className: "empty" }, d.error) : null,
+        d.status !== "done" ? el("span", { className: "bar" }, el("div", { style: "width:" + pct + "%" })) : null));
+      const buttons = el("div", { className: "dl-buttons" });
+      const act = (label, method, path) => {
+        const b = el("button", { className: "focusable small" }, label);
+        b.onclick = async () => {
+          if (method === "DELETE" && !confirm(t("Eliminare “{title}” e il suo file?", { title: d.title }))) return;
+          try { await api(method, path); render(); } catch (e) { flash(e.message); }
+        };
+        buttons.append(b);
+      };
+      if (d.status === "downloading" || d.status === "queued") act(t("Pausa"), "POST", "/api/v1/downloads/" + d.id + "/pause");
+      if (d.status === "paused" || d.status === "failed") act(t("Riprendi"), "POST", "/api/v1/downloads/" + d.id + "/resume");
+      act(t("Elimina"), "DELETE", "/api/v1/downloads/" + d.id);
+      row.append(buttons);
+      return row;
+    })));
+    return box;
+  }
+  let dlTimer;
+  function watchDownloads(list) {
+    clearTimeout(dlTimer);
+    if (!list || !list.some((d) => d.status === "downloading" || d.status === "queued")) return;
+    dlTimer = setTimeout(async () => {
+      if (state.view !== "recordings" || !$("downloads")) return;
+      const fresh = await downloadList(true);
+      if (!fresh || !$("downloads")) return;
+      // Redrawn in place; the focused button (remote) stays focused.
+      const old = $("downloads"), buttons = [...old.querySelectorAll("button")];
+      const at = buttons.indexOf(document.activeElement);
+      const next = downloadsSection(fresh);
+      old.replaceWith(next);
+      if (at >= 0) {
+        const again = next.querySelectorAll("button");
+        (again[Math.min(at, again.length - 1)] || next).focus({ preventScroll: true });
+      }
+      watchDownloads(fresh);
+    }, 3000);
   }
 
   async function toggleProtected(id, now) {
@@ -482,6 +540,7 @@
     const rows = [[t("Regia"), d.director], [t("Cast"), d.cast], [t("Uscita"), d.released], [t("Paese"), d.country],
       [t("Titolo originale"), d.original_title && d.original_title !== item.display_title ? d.original_title : ""]];
     for (const [k, v] of rows) if (v) $("detail-credits").append(el("dt", {}, k), el("dd", {}, v));
+    if (!d.local && item.kind === "movie") addDownloadButtons(item);
     if (d.trailer) {
       const a = el("a", { className: "button focusable trailer", href: "https://www.youtube.com/watch?v=" + encodeURIComponent(d.trailer),
         target: "_blank", rel: "noopener noreferrer" });
@@ -496,6 +555,50 @@
         panel.classList.add("with-backdrop");
       };
       img.src = d.backdrop;
+    }
+  }
+
+  // ---- Downloads to the server's disk ----
+  // The list is read once per page to know whether downloads exist here
+  // (not on a device running alone) and what is already downloaded.
+  let downloads = null;
+  async function downloadList(fresh) {
+    if (!downloads || fresh) downloads = await api("GET", "/api/v1/downloads").catch(() => false);
+    return downloads;
+  }
+  const dlState = { queued: t("In coda"), downloading: t("In download"), paused: t("In pausa"), done: t("Scaricato"), failed: t("Non riuscito") };
+  async function addDownloadButtons(item, season) {
+    const who = await window.VodMax.me().catch(() => null);
+    const list = await downloadList();
+    if (!list || state.detail !== item || (who && who.profile && who.profile.kind === "kids")) return;
+    if (item.kind === "series") {
+      // A series of a collection is already on disk.
+      const d = await api("GET", "/api/v1/items/" + item.id + "/details").catch(() => ({}));
+      if (d.local || state.detail !== item) return;
+    }
+    const actions = $("detail-actions");
+    const add = (label, body) => {
+      const b = el("button", { className: "button focusable download" });
+      window.VodMax.label(b, "download", label);
+      b.onclick = async () => {
+        try {
+          const r = await api("POST", "/api/v1/downloads", body);
+          flash(r.added ? t("Aggiunti ai download: {n}", { n: r.added }) + (r.already ? " · " + t("già presenti: {n}", { n: r.already }) : "")
+            : t("Già nei download"));
+          downloadList(true);
+        } catch (e) { flash(e.message); }
+      };
+      actions.insertBefore(b, actions.querySelector(".trailer"));
+    };
+    if (item.kind === "movie") {
+      const d = list.find((x) => x.media === "movie" && x.media_id === item.id);
+      if (d) {
+        const s = el("span", { className: "empty dl-state" }, "⬇ " + (dlState[d.status] || d.status));
+        actions.insertBefore(s, actions.querySelector(".trailer"));
+      } else add(t("Scarica"), { media: "movie", id: item.id });
+    } else {
+      if (season) add(t("Scarica la stagione {n}", { n: season }), { media: "season", id: item.id, season });
+      add(t("Scarica la serie"), { media: "series", id: item.id });
     }
   }
 
@@ -590,6 +693,7 @@
       $("detail-actions").append(go);
       showSeason(next.season);
     }
+    addDownloadButtons(item, next ? next.season : 0);
     focusFirst($("detail-actions"));
   }
 
