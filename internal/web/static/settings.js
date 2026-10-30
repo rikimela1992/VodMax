@@ -633,7 +633,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     };
     return [el("h2", {}, t("Download")),
       el("p", { className: "note" }, t("Film ed episodi scaricati vanno nella cartella dei download del server e compaiono nelle raccolte «Scaricati». " +
-        "Si scarica uno alla volta e solo con una connessione libera: chi guarda ha sempre la precedenza. L'elenco è nella pagina Registrazioni.")), form];
+        "Si scarica uno alla volta e solo con una connessione libera: chi guarda ha sempre la precedenza. L'elenco è nella pagina Download del menu.")), form];
   }
 
   // ---- Live TV ----

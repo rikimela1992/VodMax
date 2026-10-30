@@ -6,8 +6,9 @@ film o serie onpremise")
 ## Decisione
 
 - Dalla scheda di un film o di una serie: **Scarica** (film), **Scarica la
-  stagione N**, **Scarica la serie**. Profili bambini esclusi. Elenco con
-  avanzamento, pausa, ripresa ed eliminazione nella pagina Registrazioni.
+  stagione N**, **Scarica la serie**. Profili bambini esclusi. Pagina **Download**
+  nel menu (e in «Altro» sul telefono) con avanzamento, pausa, ripresa ed
+  eliminazione del file.
 - I file vanno nella cartella dei download del server (`<data>/downloads`,
   opzione `-downloads`) con i nomi di una libreria Jellyfin/Kodi:
   `Movies/Titolo (Anno)/Titolo (Anno).ext`,

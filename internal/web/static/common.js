@@ -201,13 +201,20 @@ window.VodMax = (() => {
       const sheet = el("div", { id: "more-sheet", className: "sheet", hidden: true },
         el("div", { className: "sheet-grip" }),
         entry("video", t("Registrazioni"), go("recordings")),
+        entry("download", t("Download"), go("downloads"), "downloads-only"),
         entry("calendar-days", t("Guida TV"), () => { location.href = "/guide.html"; }),
         entry("settings", t("Impostazioni"), () => { location.href = "/settings.html"; }, "admin-only"),
         entry("user", t("Cambia profilo"), () => { closeSheet(); store.set("profile", ""); showProfiles(); }),
         native ? entry("tv", t("Cambia server"), () => native.changeServer()) : "");
       const scrim = el("div", { id: "more-scrim", className: "scrim", hidden: true, onclick: () => closeSheet() });
       document.body.append(scrim, sheet);
-      me().then((who) => { for (const a of sheet.querySelectorAll(".admin-only")) a.hidden = !who.admin; }).catch(() => {});
+      me().then((who) => {
+        for (const a of sheet.querySelectorAll(".admin-only")) a.hidden = !who.admin;
+        // Downloads: not for kids profiles, not on a device running alone.
+        const kids = who.profile && who.profile.kind === "kids";
+        for (const a of sheet.querySelectorAll(".downloads-only")) a.hidden = true;
+        if (!kids) api("GET", "/api/v1/downloads").then(() => { for (const a of sheet.querySelectorAll(".downloads-only")) a.hidden = false; }, () => {});
+      }).catch(() => {});
     }
     if (active) for (const b of navBar.children) b.classList.toggle("active", b.dataset.key === active);
   }

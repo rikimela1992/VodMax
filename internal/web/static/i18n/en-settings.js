@@ -320,5 +320,5 @@ VodMaxI18n.add("en", {
   "Alle": "To",
   "Impostazioni dei download salvate": "Download settings saved",
   "Download": "Downloads",
-  "Film ed episodi scaricati vanno nella cartella dei download del server e compaiono nelle raccolte «Scaricati». Si scarica uno alla volta e solo con una connessione libera: chi guarda ha sempre la precedenza. L'elenco è nella pagina Registrazioni.": "Downloaded movies and episodes go to the server's downloads folder and appear in the “Scaricati” (Downloads) collections. One at a time, and only on a free connection: whoever is watching always comes first. The list is on the Recordings page.",
+  "Film ed episodi scaricati vanno nella cartella dei download del server e compaiono nelle raccolte «Scaricati». Si scarica uno alla volta e solo con una connessione libera: chi guarda ha sempre la precedenza. L'elenco è nella pagina Download del menu.": "Downloaded movies and episodes go to the server's downloads folder and appear in the “Scaricati” (Downloads) collections. One at a time, and only on a free connection: whoever is watching always comes first. The list is on the Downloads page of the menu.",
 });

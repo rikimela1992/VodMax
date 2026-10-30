@@ -179,4 +179,5 @@ VodMaxI18n.add("en", {
   "Già nei download": "Already in downloads",
   "Scarica la stagione {n}": "Download season {n}",
   "Scarica la serie": "Download the series",
+  "I download non sono disponibili su questo dispositivo.": "Downloads are not available on this device.",
 });

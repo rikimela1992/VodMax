@@ -14,7 +14,7 @@
   };
 
   const askedView = new URLSearchParams(location.search).get("view");
-  const state = { view: ["home", "movie", "series", "recordings", "tv"].includes(askedView) ? askedView : store.get("vodView", "home"), query: "", detail: null, play: null };
+  const state = { view: ["home", "movie", "series", "recordings", "downloads", "tv"].includes(askedView) ? askedView : store.get("vodView", "home"), query: "", detail: null, play: null };
   if (askedView) history.replaceState(null, "", "/");
   let statusTimer;
   function flash(text) {
@@ -62,7 +62,7 @@
   // ---- Views ----
   function setTabs() {
     for (const tab of document.querySelectorAll(".tab[data-view]")) tab.classList.toggle("active", tab.dataset.view === state.view);
-    window.VodMax.bottomNav(state.view === "recordings" ? "more" : state.view);
+    window.VodMax.bottomNav(state.view === "recordings" || state.view === "downloads" ? "more" : state.view);
   }
 
   async function render() {
@@ -76,6 +76,7 @@
       else if (state.query) await renderSearch(main);
       else if (state.view === "home") await renderHome(main);
       else if (state.view === "recordings") await renderRecordings(main);
+      else if (state.view === "downloads") await renderDownloads(main);
       else await renderGrid(main, state.view);
     } catch (e) {
       main.replaceChildren(el("p", { className: "empty" }, e.message));
@@ -355,13 +356,24 @@
       })));
     }
     if (!kids) parts.push(...await rulesSection());
-    const dl = kids ? null : await downloadList(true);
-    if (dl) parts.splice(2, 0, downloadsSection(dl));
     main.replaceChildren(...parts);
-    watchDownloads(dl);
   }
 
-  // The downloads, above the recordings; refreshed while one is running.
+  // ---- The downloads page; refreshed while one is running ----
+  async function renderDownloads(main) {
+    const dl = await downloadList(true);
+    if (!dl) { main.replaceChildren(el("p", { className: "empty" }, t("I download non sono disponibili su questo dispositivo."))); return; }
+    main.replaceChildren(downloadsSection(dl));
+    watchDownloads(dl);
+  }
+  // The Download tab appears where downloads exist (not for kids).
+  function showDownloadsTab() {
+    window.VodMax.me().then((who) => {
+      if (who && who.profile && who.profile.kind === "kids") return;
+      downloadList().then((list) => { const tab = document.querySelector('.tab[data-view="downloads"]'); if (list && tab) tab.hidden = false; });
+    }).catch(() => {});
+  }
+
   function downloadsSection(list) {
     const gb = (b) => b >= 1e9 ? (b / 1e9).toLocaleString(locale, { maximumFractionDigits: 2 }) + " GB"
       : Math.round(b / 1e6).toLocaleString(locale) + " MB";
@@ -400,7 +412,7 @@
     clearTimeout(dlTimer);
     if (!list || !list.some((d) => d.status === "downloading" || d.status === "queued")) return;
     dlTimer = setTimeout(async () => {
-      if (state.view !== "recordings" || !$("downloads")) return;
+      if (state.view !== "downloads" || !$("downloads")) return;
       const fresh = await downloadList(true);
       if (!fresh || !$("downloads")) return;
       // Redrawn in place; the focused button (remote) stays focused.
@@ -1217,6 +1229,7 @@
   const asked = new URLSearchParams(location.search);
   window.VodMax.withToken(() => {
     render();
+    showDownloadsTab();
     if (asked.get("catchup")) {
       state.catchup = { start: Number(asked.get("start")), stop: Number(asked.get("stop")), title: asked.get("title") || "" };
       const back = asked.get("back") || "";
