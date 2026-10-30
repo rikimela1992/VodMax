@@ -171,5 +171,12 @@ a network service, must make its source available under the same license.
 publishing its source, a commercial license is available: contact the author
 ([silirim on GitHub](https://github.com/silirim)).
 
+**Name and logo.** The license covers the code, not the brand. The name
+"VodMax" and the logos in [`docs/brand`](docs/brand) identify this project:
+forks and modified versions are welcome, but must use a different name and
+logo, and must not suggest they are the official VodMax or endorsed by its
+author. Saying that a project is "based on VodMax" or "a fork of VodMax" is
+fine. Unmodified builds of the official releases may keep the name.
+
 Bundled libraries keep their own licenses (Apache-2.0, MIT, ISC, BSD),
 listed next to their files.

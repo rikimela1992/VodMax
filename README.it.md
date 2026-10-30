@@ -169,5 +169,13 @@ stessa licenza.
 senza pubblicarne il codice è disponibile una licenza commerciale: contatta
 l'autore ([silirim su GitHub](https://github.com/silirim)).
 
+**Nome e logo.** La licenza riguarda il codice, non il marchio. Il nome
+"VodMax" e i loghi in [`docs/brand`](docs/brand) identificano questo
+progetto: fork e versioni modificate sono benvenuti, ma devono usare un nome
+e un logo diversi e non presentarsi come il VodMax ufficiale o come
+approvati dall'autore. Dire che un progetto è "basato su VodMax" o "un fork
+di VodMax" va bene. Le build non modificate delle release ufficiali possono
+mantenere il nome.
+
 Le librerie incluse mantengono le loro licenze (Apache-2.0, MIT, ISC, BSD),
 indicate accanto ai file.

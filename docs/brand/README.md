@@ -18,3 +18,8 @@
   full name.
 - Keep it away from the look of other video services: no play triangle, no
   red as the main colour.
+
+**Use of the name and logo.** "VodMax" and these logos identify the official
+project and are not covered by the AGPL code license. Modified versions and
+forks must use their own name and logo; "based on VodMax" is fine. See the
+README, section License.
