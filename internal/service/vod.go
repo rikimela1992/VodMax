@@ -237,6 +237,18 @@ type PlaybackSession struct {
 	// SubtitlesURL returns the WebVTT of the chosen subtitles, written
 	// while the remux runs (?sub=N on the remux URL).
 	SubtitlesURL string `json:"subtitles_url,omitempty"`
+	// Episodes: the one after, and where opening and credits are.
+	Next    *NextEpisode         `json:"next,omitempty"`
+	Markers *store.SeriesMarkers `json:"markers,omitempty"`
+	Series  int64                `json:"series_id,omitempty"`
+}
+
+// NextEpisode is the episode that follows the one playing.
+type NextEpisode struct {
+	ID     int64  `json:"id"`
+	Season int    `json:"season"`
+	Number int    `json:"number"`
+	Title  string `json:"title"` // as the player shows it: "Series · S1E2 Title"
 }
 
 // Track is an audio or subtitle stream; Index counts within its type.
@@ -260,6 +272,7 @@ func (s *Service) NewPlaybackSession(ctx context.Context, media string, id int64
 	s.stopViewerTimeshift(viewer)
 	var it store.PlaybackItem
 	var duration int
+	var episode store.Episode
 	title := ""
 	kind := xtream.KindMovie
 	switch media {
@@ -284,8 +297,8 @@ func (s *Service) NewPlaybackSession(ctx context.Context, media string, id int64
 		if err := s.allowItem(ctx, e.SeriesItemID); err != nil {
 			return PlaybackSession{}, err
 		}
-		kind, duration = xtream.KindEpisode, e.Duration
-		title = fmt.Sprintf("%s · S%dE%d %s", it.Title, e.Season, e.Number, e.Title)
+		kind, duration, episode = xtream.KindEpisode, e.Duration, e
+		title = playerTitle(it.Title, e)
 	default:
 		return PlaybackSession{}, invalid("tipo non valido: movie o episode")
 	}
@@ -353,7 +366,52 @@ func (s *Service) NewPlaybackSession(ctx context.Context, media string, id int64
 	if p, err := s.st.GetProgress(ctx, viewerOf(ctx).ProfileID, media, id); err == nil && p != nil && !p.Completed && p.Position > 30 {
 		out.Resume = p
 	}
+	if media == "episode" {
+		out.Series = episode.SeriesItemID
+		if next, err := s.nextEpisode(ctx, it.Title, episode); err == nil {
+			out.Next = next
+		}
+		if m, err := s.st.SeriesMarkers(ctx, episode.SeriesItemID); err == nil && (m.IntroEnd > 0 || m.Credits > 0) {
+			out.Markers = &m
+		}
+	}
 	return out, nil
+}
+
+func playerTitle(series string, e store.Episode) string {
+	return fmt.Sprintf("%s · S%dE%d %s", series, e.Season, e.Number, e.Title)
+}
+
+// nextEpisode is the episode after e in its series, nil after the last.
+func (s *Service) nextEpisode(ctx context.Context, series string, e store.Episode) (*NextEpisode, error) {
+	list, err := s.st.Episodes(ctx, viewerOf(ctx).ProfileID, e.SeriesItemID)
+	if err != nil {
+		return nil, err
+	}
+	for i, x := range list {
+		if x.ID == e.ID && i+1 < len(list) {
+			n := list[i+1]
+			return &NextEpisode{ID: n.ID, Season: n.Season, Number: n.Number, Title: playerTitle(series, n)}, nil
+		}
+	}
+	return nil, nil
+}
+
+// SetSeriesMarkers records where a series' opening ends or how long its
+// end credits are, as someone watching showed it.
+func (s *Service) SetSeriesMarkers(ctx context.Context, seriesItemID int64, m store.SeriesMarkers) error {
+	switch {
+	case m.IntroEnd != 0 && (m.IntroStart < 0 || m.IntroEnd <= m.IntroStart || m.IntroEnd > 600 || m.IntroEnd-m.IntroStart < 10):
+		return invalid("sigla non valida")
+	case m.Credits < 0 || m.Credits > 900:
+		return invalid("titoli di coda non validi")
+	case m.IntroEnd == 0 && m.Credits == 0:
+		return invalid("niente da salvare")
+	}
+	if err := s.allowItem(ctx, seriesItemID); err != nil {
+		return err
+	}
+	return s.st.SetSeriesMarkers(ctx, seriesItemID, m)
 }
 
 // ErrSession means the playback session is unknown or expired.

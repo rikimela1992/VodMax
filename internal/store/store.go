@@ -349,6 +349,15 @@ var migrations = []string{
 	`ALTER TABLE profile ADD COLUMN avatar TEXT NOT NULL DEFAULT ''`,
 	// 15: what the guide says about a programme: live, rerun, premiere, new.
 	`ALTER TABLE epg_programme ADD COLUMN airing TEXT NOT NULL DEFAULT ''`,
+	// 16: where the opening and the end credits of a series are, learned
+	// from the people watching it (seconds).
+	`CREATE TABLE series_marker (
+		series_key  TEXT PRIMARY KEY,                -- group key of the series
+		intro_start INTEGER NOT NULL DEFAULT 0,
+		intro_end   INTEGER NOT NULL DEFAULT 0,      -- 0: not known
+		credits     INTEGER NOT NULL DEFAULT 0,      -- length of the end credits, 0: not known
+		updated_at  INTEGER NOT NULL
+	)`,
 }
 
 // noForeignKeys lists migrations (1-based) that rebuild a parent table:

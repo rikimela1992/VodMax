@@ -107,6 +107,27 @@ func TestSeriesEpisodesAndContinue(t *testing.T) {
 	if code != 200 || !strings.Contains(string(body), "S1E2 Traces to Nowhere") || !strings.Contains(string(body), `"position":600`) {
 		t.Fatalf("episode session: %d %s", code, body)
 	}
+	// The next episode, also across seasons; the last has none.
+	if !strings.Contains(string(body), `"next":{"id":`+strconv.FormatInt(eps[2].ID, 10)) || strings.Contains(string(body), `"markers"`) {
+		t.Fatalf("next in session: %s", body)
+	}
+	_, body = e.do(t, "POST", "/api/v1/vod/episode/"+strconv.FormatInt(eps[2].ID, 10)+"/session", map[string]string{"viewer": "salotto-pc-01"}, true)
+	if strings.Contains(string(body), `"next"`) {
+		t.Fatalf("next after the last: %s", body)
+	}
+	// Opening and credits, learned on one episode, come with the others.
+	sid := "/api/v1/series/" + strconv.FormatInt(series, 10) + "/markers"
+	if code, _ := e.do(t, "PUT", sid, map[string]int{"intro_start": 50, "intro_end": 40}, true); code != 400 {
+		t.Fatal("intro ending before it starts accepted")
+	}
+	e.do(t, "PUT", sid, map[string]int{"intro_start": 12, "intro_end": 95}, true)
+	if code, _ := e.do(t, "PUT", sid, map[string]int{"credits": 70}, true); code != 204 {
+		t.Fatal("credits refused")
+	}
+	_, body = e.do(t, "POST", "/api/v1/vod/episode/"+strconv.FormatInt(eps[0].ID, 10)+"/session", map[string]string{"viewer": "salotto-pc-01"}, true)
+	if !strings.Contains(string(body), `"markers":{"intro_start":12,"intro_end":95,"credits":70}`) {
+		t.Fatalf("markers in session: %s", body)
+	}
 }
 
 func TestRecordingWatchWhileRecordingAndDelete(t *testing.T) {

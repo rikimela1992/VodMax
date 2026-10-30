@@ -348,3 +348,26 @@ video::cue { font-size: 1.6rem; background: rgba(0, 0, 0, 0.65); }
   .player-buttons button .lbl { display: none; }
   .player-buttons button[data-action="back10"] .lbl, .player-buttons button[data-action="fwd30"] .lbl { display: inline; font-size: 0.85rem; }
 }
+
+/* Episodes: "Skip intro" and the next episode, above the picture at the
+   bottom right (higher while the commands show). */
+.player-extra { position: absolute; right: 4vw; bottom: 5vh; display: flex; flex-direction: column; align-items: flex-end; gap: 0.8rem; transition: bottom 0.2s; }
+.player:has(.player-bar:not(.idle)) .player-extra { bottom: calc(5vh + 12.5rem); }
+.player-extra button {
+  display: inline-flex; align-items: center; gap: 0.45em;
+  padding: 0.7em 1.4em; font: inherit; font-weight: 600; color: var(--text);
+  background: rgba(19, 21, 27, 0.92); border: 1px solid var(--line); border-radius: 999px; cursor: pointer;
+}
+.player-extra button:hover { border-color: var(--text); }
+.player-extra button:focus { outline: none; color: #0b0c10; background: var(--focus); border-color: var(--focus); }
+.next-card { display: grid; gap: 0.3rem; width: min(26rem, 88vw); padding: 1.1rem 1.3rem; background: rgba(19, 21, 27, 0.94); border: 1px solid var(--line); border-radius: 16px; }
+.next-label { color: var(--accent); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+.next-card strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.next-count { color: var(--soft); font-size: 0.9rem; }
+.next-buttons { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+.next-buttons button { padding: 0.55em 1.1em; font-weight: 400; background: var(--bg); }
+@media (max-width: 700px) {
+  .player-extra { right: 0.6rem; left: 0.6rem; bottom: calc(0.6rem + env(safe-area-inset-bottom)); }
+  .player:has(.player-bar:not(.idle)) .player-extra { bottom: calc(9.5rem + env(safe-area-inset-bottom)); }
+  .next-card { width: 100%; }
+}

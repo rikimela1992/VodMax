@@ -748,6 +748,8 @@
     $("player-live").hidden = true;
     $("player-audio").hidden = sess.audio.length < 2;
     $("player-subs").hidden = sess.subtitles.length === 0;
+    $("player-next").hidden = !sess.next;
+    $("skip-intro").hidden = $("next-card").hidden = true;
     $("player").hidden = false;
     // The remembered language needs another track than the direct file plays.
     if (sess.mode === "direct" && (tracks.audio !== 0 || tracks.sub >= 0)) {
@@ -770,7 +772,8 @@
       start = 0;
     }
     $("status").hidden = true;
-    window.VodMax.native.play(JSON.stringify({ url, title: ctx.title, start, live: Boolean(ctx.live) }));
+    window.VodMax.native.play(JSON.stringify({ url, title: ctx.title, start, live: Boolean(ctx.live),
+      episode: ctx.media === "episode", next: ctx.sess.next ? ctx.sess.next.title : "", markers: ctx.sess.markers || null }));
   }
   window.VodMaxNativeDone = (r) => {
     const c = nativeCtx;
@@ -784,6 +787,11 @@
         .then(() => { if (state.view === "home" && $("detail").hidden) render(); }).catch(() => {});
     }
     if (c.media === "catchup" && state.catchupBack) location.href = state.catchupBack;
+    if (c.media === "episode" && c.sess.series_id) {
+      if (r.intro_end) saveMarkers(c.sess, { intro_start: r.intro_start || 0, intro_end: r.intro_end });
+      if (r.credits) saveMarkers(c.sess, { credits: r.credits });
+      if (r.next && c.sess.next) play("episode", c.sess.next.id, c.sess.next.title, 0);
+    }
   };
   window.VodMaxNativeError = (m) => flash(m);
   // Android "Back": close what is open, then the menu's home; false lets
@@ -950,6 +958,7 @@
     if (!p) return;
     if (p.ts) { p.ts.seek(delta); showBar(); return; }
     const target = Math.max(0, Math.min(position() + delta, (duration() || Infinity) - 5));
+    learnIntro(position(), target);
     if (p.sess.mode === "direct") video.currentTime = target;
     else load(target);
     showBar();
@@ -961,6 +970,7 @@
     if (!p) return;
     const d = duration();
     target = Math.max(0, Math.min(target, (d || Infinity) - 3));
+    learnIntro(position(), target);
     if (p.ts) p.ts.seek(target - position());
     else if (p.sess.mode === "direct") video.currentTime = target;
     else load(target);
@@ -1030,7 +1040,93 @@
     flash(t("Riproduzione non riuscita"));
   });
 
-  video.addEventListener("ended", () => { saveProgress(); stopPlayback(true); });
+  video.addEventListener("ended", () => {
+    const p = state.play;
+    if (p && p.sess.next && !p.nextCancelled) { playNext(false); return; }
+    saveProgress();
+    stopPlayback(true);
+  });
+
+  // ---- Episodes: skip the opening, go on to the next one ----
+  // Where the opening ends and how long the credits are is learned from
+  // the people watching: skipping ahead in the first minutes marks the
+  // opening, "Next episode" during the credits marks the credits. The
+  // server keeps them per series, for every device.
+  function saveMarkers(sess, m) {
+    sess.markers = { ...(sess.markers || {}), ...m };
+    api("PUT", "/api/v1/series/" + sess.series_id + "/markers", m).catch(() => {});
+  }
+
+  // Forward seeks close together are one skip; it marks the opening when
+  // it starts in the first 5 minutes and jumps 20 s to 10 minutes.
+  function learnIntro(from, to) {
+    const p = state.play;
+    if (!p || p.media !== "episode" || p.skipping) return;
+    clearTimeout(p.chainTimer);
+    if (to <= from) { p.chain = null; return; }
+    if (!p.chain) p.chain = { start: from };
+    p.chain.end = to;
+    p.chainTimer = setTimeout(() => {
+      const c = p.chain;
+      p.chain = null;
+      if (state.play !== p || !c || c.start > 300 || c.end - c.start < 20 || c.end > 600) return;
+      saveMarkers(p.sess, { intro_start: Math.round(c.start), intro_end: Math.round(c.end) });
+    }, 8000);
+  }
+
+  function skipIntro() {
+    const p = state.play;
+    if (!p || !p.sess.markers) return;
+    p.skipping = true;
+    seekTo(p.sess.markers.intro_end);
+    p.skipping = false;
+    $("skip-intro").hidden = true;
+  }
+
+  // byPerson: chosen during the credits, which then are this long.
+  function playNext(byPerson) {
+    const p = state.play;
+    if (!p || !p.sess.next) return;
+    const left = duration() - position();
+    if (byPerson && left >= 15 && left <= 600) saveMarkers(p.sess, { credits: Math.round(left) });
+    saveProgress();
+    play("episode", p.sess.next.id, p.sess.next.title, 0);
+  }
+
+  // Focus goes to what appears, so that OK on the remote presses it.
+  function reveal(el) {
+    if (!el.hidden) return;
+    el.hidden = false;
+    const a = document.activeElement;
+    if (!a || !($("player-bar").contains(a) || $("player-extra").contains(a))) (el.querySelector("button") || el).focus();
+  }
+  function conceal(el) {
+    if (el.hidden) return;
+    if (el.contains(document.activeElement)) document.activeElement.blur();
+    el.hidden = true;
+  }
+
+  function updateEpisodeExtras() {
+    const p = state.play;
+    if (!p || p.media !== "episode") return;
+    const pos = position(), d = duration(), m = p.sess.markers || {};
+    if (m.intro_end > 0 && pos >= (m.intro_start || 0) && pos < m.intro_end - 2) reveal($("skip-intro"));
+    else conceal($("skip-intro"));
+    if (!p.sess.next || !d || p.nextCancelled) { conceal($("next-card")); return; }
+    // With the credits known the card comes when they start and plays
+    // the next one 10 s later; otherwise it comes 15 s before the end.
+    const left = d - pos;
+    if (left > (m.credits > 0 ? m.credits : 15)) { p.nextAt = 0; conceal($("next-card")); return; }
+    if (!p.nextAt) p.nextAt = m.credits > 0 ? Math.min(d, pos + 10) : d;
+    $("next-title").textContent = p.sess.next.title;
+    $("next-count").textContent = t("tra {n} s", { n: Math.max(0, Math.ceil(p.nextAt - pos)) });
+    reveal($("next-card"));
+    if (pos >= p.nextAt && p.nextAt < d) playNext(false);
+  }
+  video.addEventListener("timeupdate", updateEpisodeExtras);
+  $("skip-intro").onclick = skipIntro;
+  $("next-now").onclick = () => playNext(true);
+  $("next-cancel").onclick = () => { if (state.play) state.play.nextCancelled = true; conceal($("next-card")); };
 
   // ---- Diagnostics: what the player does, sent to the server log ----
   let diagCount = 0;
@@ -1157,7 +1253,7 @@
     const key = keyOf(e);
     if (!$("player").hidden) {
       // Moving among the on-screen buttons and track menu.
-      const inBar = document.activeElement && $("player-bar").contains(document.activeElement);
+      const inBar = document.activeElement && ($("player-bar").contains(document.activeElement) || $("player-extra").contains(document.activeElement));
       if (inBar) {
         if (key.startsWith("Arrow")) { moveFocus(key); showBar(); e.preventDefault(); return; }
         if (key === "OK") { document.activeElement.click(); showBar(); e.preventDefault(); return; }
@@ -1228,6 +1324,7 @@
       close: () => stopPlayback(true), back10: () => seek(-10), fwd30: () => seek(30), toggle,
       audio: () => openMenu("audio"), subs: () => openMenu("subs"),
       live: () => { if (state.play && state.play.ts) { state.play.ts.goLive(); showBar(); } },
+      next: () => playNext(true),
     })[b.dataset.action]();
   });
   video.addEventListener("click", toggle);

@@ -17,4 +17,9 @@
     <string name="local_no_answer">il server interno non risponde</string>
     <string name="update_refused">aggiornamento rifiutato: non viene dalle release di VodMax</string>
     <string name="update_bad_checksum">il file scaricato non corrisponde alla release (checksum diverso)</string>
+    <string name="skip_intro">Salta intro</string>
+    <string name="next_episode">Prossimo episodio</string>
+    <string name="next_in">tra %1$d s</string>
+    <string name="watch_now">Guarda ora</string>
+    <string name="cancel">Annulla</string>
 </resources>

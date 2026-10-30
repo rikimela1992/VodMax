@@ -245,7 +245,8 @@ public class MainActivity extends Activity {
             return BuildConfig.VERSION_NAME;
         }
 
-        /** {url, title, start (s), live} → the native player. */
+        /** {url, title, start (s), live, next (title of the next episode),
+         *  markers {intro_start, intro_end, credits}} → the native player. */
         @JavascriptInterface
         public void play(String json) {
             runOnUiThread(() -> {
@@ -258,6 +259,14 @@ public class MainActivity extends Activity {
                     i.putExtra(PlayerActivity.TITLE, o.optString("title"));
                     i.putExtra(PlayerActivity.START, (long) (o.optDouble("start", 0) * 1000));
                     i.putExtra(PlayerActivity.LIVE, o.optBoolean("live", false));
+                    i.putExtra(PlayerActivity.EPISODE, o.optBoolean("episode", false));
+                    i.putExtra(PlayerActivity.NEXT, o.optString("next", ""));
+                    JSONObject m = o.optJSONObject("markers");
+                    if (m != null) {
+                        i.putExtra(PlayerActivity.INTRO_START, m.optInt("intro_start", 0));
+                        i.putExtra(PlayerActivity.INTRO_END, m.optInt("intro_end", 0));
+                        i.putExtra(PlayerActivity.CREDITS, m.optInt("credits", 0));
+                    }
                     startActivityForResult(i, PLAY);
                 } catch (Exception e) {
                     web.evaluateJavascript("window.VodMaxNativeError && window.VodMaxNativeError("
@@ -304,8 +313,13 @@ public class MainActivity extends Activity {
         long position = data == null ? 0 : data.getLongExtra(PlayerActivity.POSITION, 0);
         long duration = data == null ? 0 : data.getLongExtra(PlayerActivity.DURATION, 0);
         String error = data == null ? null : data.getStringExtra(PlayerActivity.ERROR);
+        boolean next = data != null && data.getBooleanExtra(PlayerActivity.NEXT, false);
+        int introStart = data == null ? 0 : data.getIntExtra(PlayerActivity.INTRO_START, 0);
+        int introEnd = data == null ? 0 : data.getIntExtra(PlayerActivity.INTRO_END, 0);
+        int credits = data == null ? 0 : data.getIntExtra(PlayerActivity.CREDITS, 0);
         web.evaluateJavascript("window.VodMaxNativeDone && window.VodMaxNativeDone({position:" + position / 1000.0
-            + ",duration:" + duration / 1000.0 + ",error:" + (error == null ? "null" : JSONObject.quote(error)) + "})", null);
+            + ",duration:" + duration / 1000.0 + ",error:" + (error == null ? "null" : JSONObject.quote(error))
+            + ",next:" + next + ",intro_start:" + introStart + ",intro_end:" + introEnd + ",credits:" + credits + "})", null);
     }
 
     // Back: the page decides (close a panel, go to the menu); with nothing

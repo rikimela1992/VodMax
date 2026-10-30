@@ -491,3 +491,38 @@ func (s *Store) CatchupVariant(ctx context.Context, itemID int64) (PlaybackItem,
 	it, err := s.PlaybackItem(ctx, id)
 	return it, days, err
 }
+
+// SeriesMarkers are where the opening and the end credits of a series'
+// episodes are, in seconds; zero means not known.
+type SeriesMarkers struct {
+	IntroStart int `json:"intro_start"`
+	IntroEnd   int `json:"intro_end"`
+	Credits    int `json:"credits"`
+}
+
+// SeriesMarkers of the series item (none: zero values).
+func (s *Store) SeriesMarkers(ctx context.Context, seriesItemID int64) (SeriesMarkers, error) {
+	var m SeriesMarkers
+	err := s.r.QueryRowContext(ctx, `SELECT m.intro_start, m.intro_end, m.credits FROM series_marker m
+		JOIN item i ON i.group_key = m.series_key WHERE i.id = ?`, seriesItemID).Scan(&m.IntroStart, &m.IntroEnd, &m.Credits)
+	if errors.Is(err, sql.ErrNoRows) {
+		return m, nil
+	}
+	return m, err
+}
+
+// SetSeriesMarkers changes what is given: the intro when IntroEnd > 0,
+// the credits when Credits > 0.
+func (s *Store) SetSeriesMarkers(ctx context.Context, seriesItemID int64, m SeriesMarkers) error {
+	key, err := s.GroupKeyOf(ctx, seriesItemID)
+	if err != nil {
+		return err
+	}
+	_, err = s.w.ExecContext(ctx, `INSERT INTO series_marker (series_key, intro_start, intro_end, credits, updated_at)
+		VALUES (?, ?, ?, ?, ?) ON CONFLICT (series_key) DO UPDATE SET
+		intro_start = CASE WHEN excluded.intro_end > 0 THEN excluded.intro_start ELSE intro_start END,
+		intro_end = CASE WHEN excluded.intro_end > 0 THEN excluded.intro_end ELSE intro_end END,
+		credits = CASE WHEN excluded.credits > 0 THEN excluded.credits ELSE credits END,
+		updated_at = excluded.updated_at`, key, m.IntroStart, m.IntroEnd, m.Credits, time.Now().Unix())
+	return err
+}
