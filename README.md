@@ -117,7 +117,7 @@ docker run -d --name vodmax -p 8095:8095 -v ./vodmax-data:/var/lib/vodmax ghcr.i
 [compose file](packaging/docker-compose.yml) is ready).
 
 **Android / Android TV / Fire TV** — install `VodMax-<version>.apk`, then enter
-the server address or choose *Usa questo dispositivo da solo* (standalone).
+the server address or choose *Use this device on its own* (standalone).
 
 **LG webOS** — install `app.vodmax.client_<version>_all.ipk` with the
 [webOS CLI](https://webostv.developer.lge.com/develop/tools/cli-introduction)
@@ -131,15 +131,13 @@ Build from source: [docs/sviluppo.md](docs/sviluppo.md) and
 
 1. Open `http://<server>:8095` and paste the admin token from
    `/var/lib/vodmax/admin.token`. The language (Italian or English) follows
-   the device and can be changed in **Impostazioni → Lingua** (Settings →
-   Language).
-2. **Impostazioni → VPN** (Settings): import your WireGuard `.conf`, or
-   declare a VPN you already run on the router.
-3. **Impostazioni → Abbonamenti** (Subscriptions): add an M3U or Xtream Codes
-   playlist, then *Sincronizza ora*.
-4. **Impostazioni → Raccolte** (Collections): add a folder of movies or series.
-5. **Impostazioni → Dispositivi** (Devices): pair TVs and phones with the code
-   they show.
+   the device and can be changed in **Settings → Language**.
+2. **Settings → VPN**: import your WireGuard `.conf`, or declare a VPN you
+   already run on the router.
+3. **Settings → Subscriptions**: add an M3U or Xtream Codes playlist, then
+   *Sync now*.
+4. **Settings → Collections**: add a folder of movies or series.
+5. **Settings → Devices**: pair TVs and phones with the code they show.
 
 ## Documentation
 

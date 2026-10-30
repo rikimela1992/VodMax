@@ -1,9 +1,9 @@
-## Cosa cambia
+## What changes / Cosa cambia
 
 
 
-## Verifiche
+## Checks / Verifiche
 
-- [ ] `gofmt`, `go vet ./...` e `go test -race ./...` passano
-- [ ] Nessun dato reale (provider, credenziali, indirizzi privati)
-- [ ] Ho letto e accetto l'[accordo di contribuzione (CLA)](../CONTRIBUTING.md#accordo-di-contribuzione-cla)
+- [ ] `gofmt`, `go vet ./...` and `go test -race ./...` pass
+- [ ] No real data (providers, credentials, private addresses) / Nessun dato reale
+- [ ] I have read and accept the [Contributor License Agreement (CLA)](../CONTRIBUTING.md#contributor-license-agreement-cla) / Ho letto e accetto il CLA

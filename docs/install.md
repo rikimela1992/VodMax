@@ -155,14 +155,14 @@ from outside the store.
    the Downloader app).
 2. Install **Downloader** from the Amazon Appstore and open in it the link
    of `VodMax-<v>.apk` from the release page.
-3. Open VodMax: enter the server address, or choose *Use this device alone*.
+3. Open VodMax: enter the server address, or choose *Use this device on its own*.
 
 The Fire TV remote has no channel and colour buttons: use Up/Down and OK
 (channel list) on live TV.
 
 ### Fire TV and Android without a server
 
-On the first screen choose **Use this device alone**: the app starts its own
+On the first screen choose **Use this device on its own**: the app starts its own
 VodMax server inside the device and opens Settings → Subscriptions. Add the
 VPN `.conf` and the playlist as above. Limits: no recordings and no pause of
 live TV (no ffmpeg on the device); films, series and live TV work. The
