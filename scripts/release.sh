@@ -18,7 +18,7 @@ for t in amd64: arm64: arm:7; do
   dir=$(mktemp -d)/vodmax-server_${v}_linux_$name
   mkdir -p "$dir"
   CGO_ENABLED=0 GOOS=linux GOARCH=$arch GOARM=$arm go build -trimpath -ldflags="-s -w -X main.version=$v" -o "$dir/vodmax-server" ./cmd/vodmax-server
-  cp packaging/vodmax.service README.md "$dir/"
+  cp packaging/vodmax.service README.md docs/install.md docs/installazione.md "$dir/"
   tar -C "$(dirname "$dir")" -czf "$out/$(basename "$dir").tar.gz" "$(basename "$dir")"
   rm -rf "$(dirname "$dir")"
 done

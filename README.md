@@ -86,6 +86,8 @@ each).</sub>
 
 Download the packages from the
 [latest release](https://github.com/rikimela1992/VodMax/releases).
+**Step-by-step guide** for the server, Android, Android TV, Fire TV and LG
+TVs: [docs/install.md](docs/install.md).
 
 **Server (Linux)**
 
@@ -105,7 +107,8 @@ the server address or choose *Usa questo dispositivo da solo* (standalone).
 
 **LG webOS** — install `app.vodmax.client_<version>_all.ipk` with the
 [webOS CLI](https://webostv.developer.lge.com/develop/tools/cli-introduction)
-on a TV in Developer Mode.
+on a TV in Developer Mode (see the [guide](docs/install.md#lg-tv-webos)).
+Other TVs (Samsung...): use the TV browser.
 
 Build from source: [docs/sviluppo.md](docs/sviluppo.md) and
 `scripts/release.sh`.
@@ -113,7 +116,9 @@ Build from source: [docs/sviluppo.md](docs/sviluppo.md) and
 ## Quick start
 
 1. Open `http://<server>:8095` and paste the admin token from
-   `/var/lib/vodmax/admin.token`.
+   `/var/lib/vodmax/admin.token`. The language (Italian or English) follows
+   the device and can be changed in **Impostazioni → Lingua** (Settings →
+   Language).
 2. **Impostazioni → VPN** (Settings): import your WireGuard `.conf`, or
    declare a VPN you already run on the router.
 3. **Impostazioni → Abbonamenti** (Subscriptions): add an M3U or Xtream Codes

@@ -1,9 +1,11 @@
 # App VodMax
 
 Le app usano l'interfaccia del server VodMax (la stessa del browser) e si
-abbinano con il codice di Impostazioni → Dispositivi.
+abbinano con il codice di Impostazioni → Dispositivi. Seguono la lingua del
+sistema (italiano, altrimenti inglese). Installazione passo passo per chi le
+usa: [docs/installazione.md](../docs/installazione.md).
 
-## Android (telefono e Android TV) — `android/`
+## Android (telefono, Android TV, Fire TV) — `android/`
 
 Un solo APK. L'interfaccia è in una WebView; film, episodi, registrazioni
 e catch-up sono riprodotti dal player nativo Media3 (MKV, AC-3/E-AC-3,
@@ -18,7 +20,8 @@ JAVA_HOME=/percorso/jdk-17 ./gradlew assembleDebug
 ```
 
 Primo avvio: indirizzo del server (es. `http://192.168.1.10:8095`), poi il
-codice di abbinamento. Server diverso: Impostazioni → Sistema → Cambia server.
+codice di abbinamento. Server diverso: Impostazioni → Sistema → Cambia server
+(o "Cambia server" nel menu Altro sul telefono).
 
 **Senza server** ("Usa questo dispositivo da solo", decisione 0021): l'APK
 contiene il server stesso, che va compilato prima dell'APK (Go e Android

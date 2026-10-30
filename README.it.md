@@ -83,6 +83,8 @@ del Blender Studio con immagini generate.</sub>
 ## Installazione
 
 Scarica i pacchetti dall'[ultima release](https://github.com/rikimela1992/VodMax/releases).
+**Guida passo passo** per server, Android, Android TV, Fire TV e TV LG:
+[docs/installazione.md](docs/installazione.md).
 
 **Server (Linux)**
 
@@ -102,14 +104,16 @@ indica l'indirizzo del server oppure scegli *Usa questo dispositivo da solo*.
 
 **LG webOS**: installa `app.vodmax.client_<versione>_all.ipk` con la
 [CLI webOS](https://webostv.developer.lge.com/develop/tools/cli-introduction)
-su una TV in Modalità sviluppatore.
+su una TV in Modalità sviluppatore (vedi la [guida](docs/installazione.md#tv-lg-webos)).
+Altre TV (Samsung…): usa il browser della TV.
 
 Dai sorgenti: [docs/sviluppo.md](docs/sviluppo.md) e `scripts/release.sh`.
 
 ## Primi passi
 
 1. Apri `http://<server>:8095` e incolla il token di amministrazione che
-   trovi in `/var/lib/vodmax/admin.token`.
+   trovi in `/var/lib/vodmax/admin.token`. La lingua (italiano o inglese)
+   segue il dispositivo e si cambia in **Impostazioni → Lingua**.
 2. **Impostazioni → VPN**: importa il file `.conf` WireGuard, oppure indica
    una VPN che usi già sul router.
 3. **Impostazioni → Abbonamenti**: aggiungi una playlist M3U o Xtream Codes,
