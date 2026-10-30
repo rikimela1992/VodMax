@@ -270,3 +270,18 @@ video {
   /* The channel banner would sit under the bottom row. */
   body.controls-on .banner { display: none; }
 }
+
+/* Channel list on touch screens: full width, scrolls, tap to watch. */
+.list li, .tabs span { cursor: pointer; }
+@media (pointer: coarse), (max-width: 800px) {
+  .list { width: 100vw; padding: calc(0.8rem + env(safe-area-inset-top)) 0.6rem env(safe-area-inset-bottom); font-size: 1rem; border-right: 0; }
+  .list .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-bottom: 0.6rem; padding: 0 0.2rem; }
+  .list .tabs span { flex: none; padding: 0.5em 1em; }
+  .list .tabs .close { margin-left: auto; font-size: 1.2rem; padding: 0.3em 0.8em; color: var(--text); background: var(--raised); }
+  .list ol { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+  .list li { grid-template-columns: 2.4em 2.6em minmax(0, 1fr); gap: 0.1rem 0.7rem; padding: 0.6rem 0.5rem; }
+  .list li .l { width: 2.6em; height: 1.9em; }
+  .list li.selected { outline: none; }
+  .list li.current { background: var(--raised); }
+  .list .hint { display: none; }
+}

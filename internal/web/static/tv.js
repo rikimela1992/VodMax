@@ -236,6 +236,9 @@
   }
 
   // ---- Channel list overlay ----
+  // With the remote a window of rows moves with the selection; on touch
+  // screens the whole list scrolls and a tap picks the channel.
+  const touch = window.matchMedia("(pointer: coarse), (max-width: 800px)");
   async function openList(listIndex) {
     const list = LISTS[listIndex];
     let channels;
@@ -245,6 +248,21 @@
     renderList();
     $("list").hidden = false;
     $("banner").hidden = true;
+    const sel = $("list-items").querySelector(".selected");
+    if (touch.matches && sel) sel.scrollIntoView({ block: "center" });
+  }
+
+  // The selected channel of the list: watch it, and zap in that list.
+  function pickFromList() {
+    const o = state.overlay;
+    const c = o && o.channels[o.selected];
+    if (!c) return;
+    if (o.listIndex === 1) { state.favoritesOnly = true; }
+    else { state.favoritesOnly = false; state.listIndex = o.listIndex; }
+    store.set("favoritesOnly", state.favoritesOnly);
+    store.set("list", state.listIndex);
+    closeList();
+    refreshChannels().then(() => tune(c));
   }
 
   function renderList() {
@@ -254,8 +272,17 @@
       const s = document.createElement("span");
       s.textContent = l.label;
       if (i === o.listIndex) s.className = "active";
+      s.onclick = () => { if (i !== o.listIndex) openList(i); };
       return s;
     }));
+    if (touch.matches) {
+      const close = document.createElement("span");
+      close.className = "close";
+      close.textContent = "✕";
+      close.setAttribute("aria-label", t("Chiudi"));
+      close.onclick = closeList;
+      tabs.append(close);
+    }
     const ol = $("list-items");
     if (o.channels.length === 0) {
       const li = document.createElement("li");
@@ -263,15 +290,17 @@
       ol.replaceChildren(li);
       return;
     }
-    // Render a window around the selection: lists can hold hundreds of channels.
-    const rows = Math.max(5, Math.floor((window.innerHeight * 0.8) / 64));
+    // Remote: a window around the selection (lists can hold hundreds of
+    // channels). Touch: all of them, the browser scrolls.
+    const rows = touch.matches ? o.channels.length : Math.max(5, Math.floor((window.innerHeight * 0.8) / 64));
     const start = Math.max(0, Math.min(o.selected - Math.floor(rows / 2), o.channels.length - rows));
     const items = o.channels.slice(start, start + rows).map((c, k) => {
       const li = document.createElement("li");
+      li.onclick = () => { o.selected = start + k; pickFromList(); };
       if (start + k === o.selected) li.classList.add("selected");
       if (state.current && c.id === state.current.id) li.classList.add("current");
       const n = document.createElement("span"); n.className = "n"; n.textContent = c.number;
-      const logo = document.createElement("img"); logo.className = "l"; logo.alt = "";
+      const logo = document.createElement("img"); logo.className = "l"; logo.alt = ""; logo.loading = "lazy";
       if (c.logo) { logo.src = c.logo; logo.onerror = () => { logo.style.visibility = "hidden"; }; } else logo.style.visibility = "hidden";
       const name = document.createElement("span"); name.className = "c"; name.textContent = c.name;
       if (c.favorite) { const st = document.createElement("span"); st.className = "star"; st.textContent = "★"; name.append(st); }
@@ -491,17 +520,7 @@
         case "ChannelDown": o.selected = Math.min(o.channels.length - 1, o.selected + 10); renderList(); break;
         case "ArrowLeft": openList((o.listIndex + LISTS.length - 1) % LISTS.length); break;
         case "ArrowRight": openList((o.listIndex + 1) % LISTS.length); break;
-        case "OK": {
-          const c = o.channels[o.selected];
-          // Zapping continues in the list the channel was picked from.
-          if (o.listIndex === 1) { state.favoritesOnly = true; }
-          else { state.favoritesOnly = false; state.listIndex = o.listIndex; }
-          store.set("favoritesOnly", state.favoritesOnly);
-          store.set("list", state.listIndex);
-          closeList();
-          refreshChannels().then(() => tune(c));
-          break;
-        }
+        case "OK": pickFromList(); break;
         case "Yellow": toggleFavorite(o.channels[o.selected]); break;
         case "Blue": record(o.channels[o.selected]); break;
         case "Back": closeList(); break;
