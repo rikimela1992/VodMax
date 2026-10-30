@@ -54,7 +54,15 @@ type aired struct {
 	channel     string
 }
 
-func airingKey(p store.Programme) string { return fold(p.Title + " " + p.Subtitle) }
+// liveTitle is a title that starts by saying it is live ("LIVE: F1
+// Paddock", "Diretta: Juventus - Inter").
+var liveTitle = regexp.MustCompile(`^(live|diretta|in diretta|en direct|en vivo) `)
+
+// airingKey identifies a programme across airings: "LIVE: F1 Paddock" and
+// its rerun "F1 Paddock" are the same.
+func airingKey(p store.Programme) string {
+	return liveTitle.ReplaceAllString(fold(p.Title+" "+p.Subtitle), "")
+}
 
 func (ix airingIndex) add(p store.Programme, channel string) {
 	k := airingKey(p)
@@ -124,6 +132,11 @@ func airingOf(ctx context.Context, p store.Programme, channel string, ix airingI
 	}
 	if m := rerunChannelRE.FindString(strings.ToLower(channel)); m != "" {
 		return Airing{"rerun", T(ctx, "canale in differita o di repertorio (%s)", strings.TrimSpace(m))}
+	}
+	// Said in front of the title, live beats a title already on air:
+	// a show that is live every day keeps its name.
+	if m := liveTitle.FindString(fold(p.Title)); m != "" {
+		return Airing{"live", T(ctx, "il titolo inizia con “%s”", strings.TrimSpace(m))}
 	}
 	if a := ix.earlier(p); a != nil {
 		return Airing{"rerun", T(ctx, "già in onda %s su %s", time.Unix(a.start, 0).Format("02/01 15:04"), a.channel)}

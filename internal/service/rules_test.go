@@ -22,7 +22,8 @@ func TestRuleMatching(t *testing.T) {
 		{f1, "Formula 1 - GP d'Italia: Gara", true},
 		{f1, "Formula 1 - GP d'Italia - Qualifiche", true},
 		{f1, "Formula 1 - Prove libere 1", false},
-		{f1, "Formula 10 - Gara", false}, // a phrase matches whole words
+		{f1, "Formula 10 - Gara", false},      // a phrase matches whole words
+		{f1, "F1 GP del Messico: Gara", true}, // another name of the same thing
 	}
 	for _, c := range cases {
 		if got := ruleMatches(c.spec, store.Programme{Title: c.title}); got != c.want {

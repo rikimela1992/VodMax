@@ -22,6 +22,8 @@ func TestAiringOf(t *testing.T) {
 	for h := -20; h < 0; h += 5 { // reruns do not make it a title of every day
 		ix.add(prog("Serie A: Juventus - Inter", "", "", h), "Sport 3")
 	}
+	ix.add(prog("LIVE: F1 Paddock Live", "", "", -24), "Sky Sport F1")
+	ix.add(prog("LIVE: F1 Paddock Live", "", "", 0), "Sky Sport F1")
 	for i := 0; i < 8; i++ {
 		ix.add(prog("Calcio Serie A", "", "", -24*i-3), "Sport 1")
 	}
@@ -46,6 +48,9 @@ func TestAiringOf(t *testing.T) {
 		{prog("Liverpool - Chelsea", "In diretta da Anfield", "", 0), "Sport 1", "live"},
 		{prog("Juventus - Inter", "", "premiere", 0), "Sport 1", "live"},
 		{prog("Juventus - Inter", "Replica della diretta di ieri", "", 0), "Sport 1", "rerun"},
+		// A show live every day under the same name; its rerun drops "LIVE:".
+		{prog("LIVE: F1 Paddock Live", "", "", 0), "Sky Sport F1", "live"},
+		{prog("F1 Paddock Live", "", "", 3), "Sky Sport F1", "rerun"},
 	}
 	for _, c := range cases {
 		a := airingOf(ctx, c.p, c.channel, ix)

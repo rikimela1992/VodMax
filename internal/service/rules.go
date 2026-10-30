@@ -57,17 +57,36 @@ func hasWord(text, word string) bool {
 	return false
 }
 
+// wordAliases are names the guides write in more than one way.
+var wordAliases = map[string][]string{
+	"formula 1": {"f1"}, "formula uno": {"f1", "formula 1"}, "f1": {"formula 1"},
+	"motogp": {"moto gp"}, "moto gp": {"motogp"},
+}
+
+// hasWordOrAlias is hasWord, also trying the other names of word.
+func hasWordOrAlias(text, word string) bool {
+	if hasWord(text, word) {
+		return true
+	}
+	for _, a := range wordAliases[fold(word)] {
+		if hasWord(text, a) {
+			return true
+		}
+	}
+	return false
+}
+
 func ruleMatches(spec store.RuleSpec, p store.Programme) bool {
 	text := fold(p.Title + " " + p.Subtitle)
 	for _, w := range spec.All {
-		if !hasWord(text, w) {
+		if !hasWordOrAlias(text, w) {
 			return false
 		}
 	}
 	if len(spec.Any) > 0 {
 		ok := false
 		for _, w := range spec.Any {
-			if hasWord(text, w) {
+			if hasWordOrAlias(text, w) {
 				ok = true
 				break
 			}
@@ -77,7 +96,7 @@ func ruleMatches(spec store.RuleSpec, p store.Programme) bool {
 		}
 	}
 	for _, w := range spec.None {
-		if hasWord(text, w) {
+		if hasWordOrAlias(text, w) {
 			return false
 		}
 	}
