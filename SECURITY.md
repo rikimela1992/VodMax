@@ -1,7 +1,7 @@
 # Sicurezza
 
 Se trovi una vulnerabilità **non aprire una issue pubblica**: usa
-[Segnala una vulnerabilità](https://github.com/rikimela1992/VodMax/security/advisories/new)
+[Segnala una vulnerabilità](https://github.com/silirim/VodMax/security/advisories/new)
 (Security → Report a vulnerability). Rispondo appena possibile.
 
 Utile includere: versione (`vodmax-server -version`), come riprodurre il

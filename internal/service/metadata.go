@@ -14,10 +14,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rikimela1992/vodmax/internal/library"
-	"github.com/rikimela1992/vodmax/internal/playlist/xtream"
-	"github.com/rikimela1992/vodmax/internal/store"
-	"github.com/rikimela1992/vodmax/internal/tmdb"
+	"github.com/silirim/vodmax/internal/library"
+	"github.com/silirim/vodmax/internal/playlist/xtream"
+	"github.com/silirim/vodmax/internal/store"
+	"github.com/silirim/vodmax/internal/tmdb"
 )
 
 // Film and series details come from the provider (through the VPN, when

@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rikimela1992/vodmax/internal/secret"
-	"github.com/rikimela1992/vodmax/internal/store"
-	"github.com/rikimela1992/vodmax/internal/vpn"
+	"github.com/silirim/vodmax/internal/secret"
+	"github.com/silirim/vodmax/internal/store"
+	"github.com/silirim/vodmax/internal/vpn"
 )
 
 func TestCatalogDue(t *testing.T) {

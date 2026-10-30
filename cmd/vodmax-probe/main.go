@@ -25,9 +25,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rikimela1992/vodmax/internal/playlist/xtream"
-	"github.com/rikimela1992/vodmax/internal/provider"
-	"github.com/rikimela1992/vodmax/internal/vpn"
+	"github.com/silirim/vodmax/internal/playlist/xtream"
+	"github.com/silirim/vodmax/internal/provider"
+	"github.com/silirim/vodmax/internal/vpn"
 )
 
 func main() {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/rikimela1992/vodmax/internal/store"
+	"github.com/silirim/vodmax/internal/store"
 )
 
 // Rules are the user's choices for one subscription: what to keep from the

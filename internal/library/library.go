@@ -19,8 +19,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rikimela1992/vodmax/internal/catalog"
-	"github.com/rikimela1992/vodmax/internal/store"
+	"github.com/silirim/vodmax/internal/catalog"
+	"github.com/silirim/vodmax/internal/store"
 )
 
 // Content is what a collection holds.

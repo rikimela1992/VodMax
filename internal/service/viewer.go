@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	"github.com/rikimela1992/vodmax/internal/store"
+	"github.com/silirim/vodmax/internal/store"
 )
 
 // Viewer is who is watching: the profile whose favourites and progress

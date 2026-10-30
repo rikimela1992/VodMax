@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rikimela1992/vodmax/internal/playlist/xtream"
-	"github.com/rikimela1992/vodmax/internal/provider"
+	"github.com/silirim/vodmax/internal/playlist/xtream"
+	"github.com/silirim/vodmax/internal/provider"
 )
 
 // liveCheck opens a few live channels for a few seconds each, reporting

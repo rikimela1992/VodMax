@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rikimela1992/vodmax/internal/store"
+	"github.com/silirim/vodmax/internal/store"
 )
 
 // NFO is what VodMax uses of a Kodi/Jellyfin .nfo file (<movie>,

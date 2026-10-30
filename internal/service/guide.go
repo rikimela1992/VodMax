@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rikimela1992/vodmax/internal/store"
+	"github.com/silirim/vodmax/internal/store"
 )
 
 // GuideRow is one channel of the programme grid.

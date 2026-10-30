@@ -11,8 +11,8 @@ Canali con la guida completa, pausa e registrazioni come un decoder, film e
 serie dalle tue playlist e dalle tue cartelle: sulla TV, sul telefono e nel
 browser.
 
-[![CI](https://github.com/rikimela1992/VodMax/actions/workflows/ci.yml/badge.svg)](https://github.com/rikimela1992/VodMax/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/rikimela1992/VodMax?include_prereleases&sort=semver)](https://github.com/rikimela1992/VodMax/releases)
+[![CI](https://github.com/silirim/VodMax/actions/workflows/ci.yml/badge.svg)](https://github.com/silirim/VodMax/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/silirim/VodMax?include_prereleases&sort=semver)](https://github.com/silirim/VodMax/releases)
 [![Licenza: AGPL-3.0](https://img.shields.io/badge/licenza-AGPL--3.0-blue)](LICENSE)
 
 [Funzioni](#funzioni) · [Schermate](#schermate) · [Installazione](#installazione) · [Primi passi](#primi-passi) · [English](README.md)
@@ -85,7 +85,7 @@ del Blender Studio con immagini generate.</sub>
 
 ## Installazione
 
-Scarica i pacchetti dall'[ultima release](https://github.com/rikimela1992/VodMax/releases).
+Scarica i pacchetti dall'[ultima release](https://github.com/silirim/VodMax/releases).
 **Guida passo passo** per server, Android, Android TV, Fire TV e TV LG:
 [docs/installazione.md](docs/installazione.md).
 
@@ -156,7 +156,7 @@ stessa licenza.
 
 **Licenza commerciale.** Per includere VodMax in un prodotto o servizio
 senza pubblicarne il codice è disponibile una licenza commerciale: contatta
-l'autore ([rikimela1992 su GitHub](https://github.com/rikimela1992)).
+l'autore ([silirim su GitHub](https://github.com/silirim)).
 
 Le librerie incluse mantengono le loro licenze (Apache-2.0, MIT, ISC, BSD),
 indicate accanto ai file.

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rikimela1992/vodmax/internal/provider"
+	"github.com/silirim/vodmax/internal/provider"
 )
 
 // Provider connections are scarce (often one per account), so every

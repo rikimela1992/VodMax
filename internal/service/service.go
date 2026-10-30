@@ -15,13 +15,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rikimela1992/vodmax/internal/catalog"
-	"github.com/rikimela1992/vodmax/internal/playlist/m3u"
-	"github.com/rikimela1992/vodmax/internal/playlist/xtream"
-	"github.com/rikimela1992/vodmax/internal/provider"
-	"github.com/rikimela1992/vodmax/internal/secret"
-	"github.com/rikimela1992/vodmax/internal/store"
-	"github.com/rikimela1992/vodmax/internal/vpn"
+	"github.com/silirim/vodmax/internal/catalog"
+	"github.com/silirim/vodmax/internal/playlist/m3u"
+	"github.com/silirim/vodmax/internal/playlist/xtream"
+	"github.com/silirim/vodmax/internal/provider"
+	"github.com/silirim/vodmax/internal/secret"
+	"github.com/silirim/vodmax/internal/store"
+	"github.com/silirim/vodmax/internal/vpn"
 )
 
 // Tunnel is the part of *vpn.Tunnel the service needs.

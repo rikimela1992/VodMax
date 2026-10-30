@@ -11,10 +11,10 @@ Live channels with a full TV guide, pause and recordings like a set-top box,
 movies and series from your playlists and your own folders — on the TV, the
 phone and the browser.
 
-[![CI](https://github.com/rikimela1992/VodMax/actions/workflows/ci.yml/badge.svg)](https://github.com/rikimela1992/VodMax/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/rikimela1992/VodMax?include_prereleases&sort=semver)](https://github.com/rikimela1992/VodMax/releases)
+[![CI](https://github.com/silirim/VodMax/actions/workflows/ci.yml/badge.svg)](https://github.com/silirim/VodMax/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/silirim/VodMax?include_prereleases&sort=semver)](https://github.com/silirim/VodMax/releases)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
-[![Go](https://img.shields.io/github/go-mod/go-version/rikimela1992/VodMax)](go.mod)
+[![Go](https://img.shields.io/github/go-mod/go-version/silirim/VodMax)](go.mod)
 
 [Features](#features) · [Screenshots](#screenshots) · [Install](#install) · [Quick start](#quick-start) · [Italiano](README.it.md)
 
@@ -88,7 +88,7 @@ each).</sub>
 ## Install
 
 Download the packages from the
-[latest release](https://github.com/rikimela1992/VodMax/releases).
+[latest release](https://github.com/silirim/VodMax/releases).
 **Step-by-step guide** for the server, Android, Android TV, Fire TV and LG
 TVs: [docs/install.md](docs/install.md).
 
@@ -160,7 +160,7 @@ a network service, must make its source available under the same license.
 
 **Commercial license.** To include VodMax in a product or service without
 publishing its source, a commercial license is available: contact the author
-([rikimela1992 on GitHub](https://github.com/rikimela1992)).
+([silirim on GitHub](https://github.com/silirim)).
 
 Bundled libraries keep their own licenses (Apache-2.0, MIT, ISC, BSD),
 listed next to their files.

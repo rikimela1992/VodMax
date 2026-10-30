@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rikimela1992/vodmax/internal/playlist/xtream"
+	"github.com/silirim/vodmax/internal/playlist/xtream"
 )
 
 // Catch-up: channels whose provider keeps an archive (tv_archive) can be

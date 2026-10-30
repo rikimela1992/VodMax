@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/rikimela1992/vodmax/internal/catalog"
-	"github.com/rikimela1992/vodmax/internal/store"
+	"github.com/silirim/vodmax/internal/catalog"
+	"github.com/silirim/vodmax/internal/store"
 )
 
 // loadSelection reads rules, categories and items for computing a

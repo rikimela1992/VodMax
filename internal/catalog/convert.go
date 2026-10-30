@@ -12,10 +12,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rikimela1992/vodmax/internal/lineup"
-	"github.com/rikimela1992/vodmax/internal/playlist/m3u"
-	"github.com/rikimela1992/vodmax/internal/playlist/xtream"
-	"github.com/rikimela1992/vodmax/internal/store"
+	"github.com/silirim/vodmax/internal/lineup"
+	"github.com/silirim/vodmax/internal/playlist/m3u"
+	"github.com/silirim/vodmax/internal/playlist/xtream"
+	"github.com/silirim/vodmax/internal/store"
 )
 
 // Snapshot is a full catalog read from one subscription.

@@ -29,10 +29,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/rikimela1992/vodmax/internal/api"
-	"github.com/rikimela1992/vodmax/internal/secret"
-	"github.com/rikimela1992/vodmax/internal/service"
-	"github.com/rikimela1992/vodmax/internal/store"
+	"github.com/silirim/vodmax/internal/api"
+	"github.com/silirim/vodmax/internal/secret"
+	"github.com/silirim/vodmax/internal/service"
+	"github.com/silirim/vodmax/internal/store"
 )
 
 // version is set at build time (-ldflags "-X main.version=…").

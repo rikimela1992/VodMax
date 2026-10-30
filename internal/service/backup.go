@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rikimela1992/vodmax/internal/store"
+	"github.com/silirim/vodmax/internal/store"
 )
 
 // Backup files: "VODMAXB1", a mode byte, a 16-byte salt, a 12-byte nonce,

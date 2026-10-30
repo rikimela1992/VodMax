@@ -1,4 +1,4 @@
-module github.com/rikimela1992/vodmax
+module github.com/silirim/vodmax
 
 go 1.27.3
 

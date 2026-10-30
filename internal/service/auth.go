@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rikimela1992/vodmax/internal/store"
+	"github.com/silirim/vodmax/internal/store"
 )
 
 // Devices authenticate with their own token (obtained by pairing); the

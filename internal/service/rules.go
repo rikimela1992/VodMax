@@ -11,7 +11,7 @@ import (
 
 	"golang.org/x/text/unicode/norm"
 
-	"github.com/rikimela1992/vodmax/internal/store"
+	"github.com/silirim/vodmax/internal/store"
 )
 
 // Recording rules record guide programmes automatically ("every Juventus

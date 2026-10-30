@@ -3,7 +3,7 @@ package catalog
 import (
 	"testing"
 
-	"github.com/rikimela1992/vodmax/internal/store"
+	"github.com/silirim/vodmax/internal/store"
 )
 
 func cat(kind, id, name string) store.SelectionCategory {

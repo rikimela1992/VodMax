@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/rikimela1992/vodmax/internal/store"
+	"github.com/silirim/vodmax/internal/store"
 )
 
 // Recordings are deleted automatically only by rules the user sets: a

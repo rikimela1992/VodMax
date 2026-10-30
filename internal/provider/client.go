@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/rikimela1992/vodmax/internal/vpn"
+	"github.com/silirim/vodmax/internal/vpn"
 )
 
 // Dialer is satisfied by *vpn.Tunnel. Nothing else should implement it

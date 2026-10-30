@@ -15,10 +15,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rikimela1992/vodmax/internal/catalog"
-	"github.com/rikimela1992/vodmax/internal/service"
-	"github.com/rikimela1992/vodmax/internal/store"
-	"github.com/rikimela1992/vodmax/internal/web"
+	"github.com/silirim/vodmax/internal/catalog"
+	"github.com/silirim/vodmax/internal/service"
+	"github.com/silirim/vodmax/internal/store"
+	"github.com/silirim/vodmax/internal/web"
 )
 
 // Handler builds the router. token is the admin bearer token.

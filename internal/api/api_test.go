@@ -18,10 +18,10 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/rikimela1992/vodmax/internal/secret"
-	"github.com/rikimela1992/vodmax/internal/service"
-	"github.com/rikimela1992/vodmax/internal/store"
-	"github.com/rikimela1992/vodmax/internal/vpn"
+	"github.com/silirim/vodmax/internal/secret"
+	"github.com/silirim/vodmax/internal/service"
+	"github.com/silirim/vodmax/internal/store"
+	"github.com/silirim/vodmax/internal/vpn"
 )
 
 // Fixture credentials are generated per run: no literal secrets in tests.

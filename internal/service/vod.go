@@ -19,8 +19,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rikimela1992/vodmax/internal/playlist/xtream"
-	"github.com/rikimela1992/vodmax/internal/store"
+	"github.com/silirim/vodmax/internal/playlist/xtream"
+	"github.com/silirim/vodmax/internal/store"
 )
 
 // ---- Series episodes ----

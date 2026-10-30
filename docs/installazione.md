@@ -8,7 +8,7 @@ Android TV, Fire TV, LG webOS) che lo mostrano. Un dispositivo Android può
 anche usare VodMax **da solo**, senza server (vedi [Fire TV e Android senza
 server](#fire-tv-e-android-senza-server)).
 
-I pacchetti sono nelle [release](https://github.com/rikimela1992/VodMax/releases):
+I pacchetti sono nelle [release](https://github.com/silirim/VodMax/releases):
 
 | File | Per |
 |---|---|

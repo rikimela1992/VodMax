@@ -1,7 +1,7 @@
 # Contribuire a VodMax
 
 Grazie! Segnalazioni e proposte: apri una
-[issue](https://github.com/rikimela1992/VodMax/issues). Per le vulnerabilità
+[issue](https://github.com/silirim/VodMax/issues). Per le vulnerabilità
 di sicurezza leggi [SECURITY.md](SECURITY.md).
 
 ## Prima di una pull request
@@ -21,7 +21,7 @@ request, patch o altro) dichiari che:
 
 1. il contributo è opera tua, oppure hai il diritto di inviarlo con queste
    condizioni (per esempio dal tuo datore di lavoro);
-2. resta tuo, e concedi all'autore di VodMax (rikimela1992) una licenza
+2. resta tuo, e concedi all'autore di VodMax (silirim) una licenza
    **perpetua, mondiale, gratuita, non esclusiva e irrevocabile** di usarlo,
    modificarlo, sublicenziarlo e distribuirlo con qualsiasi licenza, comprese
    licenze commerciali;

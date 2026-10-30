@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rikimela1992/vodmax/internal/playlist/m3u"
+	"github.com/silirim/vodmax/internal/playlist/m3u"
 )
 
 func TestFromM3U(t *testing.T) {

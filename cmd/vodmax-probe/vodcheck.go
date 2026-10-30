@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rikimela1992/vodmax/internal/playlist/xtream"
-	"github.com/rikimela1992/vodmax/internal/provider"
+	"github.com/silirim/vodmax/internal/playlist/xtream"
+	"github.com/silirim/vodmax/internal/provider"
 )
 
 // vodCheck reports container extensions in the catalog and, for a few

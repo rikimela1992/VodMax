@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rikimela1992/vodmax/internal/vpn"
+	"github.com/silirim/vodmax/internal/vpn"
 )
 
 type downDialer struct{ dials atomic.Int32 }

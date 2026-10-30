@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rikimela1992/vodmax/internal/catalog"
-	"github.com/rikimela1992/vodmax/internal/library"
-	"github.com/rikimela1992/vodmax/internal/playlist/xtream"
-	"github.com/rikimela1992/vodmax/internal/store"
+	"github.com/silirim/vodmax/internal/catalog"
+	"github.com/silirim/vodmax/internal/library"
+	"github.com/silirim/vodmax/internal/playlist/xtream"
+	"github.com/silirim/vodmax/internal/store"
 )
 
 // Local collections are subscriptions of kind "local": a folder of films

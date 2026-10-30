@@ -5,7 +5,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/rikimela1992/vodmax/internal/vpn"
+	"github.com/silirim/vodmax/internal/vpn"
 )
 
 // systemNetwork is the "VPN" of kind system: the user runs a VPN outside

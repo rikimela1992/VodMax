@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rikimela1992/vodmax/internal/epg"
-	"github.com/rikimela1992/vodmax/internal/lineup"
-	"github.com/rikimela1992/vodmax/internal/store"
+	"github.com/silirim/vodmax/internal/epg"
+	"github.com/silirim/vodmax/internal/lineup"
+	"github.com/silirim/vodmax/internal/store"
 )
 
 // External XMLTV guides (an EPG site, the home Tvheadend...) fill in the
