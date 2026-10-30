@@ -17,7 +17,6 @@ VodMaxI18n.add("en", {
   "Pausa": "Pause",
   "Torna in diretta": "Back to live",
   "Sottotitoli": "Subtitles",
-  "OK o Spazio pausa · ◀ −10 s · ▶ +30 s · ▼ comandi · Indietro chiude": "OK or Space pause · ◀ −10 s · ▶ +30 s · ▼ controls · Back closes",
 
   // Cards and home
   "{n} versioni": "{n} versions",

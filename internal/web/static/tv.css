@@ -64,9 +64,9 @@ video {
   right: 4vw;
   bottom: 5vh;
   padding: 1.4rem 1.8rem;
-  background: linear-gradient(180deg, rgba(16, 17, 21, 0.88), rgba(8, 9, 11, 0.96));
+  background: rgba(19, 21, 27, 0.92);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 16px;
   font-size: clamp(1rem, 1.6vw, 1.6rem);
 }
 
@@ -182,23 +182,28 @@ video {
   transform: translateX(-50%);
   display: flex;
   gap: 0.5rem;
-  padding: 0.6rem;
-  background: var(--panel);
+  padding: 0.7rem;
+  background: rgba(19, 21, 27, 0.92);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 16px;
   font-size: clamp(0.9rem, 1.2vw, 1.2rem);
 }
+/* Pills like the player of films and the small buttons of every page. */
 .controls button {
-  padding: 0.55em 0.9em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.55em 1.1em;
   font: inherit;
   color: var(--text);
-  background: var(--raised);
-  border: 1px solid transparent;
-  border-radius: 10px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
   cursor: pointer;
   white-space: nowrap;
 }
-.controls button:hover, .controls button:focus { border-color: var(--text); outline: none; }
+.controls button:hover { border-color: var(--text); }
+.controls button:focus { outline: none; color: #0b0c10; background: var(--focus); border-color: var(--focus); }
 .controls #ctl-live.behind { color: var(--bg); background: var(--accent); }
 .controls #ctl-fav.on { color: var(--fav); }
 
@@ -251,7 +256,7 @@ video {
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
   }
   .controls button .icon { width: 1.6rem; height: 1.6rem; }
-  .controls button:focus, .controls button:hover { background: rgba(255, 255, 255, 0.12); }
+  .controls button:focus, .controls button:hover { color: #fff; background: rgba(255, 255, 255, 0.12); border-color: transparent; }
   .controls [data-action="menu"] { grid-area: 1 / 1 / 2 / 4; flex-direction: row; justify-self: start; padding: 0.5rem 0.8rem; }
   .controls [data-action="list"] { grid-area: 1 / 10 / 2 / 13; flex-direction: row; justify-self: end; padding: 0.5rem 0.8rem; }
   .controls [data-action="back10"] { grid-area: 2 / 2 / 3 / 5; justify-self: center; }
@@ -284,4 +289,21 @@ video {
   .list li.selected { outline: none; }
   .list li.current { background: var(--raised); }
   .list .hint { display: none; }
+}
+
+/* Watching: the server's warnings wait for the menu. */
+#server-problems { display: none; }
+
+/* Phone: the info bar in two columns, labels above the titles. */
+@media (max-width: 700px) {
+  .banner { left: 0.6rem; right: 0.6rem; bottom: calc(0.6rem + env(safe-area-inset-bottom)); padding: 1rem 1.1rem; font-size: 1rem; }
+  .banner-head { flex-wrap: wrap; align-items: center; gap: 0.3rem 0.7rem; }
+  .number { font-size: 1.7em; min-width: 0; }
+  .logo { height: 2em; }
+  .name { font-size: 1.25em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badges { flex-basis: 100%; }
+  .badges span:first-child, .mode { margin-left: 0; }
+  .programme { display: grid; grid-template-columns: 1fr auto; gap: 0 0.8rem; }
+  .programme .label { grid-column: 1 / -1; width: auto; font-size: 0.75em; }
+  .progress { margin-left: 0; }
 }

@@ -718,6 +718,7 @@ window.VodMax = (() => {
     span.textContent = text;
     parts.push(span);
     el.replaceChildren(...parts);
+    if (el.tagName === "BUTTON") el.setAttribute("aria-label", text); // the text can be hidden on phones
   }
 
   // The Android app's native player (window.VodMaxNative), if present.

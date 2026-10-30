@@ -70,17 +70,17 @@
   left: 4vw;
   right: 4vw;
   bottom: 5vh;
-  padding: 1.2rem 1.6rem;
-  background: rgba(8, 9, 11, 0.85);
+  padding: 1.3rem 1.7rem 1.2rem;
+  background: rgba(19, 21, 27, 0.92);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 16px;
   transition: opacity 0.3s;
 }
 .player-bar.idle { opacity: 0; }
-.player-title { font-size: 1.3rem; font-weight: 600; margin-bottom: 0.8rem; }
+.player-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 0.4rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .player-progress { height: 6px; background: var(--raised); border-radius: 3px; overflow: hidden; }
 .player-progress div { height: 100%; width: 0; background: var(--accent-grad); }
-.player-time { display: flex; justify-content: space-between; margin: 0.5rem 0; color: var(--soft); font-variant-numeric: tabular-nums; }
+.player-time { display: flex; justify-content: space-between; margin: -0.2rem 0 0.8rem; color: var(--soft); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
 .hint { color: var(--soft); font-size: 0.85rem; }
 
 .status {
@@ -127,17 +127,25 @@
   border-radius: 8px;
 }
 
-.player-buttons { display: flex; gap: 0.5rem; margin: 0.6rem 0; }
+/* The commands: playback on the left, Close on the right; pills like
+   the small buttons of every page. */
+.player-buttons { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .player-buttons button {
-  padding: 0.5em 0.9em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.55em 1.1em;
   font: inherit;
+  white-space: nowrap;
   color: var(--text);
-  background: var(--raised);
-  border: 1px solid transparent;
-  border-radius: 10px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
   cursor: pointer;
 }
-.player-buttons button:hover, .player-buttons button:focus { border-color: var(--text); outline: none; }
+.player-buttons button[data-action="close"] { order: 9; margin-left: auto; }
+.player-buttons button:hover { border-color: var(--text); }
+.player-buttons button:focus { outline: none; color: #0b0c10; background: var(--focus); border-color: var(--focus); }
 .player.cursor-hidden { cursor: none; }
 
 /* Server problems notice. */
@@ -170,10 +178,11 @@
 
 .player-menu { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.4rem 0 0.6rem; padding: 0.6rem; background: var(--raised); border-radius: 10px; }
 .player-menu .menu-title { width: 100%; color: var(--soft); font-size: 0.9rem; }
-.player-menu button { padding: 0.45em 0.9em; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 9px; cursor: pointer; }
+.player-menu button { padding: 0.45em 1em; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
 .player-menu button.on { border-color: var(--fav); color: var(--fav); }
 .player-menu button:disabled { opacity: 0.45; cursor: default; }
-.player-menu button:focus, .player-menu button:hover { border-color: var(--text); outline: none; }
+.player-menu button:hover { border-color: var(--text); }
+.player-menu button:focus { outline: none; color: #0b0c10; background: var(--focus); border-color: var(--focus); }
 video::cue { font-size: 1.6rem; background: rgba(0, 0, 0, 0.65); }
 
 /* Detail page: backdrop behind a dark gradient, plot and credits. */
@@ -327,4 +336,15 @@ video::cue { font-size: 1.6rem; background: rgba(0, 0, 0, 0.65); }
   .rule-form .check { font-size: 1rem; padding: 0.3rem 0; }
   .matches li { padding: 0.6rem 0.8rem; }
   .rule-form button[type=submit] { justify-self: stretch; }
+}
+
+/* Phone: the commands as icons, the bar across the bottom. */
+@media (max-width: 700px) {
+  .player-bar { left: 0.6rem; right: 0.6rem; bottom: calc(0.6rem + env(safe-area-inset-bottom)); padding: 1rem 1rem 0.9rem; }
+  .player-title { font-size: 1.05rem; }
+  .player-buttons { gap: 0.4rem; justify-content: space-between; flex-wrap: nowrap; }
+  .player-buttons button { padding: 0.6em 0.8em; }
+  .player-buttons button[data-action="close"] { margin-left: 0; }
+  .player-buttons button .lbl { display: none; }
+  .player-buttons button[data-action="back10"] .lbl, .player-buttons button[data-action="fwd30"] .lbl { display: inline; font-size: 0.85rem; }
 }
