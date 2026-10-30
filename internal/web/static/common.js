@@ -232,6 +232,59 @@ window.VodMax = (() => {
     start();
     decorate();
     watchStatus();
+    offerAppUpdate();
+  }
+
+  // ---- Updates of the Android app ----
+  // The server knows the newest release (it checks GitHub once a day); the
+  // app downloads its APK, checks the checksum and opens the installer.
+  function newerVersion(a, b) {
+    const parse = (v) => (String(v || "").match(/^v?(\d+)\.(\d+)\.(\d+)/) || []).slice(1).map(Number);
+    const x = parse(a), y = parse(b);
+    if (x.length !== 3 || y.length !== 3) return false;
+    for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i];
+    return false;
+  }
+  const canUpdateApp = () => Boolean(native && typeof native.update === "function");
+  function appUpdate(info) {
+    return canUpdateApp() && info && info.apk && newerVersion(info.latest, native.version()) ? info.apk : null;
+  }
+  // Starts the update; status receives the progress texts.
+  function updateApp(info, status) {
+    const apk = appUpdate(info);
+    if (!apk) return;
+    status(t("Scaricamento dell'aggiornamento…"));
+    window.VodMaxUpdateProgress = (p) => status(t("Scaricamento dell'aggiornamento… {pct}%", { pct: p }));
+    window.VodMaxUpdateDone = (err) => status(err ? t("Aggiornamento non riuscito: {error}", { error: err })
+      : t("Conferma l'installazione nella finestra di Android."), Boolean(err));
+    native.update(JSON.stringify({ url: apk.url, sha256: apk.sha256, version: info.latest }));
+  }
+  // Once per session, a banner when a newer app is available.
+  async function offerAppUpdate() {
+    if (!canUpdateApp()) return;
+    try { if (sessionStorage.getItem("vodmax.updateOffered")) return; } catch { /* private mode */ }
+    let info;
+    try { info = await api("GET", "/api/v1/update"); } catch { return; }
+    if (!appUpdate(info) || store.get("updateDismissed", "") === info.latest) return;
+    try { sessionStorage.setItem("vodmax.updateOffered", "1"); } catch { /* private mode */ }
+    const msg = el("p", {}, t("È disponibile VodMax {version} per questa app.", { version: info.latest.replace(/^v/, "") }));
+    const close = () => { box.remove(); document.removeEventListener("keydown", onKey, true); };
+    const go = el("button", { type: "button", className: "focusable primary" }, t("Aggiorna"));
+    const later = el("button", { type: "button", className: "focusable" }, t("Più tardi"));
+    const buttons = el("div", { className: "buttons" }, go, later);
+    const box = el("div", { id: "update-banner", role: "dialog" }, msg, buttons);
+    go.onclick = () => {
+      buttons.hidden = true;
+      updateApp(info, (text, failed) => {
+        msg.textContent = text;
+        if (failed) { buttons.hidden = false; go.focus(); }
+      });
+    };
+    later.onclick = () => { store.set("updateDismissed", info.latest); close(); };
+    const onKey = (e) => { if (keyOf(e) === "Back") { e.preventDefault(); e.stopPropagation(); close(); } };
+    document.addEventListener("keydown", onKey, true);
+    document.body.append(box);
+    go.focus();
   }
 
   async function api(method, path, body) {
@@ -465,5 +518,5 @@ window.VodMax = (() => {
   // The Android app's native player (window.VodMaxNative), if present.
   const native = window.VodMaxNative || null;
 
-  return { native, bottomNav, closeSheet, sheetOpen, label, store, viewer, token, withToken, askToken, showProfiles, me, api, keyOf, clock, hhmm, tsPlayer, hlsPlayer, watchStatus };
+  return { native, newerVersion, appUpdate, updateApp, bottomNav, closeSheet, sheetOpen, label, store, viewer, token, withToken, askToken, showProfiles, me, api, keyOf, clock, hhmm, tsPlayer, hlsPlayer, watchStatus };
 })();

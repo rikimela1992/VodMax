@@ -30,7 +30,7 @@ lo spazio per le registrazioni.
 tar xzf vodmax-server_*_linux_amd64.tar.gz
 cd vodmax-server_*/
 sudo useradd --system --home /var/lib/vodmax --shell /usr/sbin/nologin vodmax
-sudo install -m 755 vodmax-server /usr/local/bin/
+sudo install -m 755 vodmax-server vodmax-update /usr/local/bin/
 sudo install -d -o vodmax -g vodmax -m 700 /var/lib/vodmax
 sudo cp vodmax.service /etc/systemd/system/
 sudo systemctl enable --now vodmax
@@ -50,15 +50,26 @@ vodmax-server -version
   il file fornito, non vede `/home` né `/tmp`. Metti o monta le cartelle dei
   film sotto `/mnt`, `/srv` o `/media`, leggibili dall'utente `vodmax`.
 
-### Aggiornare il server
+### Aggiornare
 
-```sh
-sudo install -m 755 vodmax-server /usr/local/bin/vodmax-server
-sudo systemctl restart vodmax
-```
+Il server controlla le release su GitHub una volta al giorno (contatta solo
+GitHub e non invia nulla sulla tua installazione; si disattiva in
+Impostazioni → Sistema → Versione e aggiornamenti) e lì mostra quando esce
+una versione nuova.
 
-Il database si aggiorna da solo all'avvio. Prima fai un backup
-(Impostazioni → Sistema → Backup).
+- **Server**: `sudo vodmax-update` scarica la versione per questa macchina,
+  la verifica con i checksum della release, tiene quella in uso come
+  `vodmax-server.old`, installa la nuova e riavvia il servizio.
+  `sudo vodmax-update v0.4.0` installa una versione precisa (anche per
+  tornare indietro). Il database si aggiorna da solo all'avvio; meglio fare
+  prima un backup (Impostazioni → Sistema → Backup).
+- **App Android** (telefono, Android TV, Fire TV): propongono da sole
+  l'aggiornamento: *Aggiorna*, poi conferma nella finestra di Android (la
+  prima volta permetti a VodMax di installare app). Funziona dalla 0.4.0,
+  la prima firmata con la chiave di rilascio: chi ha una versione
+  precedente deve disinstallarla e installare la 0.4.0 una volta.
+- **LG webOS**: l'interfaccia arriva dal server, quindi è sempre aggiornata;
+  l'app in sé cambia di rado (si reinstalla come sopra).
 
 ## 2. Prima configurazione
 

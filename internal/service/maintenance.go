@@ -194,6 +194,7 @@ func (s *Service) runScheduled(ctx context.Context, log *slog.Logger, now time.T
 	if err != nil {
 		return
 	}
+	s.updateDue(ctx, log, now)
 	if s.autoBackupDue() {
 		if _, err := s.AutoBackup(ctx); err != nil && !errors.Is(err, errNoBackupDir) {
 			log.Warn("backup automatico non riuscito", "err", err)

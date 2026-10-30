@@ -162,3 +162,7 @@
   .path-field { flex-wrap: wrap; }
   .folders { grid-template-columns: 1fr; }
 }
+
+/* Release notes and the update command. */
+.settings pre.notes { max-height: 16rem; overflow: auto; white-space: pre-wrap; font: inherit; font-size: 0.95rem; color: var(--soft); margin: 0.6rem 0; }
+.settings pre.cmd { display: inline-block; margin: 0.2rem 0 0.6rem; padding: 0.5em 0.9em; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; font-family: ui-monospace, monospace; user-select: all; }

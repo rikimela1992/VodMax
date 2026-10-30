@@ -86,6 +86,7 @@ func run(data, listen, recordings, ffmpeg, ffprobe string, device bool, log *slo
 	svc := service.New(st, box, nil)
 	defer svc.Close()
 	svc.SetFFmpeg(ffmpeg, ffprobe)
+	svc.SetVersion(version)
 
 	srv := &http.Server{
 		Addr:              listen,

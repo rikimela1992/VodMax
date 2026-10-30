@@ -94,13 +94,14 @@ Scarica i pacchetti dall'[ultima release](https://github.com/silirim/VodMax/rele
 ```sh
 tar xzf vodmax-server_*_linux_amd64.tar.gz && cd vodmax-server_*/
 sudo useradd --system --home /var/lib/vodmax --shell /usr/sbin/nologin vodmax
-sudo install -m 755 vodmax-server /usr/local/bin/
+sudo install -m 755 vodmax-server vodmax-update /usr/local/bin/
 sudo install -d -o vodmax -g vodmax -m 700 /var/lib/vodmax
 sudo cp vodmax.service /etc/systemd/system/ && sudo systemctl enable --now vodmax
 ```
 
 Installa `ffmpeg` della tua distribuzione per pausa della diretta,
-registrazioni e MKV/AVI nel browser.
+registrazioni e MKV/AVI nel browser. Per aggiornare poi: `sudo vodmax-update`
+(le app Android propongono da sole il loro aggiornamento).
 
 **Android / Android TV / Fire TV**: installa `VodMax-<versione>.apk`, poi
 indica l'indirizzo del server oppure scegli *Usa questo dispositivo da solo*.

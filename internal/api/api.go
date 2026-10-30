@@ -75,6 +75,9 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	route("GET /api/v1/items/{id}/variants", levelViewer, a.variants)
 	route("GET /api/v1/items/{id}/details", levelViewer, a.details)
 	route("POST /api/v1/debug/player", levelViewer, a.playerLog)
+	route("GET /api/v1/update", levelDevice, a.getUpdate)
+	route("POST /api/v1/update/check", levelAdmin, a.checkUpdate)
+	route("PUT /api/v1/settings/updates", levelAdmin, a.putUpdateSettings)
 	route("GET /api/v1/settings/metadata", levelAdmin, a.getMetadataSettings)
 	route("PUT /api/v1/settings/metadata", levelAdmin, a.putMetadataSettings)
 	route("GET /api/v1/catalog/{kind}", levelViewer, a.catalog)
@@ -1251,6 +1254,37 @@ func (a *api) details(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, d)
+}
+
+// getUpdate: the newest release known to the server (also to devices: the
+// Android app updates itself from it).
+func (a *api) getUpdate(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, a.svc.Update(r.Context()))
+}
+
+func (a *api) checkUpdate(w http.ResponseWriter, r *http.Request) {
+	info, err := a.svc.CheckUpdate(r.Context())
+	if err != nil {
+		a.fail(w, r, service.Invalid("%s", info.Error))
+		return
+	}
+	writeJSON(w, http.StatusOK, info)
+}
+
+func (a *api) putUpdateSettings(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	info, err := a.svc.SetUpdatesEnabled(r.Context(), in.Enabled)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, info)
 }
 
 func (a *api) getMetadataSettings(w http.ResponseWriter, r *http.Request) {

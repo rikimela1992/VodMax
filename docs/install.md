@@ -30,7 +30,7 @@ recordings.
 tar xzf vodmax-server_*_linux_amd64.tar.gz
 cd vodmax-server_*/
 sudo useradd --system --home /var/lib/vodmax --shell /usr/sbin/nologin vodmax
-sudo install -m 755 vodmax-server /usr/local/bin/
+sudo install -m 755 vodmax-server vodmax-update /usr/local/bin/
 sudo install -d -o vodmax -g vodmax -m 700 /var/lib/vodmax
 sudo cp vodmax.service /etc/systemd/system/
 sudo systemctl enable --now vodmax
@@ -52,15 +52,27 @@ vodmax-server -version
   movie folders under `/mnt`, `/srv` or `/media` and make them readable by
   `vodmax`.
 
-### Updating the server
+### Updating
 
-```sh
-sudo install -m 755 vodmax-server /usr/local/bin/vodmax-server
-sudo systemctl restart vodmax
-```
+The server checks the GitHub releases once a day (it contacts GitHub only
+and sends nothing about your installation; it can be turned off in
+Settings → System → Version and updates) and shows there when a new version
+is out.
 
-The database is upgraded automatically at start. Make a backup first
-(Settings → System → Backup).
+- **Server**: `sudo vodmax-update` downloads the build for this machine,
+  checks it against the release's checksums, keeps the running one as
+  `vodmax-server.old`, installs the new one and restarts the service.
+  `sudo vodmax-update v0.4.0` installs a given version (also to go back).
+  The database is upgraded automatically at start; a backup first is wise
+  (Settings → System → Backup).
+- **Android apps** (phone, Android TV, Fire TV) offer the update by
+  themselves: *Update*, then confirm in the Android window (the first time,
+  allow VodMax to install apps). It works from version 0.4.0, the first
+  signed with the release key: devices with an older version must uninstall
+  it and install 0.4.0 once.
+- **LG webOS**: the interface comes from the server, so it is always
+  current; the app itself rarely changes (reinstall it as above when it
+  does).
 
 ## 2. First setup
 

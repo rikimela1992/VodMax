@@ -97,13 +97,14 @@ TVs: [docs/install.md](docs/install.md).
 ```sh
 tar xzf vodmax-server_*_linux_amd64.tar.gz && cd vodmax-server_*/
 sudo useradd --system --home /var/lib/vodmax --shell /usr/sbin/nologin vodmax
-sudo install -m 755 vodmax-server /usr/local/bin/
+sudo install -m 755 vodmax-server vodmax-update /usr/local/bin/
 sudo install -d -o vodmax -g vodmax -m 700 /var/lib/vodmax
 sudo cp vodmax.service /etc/systemd/system/ && sudo systemctl enable --now vodmax
 ```
 
 Install `ffmpeg` from your distribution for timeshift, recordings and MKV/AVI
-in the browser.
+in the browser. To update later: `sudo vodmax-update` (the Android apps offer
+their updates by themselves).
 
 **Android / Android TV / Fire TV** — install `VodMax-<version>.apk`, then enter
 the server address or choose *Usa questo dispositivo da solo* (standalone).

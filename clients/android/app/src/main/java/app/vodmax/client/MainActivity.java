@@ -46,6 +46,7 @@ public class MainActivity extends Activity {
 
     private WebView web;
     private String server;
+    private final AppUpdater updater = new AppUpdater(this);
 
     @Override
     protected void onCreate(Bundle state) {
@@ -265,6 +266,31 @@ public class MainActivity extends Activity {
             });
         }
 
+        /** {url, sha256, version} of a release APK: download, check, install. */
+        @JavascriptInterface
+        public void update(String json) {
+            runOnUiThread(() -> {
+                try {
+                    JSONObject o = new JSONObject(json);
+                    updater.start(o.optString("url"), o.optString("sha256"), o.optString("version"), new AppUpdater.Listener() {
+                        @Override
+                        public void progress(int percent) {
+                            if (web != null) web.evaluateJavascript("window.VodMaxUpdateProgress && window.VodMaxUpdateProgress(" + percent + ")", null);
+                        }
+
+                        @Override
+                        public void done(String error) {
+                            if (web != null) web.evaluateJavascript("window.VodMaxUpdateDone && window.VodMaxUpdateDone("
+                                + (error == null ? "null" : JSONObject.quote(error)) + ")", null);
+                        }
+                    });
+                } catch (Exception e) {
+                    if (web != null) web.evaluateJavascript("window.VodMaxUpdateDone && window.VodMaxUpdateDone("
+                        + JSONObject.quote(String.valueOf(e.getMessage())) + ")", null);
+                }
+            });
+        }
+
         @JavascriptInterface
         public void changeServer() {
             runOnUiThread(() -> showSetup(null));
@@ -299,6 +325,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        updater.resume();
         if (!prefs().getBoolean(KEY_LOCAL, false) || web == null) return;
         new Thread(() -> {
             if (!LocalServer.running()) runOnUiThread(this::openLocal);

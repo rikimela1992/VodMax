@@ -33,4 +33,11 @@ VodMaxI18n.add("en", {
   "Cambia profilo": "Switch profile",
   "Cambia server": "Change server",
   "{text} (e altri {count})": "{text} (and {count} more)",
+  "Scaricamento dell'aggiornamento…": "Downloading the update…",
+  "Scaricamento dell'aggiornamento… {pct}%": "Downloading the update… {pct}%",
+  "Aggiornamento non riuscito: {error}": "Update failed: {error}",
+  "Conferma l'installazione nella finestra di Android.": "Confirm the installation in the Android window.",
+  "È disponibile VodMax {version} per questa app.": "VodMax {version} is available for this app.",
+  "Aggiorna": "Update",
+  "Più tardi": "Later",
 });

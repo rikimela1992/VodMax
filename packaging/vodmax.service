@@ -1,6 +1,6 @@
 # VodMax server as a systemd service. Install:
 #   useradd --system --home /var/lib/vodmax --shell /usr/sbin/nologin vodmax
-#   install -m 755 vodmax-server /usr/local/bin/
+#   install -m 755 vodmax-server vodmax-update /usr/local/bin/
 #   install -d -o vodmax -g vodmax -m 700 /var/lib/vodmax
 #   cp vodmax.service /etc/systemd/system/ && systemctl enable --now vodmax
 # The admin token is in /var/lib/vodmax/admin.token. ffmpeg (and ffprobe)

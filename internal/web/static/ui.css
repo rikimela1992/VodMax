@@ -335,3 +335,13 @@ h2 { margin: 1.8rem 0 0.8rem; font-size: 1.2rem; font-weight: 600; color: var(--
 .lang-picker button { padding: 0.45em 1.1em; font: inherit; color: var(--soft); background: var(--raised); border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
 .lang-picker button.active { color: var(--text); border-color: var(--text); }
 .lang-picker button:focus, .lang-picker button:hover { color: #0b0c10; background: var(--focus); border-color: var(--focus); outline: none; }
+
+/* Update of the Android app, offered once per session. */
+#update-banner { position: fixed; left: 50%; bottom: 1.5rem; z-index: 30; transform: translateX(-50%); width: min(34rem, calc(100% - 2rem));
+  padding: 1rem 1.2rem; background: var(--panel); border: 1px solid var(--accent); border-radius: 16px; box-shadow: 0 1rem 2.4rem rgba(0, 0, 0, 0.6); }
+#update-banner p { margin: 0 0 0.8rem; }
+#update-banner .buttons { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+#update-banner button { padding: 0.5em 1.2em; font: inherit; color: var(--text); background: var(--raised); border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
+#update-banner button.primary { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+#update-banner button:focus { outline: 3px solid var(--focus); outline-offset: 2px; }
+@media (max-width: 800px) { #update-banner { bottom: calc(4.5rem + env(safe-area-inset-bottom)); } }

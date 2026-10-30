@@ -3,6 +3,8 @@ package service
 // messagesEN translates the Italian messages (format strings, exactly as
 // written in the code) into English.
 var messagesEN = map[string]string{
+	"controllo degli aggiornamenti non riuscito: %v": "update check failed: %v",
+	"nessuna versione pubblicata":                    "no published version",
 	// Access and profiles
 	"dispositivo non abbinato o token non valido":      "device not paired or invalid token",
 	"scegli chi sta guardando":                         "choose who's watching",

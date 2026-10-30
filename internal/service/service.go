@@ -56,6 +56,7 @@ type Service struct {
 	meta   metaState
 	ts     timeshiftState
 	cu     catchupState
+	upd    updateState
 }
 
 func New(st *store.Store, box *secret.Box, start StartTunnel) *Service {

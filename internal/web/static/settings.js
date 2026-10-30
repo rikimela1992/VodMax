@@ -554,12 +554,56 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     parts.push(el("h2", {}, t("Aggiornamenti automatici")),
       el("p", { className: "note" }, t("Il catalogo di ogni abbonamento (con la guida) si aggiorna ogni notte; se non riesce riprova ogni ora. La guida si aggiorna anche tra una notte e l'altra.") +
         (status.next_catalog ? " " + t("Prossimo aggiornamento del catalogo: {when}.", { when: when(status.next_catalog) }) : "")), form);
+    const update = await api("GET", "/api/v1/update").catch(() => null);
+    if (update) parts.push(...updateSection(update));
     if (window.VodMax.native) {
+      const appButtons = el("div", { className: "buttons" }, button(t("Cambia server"), () => window.VodMax.native.changeServer()));
+      const appStatus = el("p", { className: "note" });
+      if (window.VodMax.appUpdate(update)) {
+        const go = button(t("Aggiorna l'app a {version}", { version: update.latest.replace(/^v/, "") }), () => {
+          go.disabled = true;
+          window.VodMax.updateApp(update, (text, failed) => { appStatus.textContent = text; go.disabled = !failed; });
+        }, "primary");
+        appButtons.prepend(go);
+      }
       parts.push(el("h2", {}, "App"), el("p", { className: "note" }, t("VodMax per Android {version}, collegata a {server}.", { version: window.VodMax.native.version(), server: location.origin })),
-        el("div", { className: "buttons" }, button(t("Cambia server"), () => window.VodMax.native.changeServer())));
+        appButtons, appStatus);
     }
     parts.push(...await liveSection(), ...await recordingLimits(), ...(await metadataSection()).filter(Boolean), ...await backupSection());
     main.replaceChildren(...parts);
+  }
+
+  // ---- Version and updates ----
+  function updateSection(u) {
+    const parts = [el("h2", {}, t("Versione e aggiornamenti"))];
+    const facts = el("div", { className: "facts" }, el("span", {}, t("Server"), " ", el("b", {}, u.current || "?")),
+      u.latest ? el("span", {}, t("Ultima versione"), " ", el("b", {}, u.latest)) : null,
+      u.checked_at ? el("span", {}, t("Controllato"), " ", el("b", {}, when(u.checked_at))) : null);
+    parts.push(facts);
+    if (u.error) parts.push(el("p", { className: "note bad" }, u.error));
+    if (u.available) {
+      const box = el("section", { className: "box" }, el("h3", {}, t("È disponibile VodMax {version}", { version: u.latest.replace(/^v/, "") })));
+      if (u.notes) box.append(el("pre", { className: "notes" }, u.notes));
+      box.append(el("p", { className: "note" }, t("Per aggiornare il server, sulla macchina dove gira:")), el("pre", { className: "cmd" }, "sudo vodmax-update"),
+        el("p", { className: "note" }, t("Lo script scarica la versione per questa macchina, verifica il checksum, tiene la precedente e riavvia il servizio. Le app Android si aggiornano da sole, con una conferma.")));
+      if (u.page) box.append(el("p", {}, el("a", { href: u.page, target: "_blank", rel: "noopener", className: "focusable" }, t("Note complete su GitHub"))));
+      parts.push(box);
+    } else if (u.latest) {
+      parts.push(el("p", { className: "ok" }, t("✓ Il server è aggiornato.")));
+    }
+    const auto = input({ type: "checkbox", checked: u.enabled });
+    auto.onchange = async () => {
+      try { await api("PUT", "/api/v1/settings/updates", { enabled: auto.checked }); flash(auto.checked ? t("Controllo giornaliero attivo") : t("Controllo giornaliero disattivato")); }
+      catch (e) { flash(e.message); auto.checked = !auto.checked; }
+    };
+    const check = button(t("Controlla ora"), async () => {
+      check.disabled = true;
+      try { await api("POST", "/api/v1/update/check"); } catch (e) { flash(e.message); }
+      render();
+    });
+    parts.push(el("label", { className: "check" }, auto, t("Controlla ogni giorno se c'è una nuova versione (contatta solo GitHub, senza inviare dati)")),
+      el("div", { className: "buttons" }, check));
+    return parts;
   }
 
   // ---- Live TV ----

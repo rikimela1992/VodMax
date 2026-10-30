@@ -12,6 +12,6 @@ for target in arm64:arm64-v8a:aarch64-linux-android24 arm:armeabi-v7a:armv7a-lin
   mkdir -p app/src/main/jniLibs/$abi
   # cgo: the system resolver and Android's own linker.
   (cd ../.. && CGO_ENABLED=1 GOOS=android GOARCH=$arch GOARM=7 CC=$CC_DIR/$cc-clang \
-    go build -trimpath -ldflags="-s -w" -o clients/android/app/src/main/jniLibs/$abi/libvodmax.so ./cmd/vodmax-server)
+    go build -trimpath -ldflags="-s -w -X main.version=${VERSION:-dev}" -o clients/android/app/src/main/jniLibs/$abi/libvodmax.so ./cmd/vodmax-server)
   echo "$abi: $(du -h app/src/main/jniLibs/$abi/libvodmax.so | cut -f1)"
 done
