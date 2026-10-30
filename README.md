@@ -79,7 +79,8 @@ decoder with the remote.
 
 <sub>Screenshots use demo data: invented channels and guide, and the titles
 of the Blender Studio open movies with generated artwork. The interface is in
-Italian; more languages are planned.</sub>
+Italian and English (chosen per device; new languages are one dictionary file
+each).</sub>
 
 ## Install
 

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setup_title">VodMax</string>
+    <string name="setup_text">Address of your home VodMax server (for example http://192.168.1.10:8095).</string>
+    <string name="setup_hint">http://address:8095</string>
+    <string name="setup_connect">Connect</string>
+    <string name="setup_checking">Checking the server…</string>
+    <string name="setup_unreachable">The server isn\'t responding at this address: make sure it\'s on and on the same network.</string>
+    <string name="error_title">Server unreachable</string>
+    <string name="error_retry">Try again</string>
+    <string name="error_change">Change address</string>
+    <string name="local_text">No server at home? VodMax can run on this device alone: add a subscription and a VPN in Settings. No recordings or live TV pause.</string>
+    <string name="local_button">Use this device on its own</string>
+    <string name="local_starting">Starting VodMax…</string>
+    <string name="local_failed">VodMax couldn\'t start on this device</string>
+    <string name="local_exited">the built-in server stopped (code %1$d)</string>
+    <string name="local_no_answer">the built-in server isn\'t responding</string>
+</resources>

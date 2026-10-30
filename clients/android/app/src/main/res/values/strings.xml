@@ -13,4 +13,6 @@
     <string name="local_button">Usa questo dispositivo da solo</string>
     <string name="local_starting">Avvio di VodMax…</string>
     <string name="local_failed">VodMax non si è avviato su questo dispositivo</string>
+    <string name="local_exited">il server interno si è fermato (codice %1$d)</string>
+    <string name="local_no_answer">il server interno non risponde</string>
 </resources>

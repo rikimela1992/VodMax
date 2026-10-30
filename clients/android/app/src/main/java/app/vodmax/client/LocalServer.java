@@ -43,8 +43,8 @@ final class LocalServer {
             new Thread(() -> copyLog(p.getInputStream(), log)).start();
             long until = System.currentTimeMillis() + 30000;
             while (!running()) {
-                if (exited(p)) throw new Exception("il server interno si è fermato (codice " + p.exitValue() + ")");
-                if (System.currentTimeMillis() > until) throw new Exception("il server interno non risponde");
+                if (exited(p)) throw new Exception(context.getString(R.string.local_exited, p.exitValue()));
+                if (System.currentTimeMillis() > until) throw new Exception(context.getString(R.string.local_no_answer));
                 Thread.sleep(300);
             }
         }

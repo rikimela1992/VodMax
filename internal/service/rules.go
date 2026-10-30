@@ -179,14 +179,14 @@ func (s *Service) assess(ctx context.Context, m *RuleMatch) error {
 	case err != nil:
 		return err
 	case status == "cancelled":
-		m.State, m.Note = "cancelled", "annullata a mano"
+		m.State, m.Note = "cancelled", T(ctx, "annullata a mano")
 		return nil
 	case status != "":
 		m.State = "scheduled"
 		return nil
 	}
 	if time.Duration(stop-start)*time.Second > maxRecording {
-		m.State, m.Note = "too_long", "più lungo di 6 ore"
+		m.State, m.Note = "too_long", T(ctx, "più lungo di 6 ore")
 		return nil
 	}
 	why, err := s.recordingConflict(ctx, m.sub, m.group, start, stop)
@@ -233,7 +233,7 @@ func (s *Service) applyRules(ctx context.Context, log *slog.Logger) {
 		}
 		note, err := s.applyRule(ctx, r)
 		if err != nil {
-			note = "errore: " + err.Error()
+			note = T(ctx, "errore: %s", err.Error())
 			log.Warn("regola di registrazione", "regola", r.Name, "err", err)
 		}
 		s.st.SetRecordingRuleResult(ctx, r.ID, note)
@@ -275,18 +275,18 @@ func (s *Service) applyRule(ctx context.Context, r store.RecordingRule) (string,
 			added++
 		}
 	}
-	note := fmt.Sprintf("%d in programma", added+already)
+	note := T(ctx, "%d in programma", added+already)
 	if added > 0 {
-		note += fmt.Sprintf(" (%d nuove)", added)
+		note += T(ctx, " (%d nuove)", added)
 	}
 	if cancelled > 0 {
-		note += fmt.Sprintf(", %d annullate a mano", cancelled)
+		note += T(ctx, ", %d annullate a mano", cancelled)
 	}
 	if len(list) == 0 {
-		note = "nessun programma corrispondente nella guida dei prossimi giorni"
+		note = T(ctx, "nessun programma corrispondente nella guida dei prossimi giorni")
 	}
 	if len(conflicts) > 0 {
-		note += "; non registrabili per mancanza di connessioni: " + strings.Join(conflicts, ", ")
+		note += T(ctx, "; non registrabili per mancanza di connessioni: %s", strings.Join(conflicts, ", "))
 	}
 	return note, nil
 }
@@ -376,9 +376,11 @@ func (s *Service) runRule(ctx context.Context, id int64) {
 	if err != nil || !r.Enabled {
 		return
 	}
+	// The stored result is in Italian, like the periodic runs.
+	ctx = WithLang(ctx, "it")
 	note, err := s.applyRule(ctx, r)
 	if err != nil {
-		note = "errore: " + err.Error()
+		note = T(ctx, "errore: %s", err.Error())
 	}
 	s.st.SetRecordingRuleResult(ctx, id, note)
 	s.scheduleDue(context.WithoutCancel(ctx))

@@ -162,15 +162,15 @@ func (s *Service) cleanupRecordings(ctx context.Context, log *slog.Logger) {
 }
 
 // diskProblems for the status page.
-func (s *Service) diskProblems() []Problem {
+func (s *Service) diskProblems(ctx context.Context) []Problem {
 	free, _, ok := diskSpace(s.recordingsDir())
 	switch {
 	case !ok:
 		return nil
 	case free < minFreeToRecord:
-		return []Problem{{Level: "error", Area: "disk", Text: fmt.Sprintf("Disco delle registrazioni pieno (%.1f GB liberi): le registrazioni non partono", float64(free)/(1<<30))}}
+		return []Problem{{Level: "error", Area: "disk", Text: T(ctx, "Disco delle registrazioni pieno (%.1f GB liberi): le registrazioni non partono", float64(free)/(1<<30))}}
 	case free < lowDiskWarning:
-		return []Problem{{Level: "warning", Area: "disk", Text: fmt.Sprintf("Disco delle registrazioni quasi pieno: %.1f GB liberi", float64(free)/(1<<30))}}
+		return []Problem{{Level: "warning", Area: "disk", Text: T(ctx, "Disco delle registrazioni quasi pieno: %.1f GB liberi", float64(free)/(1<<30))}}
 	}
 	return nil
 }

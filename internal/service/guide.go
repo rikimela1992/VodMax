@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -86,15 +85,14 @@ func (s *Service) recordingConflict(ctx context.Context, subID int64, group stri
 	var busy []string
 	for i, r := range list {
 		if subs[i] == subID && r.GroupKey != group {
-			busy = append(busy, fmt.Sprintf("“%s” su %s", r.Title, r.Channel))
+			busy = append(busy, T(ctx, "“%s” su %s", r.Title, r.Channel))
 		}
 	}
 	if len(busy) < max {
 		return "", nil
 	}
-	plural := "e"
-	if max > 1 {
-		plural = "i"
+	if max == 1 {
+		return T(ctx, "l'abbonamento ha %d connessione e a quell'ora registra già %s", max, strings.Join(busy, ", ")), nil
 	}
-	return fmt.Sprintf("l'abbonamento ha %d connession%s e a quell'ora registra già %s", max, plural, strings.Join(busy, ", ")), nil
+	return T(ctx, "l'abbonamento ha %d connessioni e a quell'ora registra già %s", max, strings.Join(busy, ", ")), nil
 }

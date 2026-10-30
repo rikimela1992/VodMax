@@ -5,6 +5,7 @@
 
 (() => {
   const { store, api, keyOf, hhmm } = window.VodMax;
+  const t = window.VodMaxI18n.t;
   const $ = (id) => document.getElementById(id);
   const el = (tag, props = {}, ...children) => {
     const e = Object.assign(document.createElement(tag), props);
@@ -22,10 +23,10 @@
   }
   // Windows start on the half hour.
   function slot(t) { return Math.floor(t / 1800) * 1800; }
-  const dayName = (t) => {
-    const d = new Date(t * 1000), today = new Date();
+  const dayName = (ts) => {
+    const d = new Date(ts * 1000), today = new Date();
     const diff = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - new Date(today.getFullYear(), today.getMonth(), today.getDate())) / 864e5);
-    return diff === 0 ? "Oggi" : diff === 1 ? "Domani" : d.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "short" });
+    return diff === 0 ? t("Oggi") : diff === 1 ? t("Domani") : d.toLocaleDateString(window.VodMaxI18n.locale, { weekday: "long", day: "numeric", month: "short" });
   };
 
   async function load(focusKey) {
@@ -71,11 +72,11 @@
       }
       const name = el("div", { className: "name" }, el("b", {}, r.channel.number || ""),
         r.channel.logo ? el("img", { src: r.channel.logo, alt: "", loading: "lazy" }) : null, r.channel.name,
-        r.channel.catchup_days ? el("small", { className: "archive", title: "Archivio di " + r.channel.catchup_days + " giorni" }, "↺") : null);
+        r.channel.catchup_days ? el("small", { className: "archive", title: t("Archivio di {days} giorni", { days: r.channel.catchup_days }) }, "↺") : null);
       return el("div", { className: "guide-row" }, name, line);
     });
     $("guide").replaceChildren(head, ...(rows.length ? rows : [el("p", { className: "empty" },
-      state.list === "favorites" ? "Nessun preferito con la guida in questo orario." : "Nessun programma in guida in questo orario.")]));
+      state.list === "favorites" ? t("Nessun preferito con la guida in questo orario.") : t("Nessun programma in guida in questo orario."))]));
     const target = (focusKey && document.querySelector('.prog[data-key="' + focusKey + '"]')) || document.querySelector(".prog.on-air") || document.querySelector(".prog");
     if (target) target.focus({ preventScroll: false });
   }
@@ -91,30 +92,30 @@
       location.href = "/?" + new URLSearchParams({ catchup: row.channel.id, start: p.start, stop: p.stop, title: p.title, back: "/guide.html" });
     };
     if (p.start <= now && p.stop > now) {
-      buttons.push(el("button", { className: "button focusable", onclick: () => { location.href = "/tv.html?channel=" + row.channel.id; } }, "▶ Guarda"));
-      if (archive) buttons.push(el("button", { className: "button secondary focusable", onclick: replay }, "⏮ Dall'inizio"));
+      buttons.push(el("button", { className: "button focusable", onclick: () => { location.href = "/tv.html?channel=" + row.channel.id; } }, "▶ " + t("Guarda")));
+      if (archive) buttons.push(el("button", { className: "button secondary focusable", onclick: replay }, "⏮ " + t("Dall'inizio")));
     } else if (archive) {
-      buttons.push(el("button", { className: "button focusable", onclick: replay }, "▶ Riguarda"));
+      buttons.push(el("button", { className: "button focusable", onclick: replay }, "▶ " + t("Riguarda")));
     }
     if (p.recording && !kids) {
       buttons.push(el("button", { className: "button secondary focusable", onclick: async () => {
-        try { await api("DELETE", "/api/v1/recordings/" + p.recording); flash("Registrazione annullata"); close(); load(row.channel.id + ":" + p.start); }
+        try { await api("DELETE", "/api/v1/recordings/" + p.recording); flash(t("Registrazione annullata")); close(); load(row.channel.id + ":" + p.start); }
         catch (e) { flash(e.message); }
-      } }, "Annulla la registrazione"));
+      } }, t("Annulla la registrazione")));
     } else if (p.stop > now && !kids) {
       buttons.push(el("button", { className: "button focusable", onclick: async () => {
         try {
           await api("POST", "/api/v1/recordings", { channel_id: row.channel.id, start: p.start, stop: p.stop, title: p.title, from_guide: true });
-          flash("Registrazione programmata: " + p.title);
+          flash(t("Registrazione programmata: {title}", { title: p.title }));
           close();
           load(row.channel.id + ":" + p.start);
         } catch (e) { flash(e.message); }
-      } }, "⏺ Registra"));
+      } }, "⏺ " + t("Registra")));
     }
-    buttons.push(el("button", { className: "button secondary focusable", onclick: () => close() }, "Chiudi"));
+    buttons.push(el("button", { className: "button secondary focusable", onclick: () => close() }, t("Chiudi")));
     panel.replaceChildren(...[el("h2", {}, p.title),
       el("p", { className: "meta" }, row.channel.name + " · " + dayName(p.start) + " " + hhmm(p.start) + "–" + hhmm(p.stop) +
-        (p.category ? " · " + p.category : "") + (p.recording ? " · ⏺ in registrazione" : "")),
+        (p.category ? " · " + p.category : "") + (p.recording ? " · ⏺ " + t("in registrazione") : "")),
       p.subtitle ? el("p", {}, p.subtitle) : null,
       p.description ? el("p", {}, p.description) : null,
       el("div", { className: "buttons" }, ...buttons)].filter(Boolean));

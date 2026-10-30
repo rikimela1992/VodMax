@@ -45,11 +45,13 @@ type ConnectionBusy struct {
 	Recording bool
 }
 
-func (e ConnectionBusy) Error() string {
+func (e ConnectionBusy) Error() string { return e.localized("it") }
+
+func (e ConnectionBusy) localized(lang string) string {
 	if e.Recording {
-		return fmt.Sprintf("tutte le connessioni dell'abbonamento (%d) sono occupate da una registrazione in corso", e.Max)
+		return tr(lang, "tutte le connessioni dell'abbonamento (%d) sono occupate da una registrazione in corso", e.Max)
 	}
-	return fmt.Sprintf("tutte le connessioni dell'abbonamento sono in uso (%d): chiudi un'altra visione o prendi il controllo", e.Max)
+	return tr(lang, "tutte le connessioni dell'abbonamento sono in uso (%d): chiudi un'altra visione o prendi il controllo", e.Max)
 }
 
 // maxConnections reads the provider's limit from the account state; 0
@@ -187,8 +189,10 @@ func (s *Service) upstream(ctx context.Context, subID int64, url, rangeHeader st
 // UpstreamError means the provider refused the stream.
 type UpstreamError struct{ Status int }
 
-func (e *UpstreamError) Error() string {
-	return fmt.Sprintf("il provider ha rifiutato il contenuto (HTTP %d)", e.Status)
+func (e *UpstreamError) Error() string { return e.localized("it") }
+
+func (e *UpstreamError) localized(lang string) string {
+	return tr(lang, "il provider ha rifiutato il contenuto (HTTP %d)", e.Status)
 }
 
 // Stream is an open relay; Close releases the provider connection.

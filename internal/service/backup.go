@@ -164,7 +164,7 @@ func (s *Service) openBackup(data []byte, password string) (*store.Backup, error
 		if data[len(backupMagic)] == 'S' {
 			return nil, invalid("copia automatica di un'altra installazione o danneggiata")
 		}
-		return nil, ErrInvalid{ErrBackupPassword.Error()}
+		return nil, ErrInvalid{Msg: ErrBackupPassword.Error(), format: ErrBackupPassword.Error()}
 	}
 	zr, err := gzip.NewReader(bytes.NewReader(plain))
 	if err != nil {

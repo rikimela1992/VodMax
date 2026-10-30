@@ -3,6 +3,7 @@
 "use strict";
 
 window.VodMax = (() => {
+  const t = window.VodMaxI18n.t;
   const store = {
     get(key, fallback) {
       try { const v = localStorage.getItem("vodmax." + key); return v === null ? fallback : JSON.parse(v); }
@@ -53,8 +54,8 @@ window.VodMax = (() => {
   // Asks for the admin token (the server's master key, file admin.token).
   function askToken(message) {
     const input = el("input", { type: "password", autocomplete: "off", spellcheck: false });
-    input.setAttribute("aria-label", "Token di amministrazione");
-    const form = el("form", {}, input, el("button", { type: "submit" }, "Continua"));
+    input.setAttribute("aria-label", t("Token di amministrazione"));
+    const form = el("form", {}, input, el("button", { type: "submit" }, t("Continua")));
     form.addEventListener("submit", (e) => {
       e.preventDefault();
       store.set("token", input.value.trim());
@@ -62,8 +63,8 @@ window.VodMax = (() => {
       location.reload();
     });
     overlay("token-setup", el("h1", {}, "VodMax"),
-      el("p", {}, message || "Token di amministrazione del server (file admin.token)."), form,
-      el("button", { type: "button", className: "link", onclick: () => showPairing() }, "← Abbina con un codice"));
+      el("p", {}, message || t("Token di amministrazione del server (file admin.token).")), form,
+      el("button", { type: "button", className: "link", onclick: () => showPairing() }, t("← Abbina con un codice")));
     input.focus();
   }
 
@@ -75,17 +76,17 @@ window.VodMax = (() => {
     try {
       const res = await fetch("/api/v1/pair", { method: "POST" });
       req = await res.json();
-      if (!res.ok) throw new Error(req.error || "errore " + res.status);
+      if (!res.ok) throw new Error(req.error || t("errore {status}", { status: res.status }));
     } catch (e) {
-      overlay("pairing", el("h1", {}, "VodMax"), el("p", {}, "Impossibile avviare l'abbinamento: " + e.message),
-        el("button", { type: "button", onclick: () => showPairing() }, "Riprova"));
+      overlay("pairing", el("h1", {}, "VodMax"), el("p", {}, t("Impossibile avviare l'abbinamento: {error}", { error: e.message })),
+        el("button", { type: "button", onclick: () => showPairing() }, t("Riprova")));
       return;
     }
     const code = el("p", { className: "pair-code" }, req.code);
-    const admin = el("button", { type: "button", className: "link", onclick: () => { clearTimeout(pairingTimer); askToken(); } }, "Ho il token di amministrazione");
-    overlay("pairing", el("h1", {}, "Abbina questo dispositivo"),
-      el("p", {}, "Su un dispositivo già abbinato, con un profilo amministratore, apri Impostazioni → Dispositivi → Abbina, e inserisci il codice:"),
-      code, el("p", { className: "hint" }, "Il codice vale 10 minuti, poi ne compare uno nuovo."), admin);
+    const admin = el("button", { type: "button", className: "link", onclick: () => { clearTimeout(pairingTimer); askToken(); } }, t("Ho il token di amministrazione"));
+    overlay("pairing", el("h1", {}, t("Abbina questo dispositivo")),
+      el("p", {}, t("Su un dispositivo già abbinato, con un profilo amministratore, apri Impostazioni → Dispositivi → Abbina, e inserisci il codice:")),
+      code, el("p", { className: "hint" }, t("Il codice vale 10 minuti, poi ne compare uno nuovo.")), admin);
     admin.focus();
     const poll = async () => {
       try {
@@ -122,18 +123,19 @@ window.VodMax = (() => {
     let list;
     try { list = await api("GET", "/api/v1/profiles"); } catch { return; }
     const buttons = list.map((p) => el("button", { type: "button", className: "profile-choice focusable", onclick: () => choose(p) },
-      el("span", { className: "profile-name" }, p.name), el("span", { className: "profile-kind" }, (KIND[p.kind] || "") + (p.has_pin ? " 🔒" : ""))));
-    const box = overlay("profiles", el("h1", {}, "Chi guarda?"), el("div", { className: "profile-grid" }, ...buttons));
+      el("span", { className: "profile-name" }, p.name), el("span", { className: "profile-kind" }, (KIND[p.kind] ? t(KIND[p.kind]) : "") + (p.has_pin ? " 🔒" : ""))));
+    const box = overlay("profiles", el("h1", {}, t("Chi guarda?")), el("div", { className: "profile-grid" }, ...buttons),
+      window.VodMaxI18n.picker("on-overlay"));
     if (buttons[0]) buttons[0].focus();
     async function choose(p) {
       if (!p.has_pin) return select(p, "");
       const pin = el("input", { type: "password", inputMode: "numeric", autocomplete: "off", maxLength: 8 });
-      pin.setAttribute("aria-label", "PIN di " + p.name);
+      pin.setAttribute("aria-label", t("PIN di {name}", { name: p.name }));
       const msg = el("p", { className: "hint" }, "");
-      const form = el("form", {}, pin, el("button", { type: "submit" }, "Entra"));
+      const form = el("form", {}, pin, el("button", { type: "submit" }, t("Entra")));
       form.addEventListener("submit", (e) => { e.preventDefault(); select(p, pin.value, msg); });
-      box.replaceChildren(el("h1", {}, p.name), el("p", {}, "PIN del profilo"), form, msg,
-        el("button", { type: "button", className: "link", onclick: () => showProfiles() }, "← Altri profili"));
+      box.replaceChildren(el("h1", {}, p.name), el("p", {}, t("PIN del profilo")), form, msg,
+        el("button", { type: "button", className: "link", onclick: () => showProfiles() }, t("← Altri profili")));
       pin.focus();
     }
     async function select(p, pin, msg) {
@@ -160,7 +162,7 @@ window.VodMax = (() => {
     const nav = document.getElementById("tabs");
     if (nav && who.profile && !document.getElementById("profile-chip")) {
       const chip = el("button", { id: "profile-chip", className: "tab focusable", type: "button",
-        title: "Cambia profilo (" + who.profile.name + ")", onclick: () => { store.set("profile", ""); showProfiles(); } });
+        title: t("Cambia profilo ({name})", { name: who.profile.name }), onclick: () => { store.set("profile", ""); showProfiles(); } });
       chip.append(window.VodMaxIcons ? VodMaxIcons.icon("user") : "", el("span", { className: "tab-text" }, who.profile.name));
       nav.append(chip);
     }
@@ -184,10 +186,10 @@ window.VodMax = (() => {
         b.dataset.key = key;
         return b;
       };
-      navBar = el("nav", { className: "bnav", "aria-label": "Sezioni" },
-        item("home", "house", "Home", go("home")), item("movie", "film", "Film", go("movie")),
-        item("series", "clapperboard", "Serie", go("series")), item("tv", "tv", "TV", go("tv")),
-        item("more", "list", "Altro", () => openSheet()));
+      navBar = el("nav", { className: "bnav", "aria-label": t("Sezioni") },
+        item("home", "house", t("Home"), go("home")), item("movie", "film", t("Film"), go("movie")),
+        item("series", "clapperboard", t("Serie"), go("series")), item("tv", "tv", t("TV"), go("tv")),
+        item("more", "list", t("Altro"), () => openSheet()));
       document.body.append(navBar);
       document.body.classList.add("has-bnav");
 
@@ -198,11 +200,11 @@ window.VodMax = (() => {
       };
       const sheet = el("div", { id: "more-sheet", className: "sheet", hidden: true },
         el("div", { className: "sheet-grip" }),
-        entry("video", "Registrazioni", go("recordings")),
-        entry("calendar-days", "Guida TV", () => { location.href = "/guide.html"; }),
-        entry("settings", "Impostazioni", () => { location.href = "/settings.html"; }, "admin-only"),
-        entry("user", "Cambia profilo", () => { closeSheet(); store.set("profile", ""); showProfiles(); }),
-        native ? entry("tv", "Cambia server", () => native.changeServer()) : "");
+        entry("video", t("Registrazioni"), go("recordings")),
+        entry("calendar-days", t("Guida TV"), () => { location.href = "/guide.html"; }),
+        entry("settings", t("Impostazioni"), () => { location.href = "/settings.html"; }, "admin-only"),
+        entry("user", t("Cambia profilo"), () => { closeSheet(); store.set("profile", ""); showProfiles(); }),
+        native ? entry("tv", t("Cambia server"), () => native.changeServer()) : "");
       const scrim = el("div", { id: "more-scrim", className: "scrim", hidden: true, onclick: () => closeSheet() });
       document.body.append(scrim, sheet);
       me().then((who) => { for (const a of sheet.querySelectorAll(".admin-only")) a.hidden = !who.admin; }).catch(() => {});
@@ -236,6 +238,7 @@ window.VodMax = (() => {
     const headers = { "Content-Type": "application/json" };
     if (token()) headers.Authorization = "Bearer " + token();
     if (profileToken()) headers["X-Profile"] = profileToken();
+    headers["X-VodMax-Lang"] = window.VodMaxI18n.lang; // server messages in the same language
     const res = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
     const data = res.status === 204 ? null : await res.json().catch(() => null);
     if (res.status === 401) {
@@ -247,7 +250,7 @@ window.VodMax = (() => {
       showProfiles();
       throw handled("scegli un profilo");
     }
-    if (!res.ok) throw Object.assign(new Error(data && data.error ? data.error : "errore " + res.status), { status: res.status });
+    if (!res.ok) throw Object.assign(new Error(data && data.error ? data.error : t("errore {status}", { status: res.status })), { status: res.status });
     return data;
   }
 
@@ -442,7 +445,7 @@ window.VodMax = (() => {
       const error = problems.some((p) => p.level === "error");
       box.className = error ? "error" : "warning";
       box.href = "/settings.html?view=" + (problems[0].area === "profile" ? "profiles" : "system");
-      box.textContent = "⚠ " + problems[0].text + (problems.length > 1 ? " (e altri " + (problems.length - 1) + ")" : "");
+      box.textContent = "⚠ " + (problems.length > 1 ? t("{text} (e altri {count})", { text: problems[0].text, count: problems.length - 1 }) : problems[0].text);
     };
     check();
     setInterval(check, 30000);

@@ -325,3 +325,10 @@ h2 { margin: 1.8rem 0 0.8rem; font-size: 1.2rem; font-weight: 600; color: var(--
   .sheet-item .item-icon { display: grid; place-items: center; width: 2.2rem; height: 2.2rem; background: var(--raised); border-radius: 10px; }
   .sheet-item:focus, .sheet-item:active { outline: none; background: var(--raised); }
 }
+
+/* Language choice (profile screen, settings). */
+.lang-picker { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.lang-picker.on-overlay { justify-content: center; margin-top: 2.5rem; }
+.lang-picker button { padding: 0.45em 1.1em; font: inherit; color: var(--soft); background: var(--raised); border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
+.lang-picker button.active { color: var(--text); border-color: var(--text); }
+.lang-picker button:focus, .lang-picker button:hover { color: #0b0c10; background: var(--focus); border-color: var(--focus); outline: none; }

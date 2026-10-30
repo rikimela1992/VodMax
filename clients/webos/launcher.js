@@ -6,6 +6,34 @@
   var KEY = "vodmax.server";
   var $ = function (id) { return document.getElementById(id); };
 
+  // Italian if the TV speaks Italian, else English. Keys: the Italian texts.
+  var italian = /^it/i.test(navigator.language || navigator.userLanguage || "");
+  var EN = {
+    "Avvio…": "Starting…",
+    "http://indirizzo:8095": "http://address:8095",
+    "Collega": "Connect",
+    "Riprova": "Try again",
+    "L'indirizzo del server VodMax di casa, per esempio http://192.168.1.10:8095. Poi la TV si abbina con un codice.":
+      "The address of your home VodMax server, for example http://192.168.1.10:8095. Then the TV pairs with a code.",
+    "Collegamento a {base}…": "Connecting to {base}…",
+    "Il server non risponde a {base}: controlla che sia acceso e nella stessa rete.":
+      "The server isn't responding at {base}: make sure it's on and on the same network.",
+    "Inserisci l'indirizzo del server.": "Enter the server address."
+  };
+  function t(text, base) {
+    var s = (!italian && EN[text]) || text;
+    return s.replace("{base}", base || "");
+  }
+  if (!italian) {
+    document.documentElement.lang = "en";
+    $("message").textContent = t($("message").textContent);
+    $("server").placeholder = t($("server").placeholder);
+    $("connect").textContent = t($("connect").textContent);
+    $("retry").textContent = t($("retry").textContent);
+    var hint = document.querySelector(".hint");
+    hint.textContent = t(hint.textContent);
+  }
+
   function normalize(s) {
     s = (s || "").replace(/^\s+|\s+$/g, "");
     if (!s) return null;
@@ -25,14 +53,14 @@
   }
 
   function open(base) {
-    $("message").textContent = "Collegamento a " + base + "…";
+    $("message").textContent = t("Collegamento a {base}…", base);
     $("message").className = "";
     check(base, function (ok) {
       if (ok) {
         window.location.replace(base + "/");
         return;
       }
-      showForm(base, "Il server non risponde a " + base + ": controlla che sia acceso e nella stessa rete.");
+      showForm(base, t("Il server non risponde a {base}: controlla che sia acceso e nella stessa rete.", base));
     });
   }
 
@@ -40,7 +68,7 @@
     $("form").hidden = false;
     $("retry").hidden = !value;
     $("server").value = value || "";
-    $("message").textContent = error || "Inserisci l'indirizzo del server.";
+    $("message").textContent = error || t("Inserisci l'indirizzo del server.");
     $("message").className = error ? "bad" : "";
     $("server").focus();
   }

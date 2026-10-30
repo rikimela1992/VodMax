@@ -11,20 +11,20 @@
 <header class="top">
   <nav id="tabs">
     <button class="tab focusable" data-view="home" data-icon="house">Home</button>
-    <button class="tab focusable" data-view="movie" data-icon="film">Film</button>
-    <button class="tab focusable" data-view="series" data-icon="clapperboard">Serie</button>
-    <button class="tab focusable" data-view="recordings" data-icon="video">Registrazioni</button>
+    <button class="tab focusable" data-view="movie" data-icon="film" data-i18n>Film</button>
+    <button class="tab focusable" data-view="series" data-icon="clapperboard" data-i18n>Serie</button>
+    <button class="tab focusable" data-view="recordings" data-icon="video" data-i18n>Registrazioni</button>
     <button class="tab focusable" data-view="tv" data-icon="tv">TV</button>
-    <a class="tab focusable" href="/guide.html" data-icon="calendar-days">Guida</a>
-    <a class="tab focusable icon-only" href="/settings.html" data-icon="settings" title="Impostazioni" aria-label="Impostazioni"><span class="tab-text">Impostazioni</span></a>
+    <a class="tab focusable" href="/guide.html" data-icon="calendar-days" data-i18n>Guida</a>
+    <a class="tab focusable icon-only" href="/settings.html" data-icon="settings" title="Impostazioni" aria-label="Impostazioni" data-i18n data-i18n-attr="title,aria-label"><span class="tab-text">Impostazioni</span></a>
   </nav>
-  <input id="search" class="focusable" type="search" placeholder="Cerca film e serie" autocomplete="off" aria-label="Cerca">
+  <input id="search" class="focusable" type="search" placeholder="Cerca film e serie" autocomplete="off" aria-label="Cerca" data-i18n-attr="placeholder,aria-label">
 </header>
 
 <main id="content" aria-live="polite"></main>
 
 <section id="detail" class="detail" hidden>
-  <button id="detail-back" class="back-button focusable" type="button" data-icon="arrow-left">Indietro</button>
+  <button id="detail-back" class="back-button focusable" type="button" data-icon="arrow-left" data-i18n>Indietro</button>
   <div class="detail-head">
     <img id="detail-image" alt="" hidden>
     <div>
@@ -43,27 +43,33 @@
   <video id="video" playsinline></video>
   <div id="player-bar" class="player-bar">
     <div id="player-title" class="player-title"></div>
-    <div id="player-seek" class="player-seek" role="slider" aria-label="Posizione" tabindex="-1">
+    <div id="player-seek" class="player-seek" role="slider" aria-label="Posizione" tabindex="-1" data-i18n-attr="aria-label">
       <div class="player-progress"><div id="player-fill"></div></div>
       <span id="player-hover" class="player-hover" hidden></span>
     </div>
     <div class="player-time"><span id="player-pos">0:00</span><span id="player-dur"></span></div>
     <div class="player-buttons">
-      <button class="focusable" data-action="close" data-icon="x">Chiudi</button>
+      <button class="focusable" data-action="close" data-icon="x" data-i18n>Chiudi</button>
       <button class="focusable" data-action="back10" data-icon="rotate-ccw">10 s</button>
-      <button class="focusable" data-action="toggle" data-icon="pause" id="player-toggle">Pausa</button>
+      <button class="focusable" data-action="toggle" data-icon="pause" id="player-toggle" data-i18n>Pausa</button>
       <button class="focusable" data-action="fwd30" data-icon="rotate-cw">30 s</button>
-      <button class="focusable" data-action="live" data-icon="skip-forward" id="player-live" hidden>Torna in diretta</button>
+      <button class="focusable" data-action="live" data-icon="skip-forward" id="player-live" hidden data-i18n>Torna in diretta</button>
       <button class="focusable" data-action="audio" data-icon="volume-2" id="player-audio" hidden>Audio</button>
-      <button class="focusable" data-action="subs" data-icon="captions" id="player-subs" hidden>Sottotitoli</button>
+      <button class="focusable" data-action="subs" data-icon="captions" id="player-subs" hidden data-i18n>Sottotitoli</button>
     </div>
     <div id="player-menu" class="player-menu" hidden></div>
-    <div class="hint">OK o Spazio pausa · ◀ −10 s · ▶ +30 s · ▼ comandi · Indietro chiude</div>
+    <div class="hint" data-i18n>OK o Spazio pausa · ◀ −10 s · ▶ +30 s · ▼ comandi · Indietro chiude</div>
   </div>
 </section>
 
 <div id="status" class="status" hidden></div>
 <script src="vendor/mpegts-1.8.2.min.js"></script>
+<script src="i18n.js"></script>
+<script src="i18n/en-common.js"></script>
+<script src="i18n/en-vod.js"></script>
+<script src="i18n/en-tv.js"></script>
+<script src="i18n/en-guide.js"></script>
+<script src="i18n/en-settings.js"></script>
 <script src="icons.js"></script>
 <script src="common.js"></script>
 <script src="vod.js"></script>

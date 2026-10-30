@@ -363,14 +363,14 @@ func (s *Service) Status(ctx context.Context) (SystemStatus, error) {
 			continue
 		}
 		out.Problems = append(out.Problems, Problem{Level: "error", Area: "vpn",
-			Text: fmt.Sprintf("VPN “%s” non funziona (%s): gli abbonamenti che la usano non sono raggiungibili", vpnName[id], h.Error)})
+			Text: T(ctx, "VPN “%s” non funziona (%s): gli abbonamenti che la usano non sono raggiungibili", vpnName[id], h.Error)})
 	}
 	guideErr := map[int64]string{}
 	for id, e := range s.maint.guideErr {
 		guideErr[id] = e
 	}
 	s.mu.Unlock()
-	out.Problems = append(out.Problems, s.diskProblems()...)
+	out.Problems = append(out.Problems, s.diskProblems(ctx)...)
 	// With a kids profile, an admin profile without PIN can be chosen on
 	// any device, settings and adult content included.
 	if profiles, err := s.st.Profiles(ctx); err == nil {
@@ -381,7 +381,7 @@ func (s *Service) Status(ctx context.Context) (SystemStatus, error) {
 		for _, p := range profiles {
 			if kids && p.Kind != "kids" && !p.HasPIN {
 				out.Problems = append(out.Problems, Problem{Level: "warning", Area: "profile",
-					Text: fmt.Sprintf("Il profilo “%s” non ha un PIN: dai dispositivi dei bambini si può sceglierlo", p.Name)})
+					Text: T(ctx, "Il profilo “%s” non ha un PIN: dai dispositivi dei bambini si può sceglierlo", p.Name)})
 			}
 		}
 	}
@@ -389,14 +389,14 @@ func (s *Service) Status(ctx context.Context) (SystemStatus, error) {
 		for _, g := range sources {
 			if g.Enabled && g.Status == "error" {
 				out.Problems = append(out.Problems, Problem{Level: "warning", Area: "guide",
-					Text: fmt.Sprintf("Guida esterna “%s” non aggiornata: %s", g.Name, g.Error)})
+					Text: T(ctx, "Guida esterna “%s” non aggiornata: %s", g.Name, g.Error)})
 			}
 		}
 	}
 	for _, sub := range subs {
 		if sub.SyncStatus == "error" {
 			out.Problems = append(out.Problems, Problem{Level: "error", Area: "subscription",
-				Text: fmt.Sprintf("Ultima sincronizzazione di “%s” non riuscita: %s", sub.Name, sub.SyncError)})
+				Text: T(ctx, "Ultima sincronizzazione di “%s” non riuscita: %s", sub.Name, sub.SyncError)})
 		}
 		var acc struct {
 			Active  *bool `json:"active"`
@@ -405,16 +405,16 @@ func (s *Service) Status(ctx context.Context) (SystemStatus, error) {
 		json.Unmarshal(sub.Account, &acc)
 		if acc.Active != nil && !*acc.Active {
 			out.Problems = append(out.Problems, Problem{Level: "error", Area: "subscription",
-				Text: fmt.Sprintf("L'account di “%s” non è attivo presso il provider", sub.Name)})
+				Text: T(ctx, "L'account di “%s” non è attivo presso il provider", sub.Name)})
 		} else if acc.Expires > 0 {
 			if left := time.Until(time.Unix(acc.Expires, 0)); left < expiryWarning {
 				out.Problems = append(out.Problems, Problem{Level: "warning", Area: "subscription",
-					Text: fmt.Sprintf("L'abbonamento “%s” scade il %s", sub.Name, time.Unix(acc.Expires, 0).Format("02/01/2006"))})
+					Text: T(ctx, "L'abbonamento “%s” scade il %s", sub.Name, time.Unix(acc.Expires, 0).Format("02/01/2006"))})
 			}
 		}
 		if e := guideErr[sub.ID]; e != "" {
 			out.Problems = append(out.Problems, Problem{Level: "warning", Area: "guide",
-				Text: fmt.Sprintf("Guida di “%s” non aggiornata: %s", sub.Name, e)})
+				Text: T(ctx, "Guida di “%s” non aggiornata: %s", sub.Name, e)})
 		}
 	}
 	return out, nil

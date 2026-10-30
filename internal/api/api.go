@@ -130,7 +130,22 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	mux.HandleFunc("GET /stream/vod/{session}/subtitles", a.vodSubtitles)
 	mux.HandleFunc("GET /stream/recording/{ticket}", a.recordingStream)
 	mux.Handle("/", web.Handler())
-	return mux
+	return withLang(mux)
+}
+
+// withLang reads the language of a request: X-VodMax-Lang (the choice
+// made in the interface), else the browser's Accept-Language.
+func withLang(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lang := service.PickLang(r.Header.Get("X-VodMax-Lang"))
+		if lang == "" {
+			lang = service.PickLang(r.Header.Get("Accept-Language"))
+		}
+		if lang != "" {
+			r = r.WithContext(service.WithLang(r.Context(), lang))
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 type api struct {
@@ -161,7 +176,7 @@ func (a *api) authenticate(master string, next http.Handler) http.Handler {
 		token, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 		id, err := a.svc.Authenticate(r.Context(), token, r.Header.Get("X-Profile"), master)
 		if errors.Is(err, service.ErrUnauthorized) {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": err.Error(), "code": "unauthorized"})
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": service.Localize(service.LangOf(r.Context()), err), "code": "unauthorized"})
 			return
 		}
 		if err != nil {
@@ -178,11 +193,11 @@ func (a *api) require(level accessLevel, h http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := identity(r)
 		if level >= levelViewer && id.Profile == nil {
-			writeJSON(w, http.StatusForbidden, map[string]string{"error": service.ErrProfileRequired.Error(), "code": "profile_required"})
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": service.Localize(service.LangOf(r.Context()), service.ErrProfileRequired), "code": "profile_required"})
 			return
 		}
 		if (level == levelMember && id.Profile.Kind == "kids") || (level == levelAdmin && !id.Admin()) {
-			writeJSON(w, http.StatusForbidden, map[string]string{"error": service.ErrForbidden.Error(), "code": "forbidden"})
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": service.Localize(service.LangOf(r.Context()), service.ErrForbidden), "code": "forbidden"})
 			return
 		}
 		h(w, r)
@@ -229,14 +244,14 @@ func (a *api) fail(w http.ResponseWriter, r *http.Request, err error) {
 	if status == http.StatusInternalServerError {
 		a.log.Error("richiesta fallita", "path", r.URL.Path, "err", err)
 	}
-	writeJSON(w, status, map[string]string{"error": err.Error()})
+	writeJSON(w, status, map[string]string{"error": service.Localize(service.LangOf(r.Context()), err)})
 }
 
 func decode(r *http.Request, v any) error {
 	dec := json.NewDecoder(io.LimitReader(r.Body, 64<<10))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
-		return service.ErrInvalid{Msg: "corpo della richiesta non valido: " + err.Error()}
+		return service.Invalid("corpo della richiesta non valido: %s", err.Error())
 	}
 	return nil
 }
@@ -244,7 +259,7 @@ func decode(r *http.Request, v any) error {
 func pathID(r *http.Request) (int64, error) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil || id <= 0 {
-		return 0, service.ErrInvalid{Msg: "id non valido"}
+		return 0, service.Invalid("id non valido")
 	}
 	return id, nil
 }
@@ -991,7 +1006,7 @@ func (a *api) exportBackup(w http.ResponseWriter, r *http.Request) {
 func (a *api) restoreBackup(w http.ResponseWriter, r *http.Request) {
 	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 64<<20))
 	if err != nil {
-		a.fail(w, r, service.ErrInvalid{Msg: "file del backup troppo grande o interrotto"})
+		a.fail(w, r, service.Invalid("file del backup troppo grande o interrotto"))
 		return
 	}
 	if err := a.svc.RestoreBackup(r.Context(), data, r.Header.Get("X-Backup-Password")); err != nil {

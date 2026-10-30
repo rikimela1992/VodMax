@@ -76,12 +76,22 @@ func (s *Service) Close() {
 	}
 }
 
-// ErrInvalid wraps user input errors (HTTP 400).
-type ErrInvalid struct{ Msg string }
+// ErrInvalid wraps user input errors (HTTP 400). The format and its
+// arguments are kept to show the message in another language.
+type ErrInvalid struct {
+	Msg    string
+	format string
+	args   []any
+}
 
 func (e ErrInvalid) Error() string { return e.Msg }
 
-func invalid(format string, args ...any) error { return ErrInvalid{fmt.Sprintf(format, args...)} }
+func invalid(format string, args ...any) error {
+	return ErrInvalid{Msg: fmt.Sprintf(format, args...), format: format, args: args}
+}
+
+// Invalid is invalid for other packages (the API).
+func Invalid(format string, args ...any) error { return invalid(format, args...) }
 
 // ---- VPN ----
 
@@ -548,7 +558,7 @@ func (s *Service) Sync(ctx context.Context, id int64, allowDrop bool) (SyncResul
 		g, err := s.SyncGuide(ctx, id)
 		s.guideDone(ctx, id, err)
 		if err != nil {
-			result.GuideError = err.Error()
+			result.GuideError = Localize(LangOf(ctx), err)
 		} else {
 			result.Guide = &g
 			s.syncExternalGuides(ctx)

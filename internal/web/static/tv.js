@@ -17,13 +17,14 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const { store, api, viewer } = window.VodMax;
+  const t = window.VodMaxI18n.t;
 
   // ---- State ----
   const LISTS = [
-    { id: "all", label: "Tutti", section: "tv", favorites: false },
-    { id: "favorites", label: "Preferiti", section: "", favorites: true },
-    { id: "sport", label: "Sport", section: "sport", favorites: false },
-    { id: "radio", label: "Radio", section: "radio", favorites: false },
+    { id: "all", label: t("Tutti"), section: "tv", favorites: false },
+    { id: "favorites", label: t("Preferiti"), section: "", favorites: true },
+    { id: "sport", label: t("Sport"), section: "sport", favorites: false },
+    { id: "radio", label: t("Radio"), section: "radio", favorites: false },
   ];
   const state = {
     channels: [],          // the zapping list
@@ -52,7 +53,7 @@
     if (state.favoritesOnly && state.channels.length === 0) {
       state.favoritesOnly = false;
       store.set("favoritesOnly", false);
-      flash("Nessun preferito: elenco completo");
+      flash(t("Nessun preferito: elenco completo"));
       state.channels = await load(zapList());
     }
     if (state.current) {
@@ -80,7 +81,7 @@
     }
     if (state.current !== channel) return; // zapped meanwhile
     if (!window.mpegts || !mpegts.isSupported()) {
-      flash("Questo dispositivo non supporta la riproduzione MPEG-TS nel browser");
+      flash(t("Questo dispositivo non supporta la riproduzione MPEG-TS nel browser"));
       return;
     }
     const player = window.VodMax.tsPlayer($("video"), url + (force ? "?force=1" : ""), {
@@ -91,7 +92,7 @@
         stopPlayer();
         const code = info && info.code;
         if (code === 409) {
-          confirmDialog("Tutte le connessioni dell'abbonamento sono in uso su un altro dispositivo.\n\nPrendere il controllo?",
+          confirmDialog(t("Tutte le connessioni dell'abbonamento sono in uso su un altro dispositivo.\n\nPrendere il controllo?"),
             () => tune(channel, true));
           return;
         }
@@ -100,12 +101,12 @@
         const attempt = (state.retries[channel.id] || 0) + 1;
         if (type !== mpegts.ErrorTypes.NETWORK_ERROR || attempt > 3) {
           flash(type === mpegts.ErrorTypes.MEDIA_ERROR
-            ? "Questo dispositivo non riesce a decodificare il canale (" + detail + ")"
-            : "Canale non disponibile (" + (code || detail) + ")");
+            ? t("Questo dispositivo non riesce a decodificare il canale ({detail})", { detail })
+            : t("Canale non disponibile ({code})", { code: code || detail }));
           return;
         }
         state.retries[channel.id] = attempt;
-        flash("Flusso interrotto: nuovo tentativo " + attempt + " di 3…");
+        flash(t("Flusso interrotto: nuovo tentativo {n} di 3…", { n: attempt }));
         state.timers.retry = setTimeout(() => state.current === channel && tune(channel), 1500 * attempt);
       },
     });
@@ -133,13 +134,13 @@
   async function tuneTimeshift(channel, force) {
     if (!liveSettings) liveSettings = await api("GET", "/api/v1/settings/live").catch(() => ({ mode: "direct" }));
     if (liveSettings.mode !== "timeshift" || !canHLS()) return false;
-    flash("Sintonizzazione…");
+    flash(t("Sintonizzazione…"));
     let buf;
     try {
       buf = await api("POST", "/api/v1/live/" + channel.id + "/timeshift", { viewer, force: Boolean(force) });
     } catch (e) {
       if (e.status === 409) {
-        confirmDialog("Tutte le connessioni dell'abbonamento sono in uso su un altro dispositivo.\n\nPrendere il controllo?",
+        confirmDialog(t("Tutte le connessioni dell'abbonamento sono in uso su un altro dispositivo.\n\nPrendere il controllo?"),
           () => tune(channel, true));
         return true;
       }
@@ -157,11 +158,11 @@
           // The server dropped the buffer (another device took the
           // connection, or a recording): open the channel again.
           stopPlayer();
-          flash("Diretta interrotta: riapro il canale…");
+          flash(t("Diretta interrotta: riapro il canale…"));
           state.timers.retry = setTimeout(() => state.current === channel && tune(channel), 2000);
           return;
         }
-        flash("Riproduzione non riuscita (" + type + ")");
+        flash(t("Riproduzione non riuscita ({type})", { type }));
       },
     });
     state.player = player;
@@ -195,24 +196,24 @@
     const badges = $("banner-badges");
     badges.replaceChildren();
     const quality = { 4: "4K", 3: "FHD", 2: "HD", 1: "SD" }[channel.quality];
-    for (const [text, cls] of [[quality, ""], [channel.favorite ? "★ Preferito" : "", "fav"],
-      [channel.catchup_days ? "Replay " + channel.catchup_days + "g" : "", ""]]) {
+    for (const [text, cls] of [[quality, ""], [channel.favorite ? "★ " + t("Preferito") : "", "fav"],
+      [channel.catchup_days ? t("Replay {days}g", { days: channel.catchup_days }) : "", ""]]) {
       if (!text) continue;
       const span = document.createElement("span");
       span.textContent = text;
       if (cls) span.className = cls;
       badges.append(span);
     }
-    $("banner-mode").textContent = state.favoritesOnly ? "Solo preferiti" : "";
+    $("banner-mode").textContent = state.favoritesOnly ? t("Solo preferiti") : "";
     $("banner-mode").hidden = !state.favoritesOnly;
     const now = channel.now, next = channel.next;
-    $("banner-now").textContent = now ? now.title : "Nessuna informazione sul programma";
+    $("banner-now").textContent = now ? now.title : t("Nessuna informazione sul programma");
     $("banner-now-time").textContent = now ? hhmm(now.start) + " – " + hhmm(now.stop) : "";
     const pct = now ? Math.min(100, Math.max(0, (Date.now() / 1000 - now.start) / (now.stop - now.start) * 100)) : 0;
     $("banner-progress").style.width = pct + "%";
     $("banner-next").textContent = next ? next.title : "";
     $("banner-next-time").textContent = next ? hhmm(next.start) : "";
-    $("banner-hint").textContent = browsing ? "OK per guardare · Indietro per tornare a " + state.current.name : "";
+    $("banner-hint").textContent = browsing ? t("OK per guardare · Indietro per tornare a {name}", { name: state.current.name }) : "";
     banner.hidden = false;
     clearTimeout(state.timers.banner);
     state.timers.banner = setTimeout(endBrowse, browsing ? 8000 : 5000);
@@ -258,7 +259,7 @@
     const ol = $("list-items");
     if (o.channels.length === 0) {
       const li = document.createElement("li");
-      li.textContent = o.listIndex === 1 ? "Nessun preferito: premi Giallo su un canale per aggiungerlo." : "Nessun canale.";
+      li.textContent = o.listIndex === 1 ? t("Nessun preferito: premi Giallo su un canale per aggiungerlo.") : t("Nessun canale.");
       ol.replaceChildren(li);
       return;
     }
@@ -294,7 +295,7 @@
       await api("PUT", "/api/v1/tv/favorites/" + channel.id, { favorite: !channel.favorite });
     } catch (e) { flash(e.message); return; }
     channel.favorite = !channel.favorite;
-    flash(channel.favorite ? "Aggiunto ai preferiti: " + channel.name : "Tolto dai preferiti: " + channel.name);
+    flash(channel.favorite ? t("Aggiunto ai preferiti: {name}", { name: channel.name }) : t("Tolto dai preferiti: {name}", { name: channel.name }));
     await refreshChannels();
     if (state.overlay) {
       const keep = state.overlay.channels[state.overlay.selected];
@@ -309,7 +310,7 @@
     state.favoritesOnly = !state.favoritesOnly;
     store.set("favoritesOnly", state.favoritesOnly);
     await refreshChannels();
-    flash(state.favoritesOnly ? "P+/P− scorrono solo i preferiti" : "P+/P− scorrono tutti i canali");
+    flash(state.favoritesOnly ? t("P+/P− scorrono solo i preferiti") : t("P+/P− scorrono tutti i canali"));
   }
 
   // From the start of the programme on air: in the buffer if it is
@@ -317,14 +318,14 @@
   function startOver() {
     const c = state.current;
     const p = c && c.now;
-    if (!p) { flash("Nessun programma in guida per questo canale"); return; }
+    if (!p) { flash(t("Nessun programma in guida per questo canale")); return; }
     if (state.player && state.player.seekToTime && state.player.seekToTime(p.start - 30)) { showControls(); return; }
     if (c.catchup_days) {
       stopPlayer();
       location.href = "/?" + new URLSearchParams({ catchup: c.id, start: p.start, stop: p.stop, title: p.title, back: "/tv.html?channel=" + c.id });
       return;
     }
-    flash("L'inizio non è più nel buffer e questo canale non ha l'archivio del provider");
+    flash(t("L'inizio non è più nel buffer e questo canale non ha l'archivio del provider"));
   }
 
   // ---- On-screen controls ----
@@ -332,14 +333,14 @@
     const ctl = $("controls");
     const p = state.player;
     const c = state.current;
-    VodMax.label($("ctl-toggle"), p && p.paused ? "play" : "pause", p && p.paused ? "Riprendi" : "Pausa");
+    VodMax.label($("ctl-toggle"), p && p.paused ? "play" : "pause", p && p.paused ? t("Riprendi") : t("Pausa"));
     const behind = p ? p.behind() : 0;
     const live = $("ctl-live");
     live.classList.toggle("behind", behind > 12);
-    VodMax.label(live, behind > 12 ? "skip-forward" : "radio", behind > 12 ? "Torna in diretta (−" + VodMax.clock(behind) + ")" : "In diretta");
+    VodMax.label(live, behind > 12 ? "skip-forward" : "radio", behind > 12 ? t("Torna in diretta (−{time})", { time: VodMax.clock(behind) }) : t("In diretta"));
     const fav = $("ctl-fav");
     fav.classList.toggle("on", Boolean(c && c.favorite));
-    VodMax.label(fav, "star", c && c.favorite ? "Preferito ✓" : "Preferito");
+    VodMax.label(fav, "star", c && c.favorite ? t("Preferito") + " ✓" : t("Preferito"));
     ctl.hidden = false;
     document.body.classList.add("controls-on");
     clearTimeout(state.timers.controls);
@@ -387,7 +388,7 @@
   setInterval(() => { if (!$("controls").hidden) {
     const p = state.player, behind = p ? p.behind() : 0;
     $("ctl-live").classList.toggle("behind", behind > 12);
-    VodMax.label($("ctl-live"), behind > 12 ? "skip-forward" : "radio", behind > 12 ? "Torna in diretta (−" + VodMax.clock(behind) + ")" : "In diretta");
+    VodMax.label($("ctl-live"), behind > 12 ? "skip-forward" : "radio", behind > 12 ? t("Torna in diretta (−{time})", { time: VodMax.clock(behind) }) : t("In diretta"));
   } }, 1000);
 
   // ---- Recording ----
@@ -395,7 +396,7 @@
     if (!channel) return;
     try {
       const r = await api("POST", "/api/v1/recordings", { channel_id: channel.id });
-      flash("Registrazione di “" + r.title + "” fino alle " + hhmm(r.stop) + " (Verde → Registrazioni)");
+      flash(t("Registrazione di “{title}” fino alle {time} (Verde → Registrazioni)", { title: r.title, time: hhmm(r.stop) }));
     } catch (e) { flash(e.message); }
   }
 
@@ -419,7 +420,7 @@
       const all = await load({ section: "", favorites: false }).catch(() => []);
       channel = all.find((c) => c.number === n);
     }
-    if (channel) tune(channel); else flash("Canale " + n + " non presente");
+    if (channel) tune(channel); else flash(t("Canale {n} non presente", { n }));
   }
 
   // ---- Messages ----
@@ -545,7 +546,7 @@
   // ---- Start ----
   async function start() {
     try { await refreshChannels(); } catch (e) { if (!e.handled) flash(e.message); return; }
-    if (state.channels.length === 0) { flash("Nessun canale: sincronizza un abbonamento"); return; }
+    if (state.channels.length === 0) { flash(t("Nessun canale: sincronizza un abbonamento")); return; }
     // From the guide: /tv.html?channel=ID.
     const asked = Number(new URLSearchParams(location.search).get("channel"));
     const last = asked || store.get("last", null);

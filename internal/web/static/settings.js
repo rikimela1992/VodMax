@@ -6,6 +6,8 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
 
 (() => {
   const { store, api, hhmm } = window.VodMax;
+  const t = window.VodMaxI18n.t;
+  const locale = window.VodMaxI18n.locale;
   const $ = (id) => document.getElementById(id);
   const el = (tag, props = {}, ...children) => {
     const e = Object.assign(document.createElement(tag), props);
@@ -22,32 +24,33 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
   const button = (label, onclick, cls = "") => el("button", { className: "small focusable " + cls, type: "button", onclick }, label);
   const field = (label, input) => [el("label", {}, label), input];
   const input = (props) => el("input", { className: "focusable", ...props });
-  const when = (t) => {
-    if (!t) return "mai";
-    const d = new Date(typeof t === "number" ? t * 1000 : t);
-    return d.toLocaleDateString("it-IT", { day: "numeric", month: "short" }) + " " + hhmm(d.getTime() / 1000);
+  const when = (ts) => {
+    if (!ts) return t("mai");
+    const d = new Date(typeof ts === "number" ? ts * 1000 : ts);
+    return d.toLocaleDateString(locale, { day: "numeric", month: "short" }) + " " + hhmm(d.getTime() / 1000);
   };
 
   // The sections, in groups like a system settings app.
   const SECTIONS = [
-    ["Contenuti", [
-      ["subscriptions", "layers", "Abbonamenti", "Playlist Xtream e M3U"],
-      ["libraries", "folder", "Raccolte", "Cartelle di film e serie"],
-      ["vpn", "lock", "VPN", "Come si raggiunge il provider"],
-      ["rules", "check", "Selezione", "Paesi, anni, cosa entra nel catalogo"],
-      ["categories", "list", "Categorie", "Includi o escludi una per una"],
-      ["guide", "calendar-days", "Guida TV", "Fonti XMLTV"],
+    [t("Contenuti"), [
+      ["subscriptions", "layers", t("Abbonamenti"), t("Playlist Xtream e M3U")],
+      ["libraries", "folder", t("Raccolte"), t("Cartelle di film e serie")],
+      ["vpn", "lock", "VPN", t("Come si raggiunge il provider")],
+      ["rules", "check", t("Selezione"), t("Paesi, anni, cosa entra nel catalogo")],
+      ["categories", "list", t("Categorie"), t("Includi o escludi una per una")],
+      ["guide", "calendar-days", t("Guida TV"), t("Fonti XMLTV")],
     ]],
-    ["Casa", [
-      ["profiles", "user", "Profili", "Chi guarda, profili bambini"],
-      ["devices", "tv", "Dispositivi", "TV, telefoni e PC abbinati"],
+    [t("Casa"), [
+      ["profiles", "user", t("Profili"), t("Chi guarda, profili bambini")],
+      ["devices", "tv", t("Dispositivi"), t("TV, telefoni e PC abbinati")],
+      ["language", "info", t("Lingua"), t("Lingua dell'interfaccia su questo dispositivo")],
     ]],
     ["Server", [
-      ["system", "settings", "Sistema", "Stato, aggiornamenti, diretta, backup"],
+      ["system", "settings", t("Sistema"), t("Stato, aggiornamenti, diretta, backup")],
     ]],
   ];
   const TITLES = {};
-  for (const [, items] of SECTIONS) for (const [v, , t] of items) TITLES[v] = t;
+  for (const [, items] of SECTIONS) for (const [v, , title] of items) TITLES[v] = title;
   const phone = window.matchMedia("(max-width: 800px)");
 
   const asked = new URLSearchParams(location.search).get("view");
@@ -94,14 +97,14 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
 
   async function render() {
     document.body.classList.toggle("at-list", !state.view);
-    for (const t of document.querySelectorAll(".item[data-view]")) t.classList.toggle("active", t.dataset.view === state.view);
+    for (const b of document.querySelectorAll(".item[data-view]")) b.classList.toggle("active", b.dataset.view === state.view);
     if (!state.view) return;
     $("pane-title").textContent = TITLES[state.view] || "";
     store.set("settingsView", state.view);
     const main = $("content");
-    main.replaceChildren(el("p", { className: "note" }, "Caricamento…"));
+    main.replaceChildren(el("p", { className: "note" }, t("Caricamento…")));
     try {
-      await ({ subscriptions: renderSubscriptions, libraries: renderLibraries, vpn: renderVPN, rules: renderRules, categories: renderCategories, system: renderSystem, profiles: renderProfiles, devices: renderDevices, guide: renderGuideSources })[state.view](main);
+      await ({ subscriptions: renderSubscriptions, libraries: renderLibraries, vpn: renderVPN, rules: renderRules, categories: renderCategories, system: renderSystem, profiles: renderProfiles, devices: renderDevices, guide: renderGuideSources, language: renderLanguage })[state.view](main);
     } catch (e) {
       main.replaceChildren(el("p", { className: "note bad" }, e.message));
     }
@@ -116,11 +119,11 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     const [all, vpns] = await Promise.all([api("GET", "/api/v1/subscriptions"), api("GET", "/api/v1/vpn")]);
     const subs = all.filter((s) => s.kind !== "local");
     const vpnName = fromEntries(vpns.map((v) => [v.id, v.name]));
-    const parts = [el("h2", {}, "Abbonamenti"),
-      el("p", { className: "note" }, "Playlist dei provider (Xtream Codes o M3U). Ogni abbonamento passa dalla sua VPN: senza VPN il provider non viene mai contattato.")];
+    const parts = [el("h2", {}, t("Abbonamenti")),
+      el("p", { className: "note" }, t("Playlist dei provider (Xtream Codes o M3U). Ogni abbonamento passa dalla sua VPN: senza VPN il provider non viene mai contattato."))];
     for (const s of subs) parts.push(subscriptionBox(s, vpns, vpnName));
-    parts.push(el("h2", {}, "Aggiungi un abbonamento"));
-    parts.push(vpns.length ? subscriptionForm(vpns) : el("p", { className: "note" }, "Prima aggiungi una connessione VPN (scheda VPN)."));
+    parts.push(el("h2", {}, t("Aggiungi un abbonamento")));
+    parts.push(vpns.length ? subscriptionForm(vpns) : el("p", { className: "note" }, t("Prima aggiungi una connessione VPN (scheda VPN).")));
     main.replaceChildren(...parts);
   }
 
@@ -128,57 +131,58 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     const settings = s.settings || {};
     const a = s.account || {};
     const facts = el("div", { className: "facts" },
-      el("span", {}, "Tipo ", el("b", {}, s.kind === "xtream" ? "Xtream Codes" : "Playlist M3U")),
+      el("span", {}, t("Tipo") + " ", el("b", {}, s.kind === "xtream" ? "Xtream Codes" : t("Playlist M3U"))),
       settings.server ? el("span", {}, "Server ", el("b", {}, settings.server)) : null,
-      settings.username ? el("span", {}, "Utente ", el("b", {}, settings.username)) : null,
+      settings.username ? el("span", {}, t("Utente") + " ", el("b", {}, settings.username)) : null,
       settings.host ? el("span", {}, "Host ", el("b", {}, settings.host)) : null,
       el("span", {}, "VPN ", el("b", {}, vpnName[s.vpn_id] || "?")),
-      a.status ? el("span", {}, "Account ", el("b", { className: a.active ? "ok" : "bad" }, a.active ? "attivo" : a.status)) : null,
-      a.expires > 0 ? el("span", {}, "Scadenza ", el("b", {}, new Date(a.expires * 1000).toLocaleDateString("it-IT"))) : null,
-      a.max_connections ? el("span", {}, "Connessioni ", el("b", {}, (a.active_cons || 0) + " / " + a.max_connections)) : null);
+      a.status ? el("span", {}, "Account ", el("b", { className: a.active ? "ok" : "bad" }, a.active ? t("attivo") : a.status)) : null,
+      a.expires > 0 ? el("span", {}, t("Scadenza") + " ", el("b", {}, new Date(a.expires * 1000).toLocaleDateString(locale))) : null,
+      a.max_connections ? el("span", {}, t("Connessioni") + " ", el("b", {}, (a.active_cons || 0) + " / " + a.max_connections)) : null);
     const counts = s.counts || {};
     const sync = el("div", { className: "facts" },
-      el("span", {}, "Ultima sincronizzazione ", el("b", { className: s.sync_status === "error" ? "bad" : "" }, when(s.synced_at) +
-        (s.sync_status === "error" ? " (errore)" : ""))),
-      el("span", {}, "Canali ", el("b", {}, counts.live || 0)), el("span", {}, "Film ", el("b", {}, counts.movie || 0)),
-      el("span", {}, "Serie ", el("b", {}, counts.series || 0)));
+      el("span", {}, t("Ultima sincronizzazione") + " ", el("b", { className: s.sync_status === "error" ? "bad" : "" }, when(s.synced_at) +
+        (s.sync_status === "error" ? " " + t("(errore)") : ""))),
+      el("span", {}, t("Canali") + " ", el("b", {}, counts.live || 0)), el("span", {}, t("Film") + " ", el("b", {}, counts.movie || 0)),
+      el("span", {}, t("Serie") + " ", el("b", {}, counts.series || 0)));
     const box = el("section", { className: "box" }, el("h3", {}, s.name), facts, sync,
       s.sync_error ? el("p", { className: "note bad" }, s.sync_error) : null);
-    const syncButton = button(s.syncing ? "Sincronizzazione in corso…" : "Sincronizza ora", async () => {
+    const syncButton = button(s.syncing ? t("Sincronizzazione in corso…") : t("Sincronizza ora"), async () => {
       syncButton.disabled = true;
-      syncButton.textContent = "Sincronizzazione in corso… (anche un minuto)";
+      syncButton.textContent = t("Sincronizzazione in corso… (anche un minuto)");
       try {
         const r = await api("POST", "/api/v1/subscriptions/" + s.id + "/sync");
         const sel = r.selection || {};
-        flash("Sincronizzato: " + ["live", "movie", "series"].map((k) => (sel[k] ? sel[k].cards : 0) + " " +
-          { live: "canali", movie: "film", series: "serie" }[k]).join(", ") + (r.guide ? ", guida " + r.guide.programmes + " programmi" : ""));
+        const n = fromEntries(["live", "movie", "series"].map((k) => [k, sel[k] ? sel[k].cards : 0]));
+        flash(r.guide ? t("Sincronizzato: {live} canali, {movie} film, {series} serie, guida {programmes} programmi", { ...n, programmes: r.guide.programmes })
+          : t("Sincronizzato: {live} canali, {movie} film, {series} serie", n));
       } catch (e) { flash(e.message); }
       render();
     }, "primary");
     syncButton.disabled = s.syncing;
-    const edit = button("Modifica", () => {
+    const edit = button(t("Modifica"), () => {
       edit.disabled = true;
       box.append(subscriptionForm(vpns, s));
     });
-    const del = button("Elimina", async () => {
-      if (!confirm("Eliminare l'abbonamento “" + s.name + "” e il suo catalogo? Preferiti e avanzamenti dei suoi titoli andranno persi.")) return;
-      try { await api("DELETE", "/api/v1/subscriptions/" + s.id); flash("Abbonamento eliminato"); } catch (e) { flash(e.message); }
+    const del = button(t("Elimina"), async () => {
+      if (!confirm(t("Eliminare l'abbonamento “{name}” e il suo catalogo? Preferiti e avanzamenti dei suoi titoli andranno persi.", { name: s.name }))) return;
+      try { await api("DELETE", "/api/v1/subscriptions/" + s.id); flash(t("Abbonamento eliminato")); } catch (e) { flash(e.message); }
       render();
     }, "danger");
-    const select = button("Selezione del catalogo", () => { state.sub = s.id; store.set("settingsSub", s.id); open("rules"); });
+    const select = button(t("Selezione del catalogo"), () => { state.sub = s.id; store.set("settingsSub", s.id); open("rules"); });
     box.append(el("div", { className: "buttons" }, syncButton, select, edit, del));
     return box;
   }
 
   // ---- Local collections: folders of films or series ----
-  const CONTENT = { movie: "Film", series: "Serie" };
+  const CONTENT = { movie: t("Film"), series: t("Serie") };
   async function renderLibraries(main) {
     const libs = (await api("GET", "/api/v1/subscriptions")).filter((s) => s.kind === "local");
-    const parts = [el("h2", {}, "Raccolte"),
-      el("p", { className: "note" }, "Cartelle di film o di serie che il server legge così come sono: titolo e anno dai nomi (“Il Padrino (1972).mkv”, “Twin Peaks/Stagione 1/S01E03.mkv”), " +
-        "trama e locandine dai file .nfo e dalle immagini accanto ai video, se ci sono. Non passano dalla VPN. Si aggiornano ogni notte e con “Aggiorna ora”.")];
+    const parts = [el("h2", {}, t("Raccolte")),
+      el("p", { className: "note" }, t("Cartelle di film o di serie che il server legge così come sono: titolo e anno dai nomi (“Il Padrino (1972).mkv”, “Twin Peaks/Stagione 1/S01E03.mkv”), " +
+        "trama e locandine dai file .nfo e dalle immagini accanto ai video, se ci sono. Non passano dalla VPN. Si aggiornano ogni notte e con “Aggiorna ora”."))];
     for (const l of libs) parts.push(libraryBox(l));
-    parts.push(el("h2", {}, "Aggiungi una raccolta"), libraryForm());
+    parts.push(el("h2", {}, t("Aggiungi una raccolta")), libraryForm());
     main.replaceChildren(...parts);
   }
 
@@ -186,27 +190,28 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     const set = l.settings || {}, counts = l.counts || {};
     const box = el("section", { className: "box" }, el("h3", {}, l.name),
       el("div", { className: "facts" },
-        el("span", {}, "Contenuto ", el("b", {}, CONTENT[set.content] || "?")),
-        el("span", {}, "Cartella ", el("b", { className: "path" }, set.path || "?"))),
+        el("span", {}, t("Contenuto") + " ", el("b", {}, CONTENT[set.content] || "?")),
+        el("span", {}, t("Cartella") + " ", el("b", { className: "path" }, set.path || "?"))),
       el("div", { className: "facts" },
-        el("span", {}, "Ultimo aggiornamento ", el("b", { className: l.sync_status === "error" ? "bad" : "" }, when(l.synced_at) + (l.sync_status === "error" ? " (errore)" : ""))),
-        el("span", {}, CONTENT[set.content] || "Titoli", " ", el("b", {}, counts[set.content] || 0))),
+        el("span", {}, t("Ultimo aggiornamento") + " ", el("b", { className: l.sync_status === "error" ? "bad" : "" }, when(l.synced_at) + (l.sync_status === "error" ? " " + t("(errore)") : ""))),
+        el("span", {}, CONTENT[set.content] || t("Titoli"), " ", el("b", {}, counts[set.content] || 0))),
       l.sync_error ? el("p", { className: "note bad" }, l.sync_error) : null);
-    const scan = button(l.syncing ? "Aggiornamento in corso…" : "Aggiorna ora", async () => {
+    const scan = button(l.syncing ? t("Aggiornamento in corso…") : t("Aggiorna ora"), async () => {
       scan.disabled = true;
-      scan.textContent = "Lettura della cartella…";
+      scan.textContent = t("Lettura della cartella…");
       try {
         const r = await api("POST", "/api/v1/subscriptions/" + l.id + "/sync");
         const sel = (r.selection || {})[set.content];
-        flash("Raccolta aggiornata: " + (sel ? sel.visible : 0) + " " + (set.content === "series" ? "serie" : "film"));
+        const n = sel ? sel.visible : 0;
+        flash(set.content === "series" ? t("Raccolta aggiornata: {n} serie", { n }) : t("Raccolta aggiornata: {n} film", { n }));
       } catch (e) { flash(e.message); }
       render();
     }, "primary");
     scan.disabled = l.syncing;
-    const edit = button("Modifica", () => { edit.disabled = true; box.append(libraryForm(l)); });
-    const del = button("Elimina", async () => {
-      if (!confirm("Togliere la raccolta “" + l.name + "” da VodMax? I file nella cartella non vengono toccati.")) return;
-      try { await api("DELETE", "/api/v1/subscriptions/" + l.id); flash("Raccolta tolta"); } catch (e) { flash(e.message); }
+    const edit = button(t("Modifica"), () => { edit.disabled = true; box.append(libraryForm(l)); });
+    const del = button(t("Elimina"), async () => {
+      if (!confirm(t("Togliere la raccolta “{name}” da VodMax? I file nella cartella non vengono toccati.", { name: l.name }))) return;
+      try { await api("DELETE", "/api/v1/subscriptions/" + l.id); flash(t("Raccolta tolta")); } catch (e) { flash(e.message); }
       render();
     }, "danger");
     box.append(el("div", { className: "buttons" }, scan, edit, del));
@@ -215,14 +220,14 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
 
   function libraryForm(existing) {
     const set = (existing && existing.settings) || {};
-    const name = input({ value: existing ? existing.name : "", placeholder: "es. Film di casa" });
-    const content = el("select", { className: "focusable" }, el("option", { value: "movie" }, "Film"), el("option", { value: "series" }, "Serie (una cartella per serie)"));
+    const name = input({ value: existing ? existing.name : "", placeholder: t("es. Film di casa") });
+    const content = el("select", { className: "focusable" }, el("option", { value: "movie" }, t("Film")), el("option", { value: "series" }, t("Serie (una cartella per serie)")));
     content.value = set.content || "movie";
-    const path = input({ value: set.path || "", placeholder: "/percorso/della/cartella", spellcheck: false });
-    const browse = button("Sfoglia…", () => folderPicker(path.value, (chosen) => { path.value = chosen; path.focus(); }, browse));
-    const form = el("form", { className: "form" }, ...field("Nome", name), ...field("Contenuto", content),
-      el("label", {}, "Cartella"), el("div", { className: "path-field" }, path, browse));
-    const save = el("button", { className: "small primary focusable full", type: "submit" }, existing ? "Salva le modifiche" : "Aggiungi e leggi la cartella");
+    const path = input({ value: set.path || "", placeholder: t("/percorso/della/cartella"), spellcheck: false });
+    const browse = button(t("Sfoglia…"), () => folderPicker(path.value, (chosen) => { path.value = chosen; path.focus(); }, browse));
+    const form = el("form", { className: "form" }, ...field(t("Nome"), name), ...field(t("Contenuto"), content),
+      el("label", {}, t("Cartella")), el("div", { className: "path-field" }, path, browse));
+    const save = el("button", { className: "small primary focusable full", type: "submit" }, existing ? t("Salva le modifiche") : t("Aggiungi e leggi la cartella"));
     form.append(save);
     form.onsubmit = async (e) => {
       e.preventDefault();
@@ -232,10 +237,11 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
         let id = existing && existing.id;
         if (existing) await api("PATCH", "/api/v1/subscriptions/" + id, body);
         else id = (await api("POST", "/api/v1/subscriptions", { ...body, kind: "local" })).id;
-        save.textContent = "Lettura della cartella…";
+        save.textContent = t("Lettura della cartella…");
         const r = await api("POST", "/api/v1/subscriptions/" + id + "/sync");
         const sel = (r.selection || {})[content.value];
-        flash("Raccolta pronta: " + (sel ? sel.visible : 0) + " " + (content.value === "series" ? "serie" : "film"));
+        const n = sel ? sel.visible : 0;
+        flash(content.value === "series" ? t("Raccolta pronta: {n} serie", { n }) : t("Raccolta pronta: {n} film", { n }));
         render();
       } catch (err) { flash(err.message); save.disabled = false; render(); }
     };
@@ -254,13 +260,13 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       catch (e) { if (dir) { show(""); return; } flash(e.message); close(); return; }
       const rows = list.folders.map((f) => button(f.name, () => show(f.path), "folder-row"));
       panel.replaceChildren(
-        el("div", { className: "facts" }, el("span", {}, "Cartella ", el("b", { className: "path" }, list.path)),
-          list.videos ? el("span", {}, el("b", {}, list.videos), " video qui dentro") : null),
+        el("div", { className: "facts" }, el("span", {}, t("Cartella") + " ", el("b", { className: "path" }, list.path)),
+          list.videos ? el("span", {}, el("b", {}, list.videos), " " + t("video qui dentro")) : null),
         el("div", { className: "buttons" },
-          button("Usa questa cartella", () => { done(list.path); close(); }, "primary"),
-          list.parent ? button("↑ Cartella superiore", () => show(list.parent)) : null,
-          button("Annulla", close)),
-        rows.length ? el("div", { className: "folders" }, ...rows) : el("p", { className: "note" }, "Nessuna sottocartella."));
+          button(t("Usa questa cartella"), () => { done(list.path); close(); }, "primary"),
+          list.parent ? button("↑ " + t("Cartella superiore"), () => show(list.parent)) : null,
+          button(t("Annulla"), close)),
+        rows.length ? el("div", { className: "folders" }, ...rows) : el("p", { className: "note" }, t("Nessuna sottocartella.")));
       panel.querySelector("button").focus();
     };
     show(start);
@@ -268,25 +274,25 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
 
   // Add (existing undefined) or edit a subscription.
   function subscriptionForm(vpns, existing) {
-    const kind = el("select", { className: "focusable" }, el("option", { value: "xtream" }, "Xtream Codes"), el("option", { value: "m3u" }, "Playlist M3U"));
-    const name = input({ value: existing ? existing.name : "", placeholder: "es. Provider casa" });
+    const kind = el("select", { className: "focusable" }, el("option", { value: "xtream" }, "Xtream Codes"), el("option", { value: "m3u" }, t("Playlist M3U")));
+    const name = input({ value: existing ? existing.name : "", placeholder: t("es. Provider casa") });
     const vpn = el("select", { className: "focusable" }, ...vpns.map((v) => el("option", { value: v.id }, v.name)));
     const set = (existing && existing.settings) || {};
-    const server = input({ value: set.server || "", placeholder: "http://server:porta" });
+    const server = input({ value: set.server || "", placeholder: t("http://server:porta") });
     const user = input({ value: set.username || "", autocomplete: "off" });
-    const pass = input({ type: "password", autocomplete: "new-password", placeholder: existing ? "lascia vuoto per non cambiarla" : "" });
-    const url = input({ placeholder: existing ? "lascia vuoto per non cambiarlo" : "http://…/get.php?…" });
+    const pass = input({ type: "password", autocomplete: "new-password", placeholder: existing ? t("lascia vuoto per non cambiarla") : "" });
+    const url = input({ placeholder: existing ? t("lascia vuoto per non cambiarlo") : "http://…/get.php?…" });
     if (existing) { kind.value = existing.kind; kind.disabled = true; vpn.value = existing.vpn_id; }
-    const xtreamRows = [...field("Server", server), ...field("Utente", user), ...field("Password", pass)];
-    const m3uRows = [...field("Indirizzo della playlist", url)];
-    const form = el("form", { className: "form" }, ...field("Tipo", kind), ...field("Nome", name), ...field("VPN", vpn), ...xtreamRows, ...m3uRows);
+    const xtreamRows = [...field("Server", server), ...field(t("Utente"), user), ...field("Password", pass)];
+    const m3uRows = [...field(t("Indirizzo della playlist"), url)];
+    const form = el("form", { className: "form" }, ...field(t("Tipo"), kind), ...field(t("Nome"), name), ...field("VPN", vpn), ...xtreamRows, ...m3uRows);
     const toggle = () => {
       for (const e of xtreamRows) e.hidden = kind.value !== "xtream";
       for (const e of m3uRows) e.hidden = kind.value !== "m3u";
     };
     kind.onchange = toggle;
     toggle();
-    const save = el("button", { className: "small primary focusable full", type: "submit" }, existing ? "Salva le modifiche" : "Aggiungi");
+    const save = el("button", { className: "small primary focusable full", type: "submit" }, existing ? t("Salva le modifiche") : t("Aggiungi"));
     form.append(save);
     form.onsubmit = async (e) => {
       e.preventDefault();
@@ -297,13 +303,13 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
           if (existing.kind === "xtream") Object.assign(patch, { server: server.value, username: user.value, password: pass.value });
           else patch.url = url.value;
           await api("PATCH", "/api/v1/subscriptions/" + existing.id, patch);
-          flash("Abbonamento aggiornato");
+          flash(t("Abbonamento aggiornato"));
         } else {
           const body = { name: name.value, kind: kind.value, vpn_id: Number(vpn.value) };
           if (kind.value === "xtream") Object.assign(body, { server: server.value, username: user.value, password: pass.value });
           else body.url = url.value;
           await api("POST", "/api/v1/subscriptions", body);
-          flash("Abbonamento aggiunto: premi “Sincronizza ora” per scaricare il catalogo");
+          flash(t("Abbonamento aggiunto: premi “Sincronizza ora” per scaricare il catalogo"));
         }
         render();
       } catch (err) { flash(err.message); save.disabled = false; }
@@ -314,12 +320,12 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
   // ---- VPN ----
   async function renderVPN(main) {
     const vpns = await api("GET", "/api/v1/vpn");
-    const parts = [el("h2", {}, "Connessioni VPN"),
-      el("p", { className: "note" }, "Il provider si contatta solo attraverso una VPN. Due modi: una WireGuard dentro VodMax (si importa il file .conf " +
+    const parts = [el("h2", {}, t("Connessioni VPN")),
+      el("p", { className: "note" }, t("Il provider si contatta solo attraverso una VPN. Due modi: una WireGuard dentro VodMax (si importa il file .conf " +
         "del proprio servizio: Proton, Mullvad, NordVPN…; la chiave privata resta cifrata) oppure una VPN che hai già fuori da VodMax, " +
-        "sul dispositivo o sul router.")];
+        "sul dispositivo o sul router."))];
     for (const v of vpns) parts.push(vpnBox(v));
-    parts.push(el("h2", {}, "Aggiungi una VPN"), vpnForm());
+    parts.push(el("h2", {}, t("Aggiungi una VPN")), vpnForm());
     main.replaceChildren(...parts);
   }
 
@@ -327,25 +333,25 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     const st = v.status || {};
     const connected = v.running && st.connected;
     const box = el("section", { className: "box" }, el("h3", {}, v.name), el("div", { className: "facts" },
-      el("span", {}, v.kind === "system" ? "Tipo " : "Server ", el("b", {}, v.kind === "system" ? "VPN esterna, non controllata da VodMax" : v.endpoint || "?")),
-      el("span", {}, "Stato ", el("b", { className: connected ? "ok" : "" }, v.kind === "system" ? (v.running ? "in uso" : "non in uso")
-        : connected ? "collegata" : v.running ? "in collegamento" : "non collegata")),
-      st.last_handshake && st.last_handshake !== "0001-01-01T00:00:00Z" ? el("span", {}, "Ultimo handshake ", el("b", {}, when(st.last_handshake))) : null,
-      v.running ? el("span", {}, "Traffico ", el("b", {}, ((st.rx_bytes || 0) / 1e6).toFixed(1) + " MB ricevuti")) : null,
-      v.health && v.health.reconnects > 0 ? el("span", {}, "Ricollegamenti automatici ", el("b", {}, v.health.reconnects)) : null),
-      v.health && !v.health.ok ? el("p", { className: "note bad" }, "⚠ " + v.health.error + " (da " + when(v.health.since) + ")") : null);
-    const connect = button(v.running ? "Scollega" : "Collega", async () => {
+      el("span", {}, v.kind === "system" ? t("Tipo") + " " : "Server ", el("b", {}, v.kind === "system" ? t("VPN esterna, non controllata da VodMax") : v.endpoint || "?")),
+      el("span", {}, t("Stato") + " ", el("b", { className: connected ? "ok" : "" }, v.kind === "system" ? (v.running ? t("in uso") : t("non in uso"))
+        : connected ? t("collegata") : v.running ? t("in collegamento") : t("non collegata"))),
+      st.last_handshake && st.last_handshake !== "0001-01-01T00:00:00Z" ? el("span", {}, t("Ultimo handshake") + " ", el("b", {}, when(st.last_handshake))) : null,
+      v.running ? el("span", {}, t("Traffico") + " ", el("b", {}, t("{mb} MB ricevuti", { mb: ((st.rx_bytes || 0) / 1e6).toFixed(1) }))) : null,
+      v.health && v.health.reconnects > 0 ? el("span", {}, t("Ricollegamenti automatici") + " ", el("b", {}, v.health.reconnects)) : null),
+      v.health && !v.health.ok ? el("p", { className: "note bad" }, "⚠ " + t("{error} (da {since})", { error: v.health.error, since: when(v.health.since) })) : null);
+    const connect = button(v.running ? t("Scollega") : t("Collega"), async () => {
       connect.disabled = true;
       try {
-        if (v.running) { await api("POST", "/api/v1/vpn/" + v.id + "/disconnect"); flash("VPN scollegata"); }
-        else { const s = await api("POST", "/api/v1/vpn/" + v.id + "/connect"); flash(s.connected ? "VPN collegata" : "Nessuna risposta dal server VPN"); }
+        if (v.running) { await api("POST", "/api/v1/vpn/" + v.id + "/disconnect"); flash(t("VPN scollegata")); }
+        else { const s = await api("POST", "/api/v1/vpn/" + v.id + "/connect"); flash(s.connected ? t("VPN collegata") : t("Nessuna risposta dal server VPN")); }
       } catch (e) { flash(e.message); }
       render();
     }, v.running ? "" : "primary");
-    const edit = button("Modifica", () => { edit.disabled = true; box.append(vpnForm(v)); });
-    const del = button("Elimina", async () => {
-      if (!confirm("Eliminare la VPN “" + v.name + "”?")) return;
-      try { await api("DELETE", "/api/v1/vpn/" + v.id); flash("VPN eliminata"); } catch (e) { flash(e.message); }
+    const edit = button(t("Modifica"), () => { edit.disabled = true; box.append(vpnForm(v)); });
+    const del = button(t("Elimina"), async () => {
+      if (!confirm(t("Eliminare la VPN “{name}”?", { name: v.name }))) return;
+      try { await api("DELETE", "/api/v1/vpn/" + v.id); flash(t("VPN eliminata")); } catch (e) { flash(e.message); }
       render();
     }, "danger");
     box.append(el("div", { className: "buttons" }, connect, edit, del));
@@ -353,28 +359,28 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
   }
 
   function vpnForm(existing) {
-    const name = input({ value: existing ? existing.name : "", placeholder: "es. Proton Italia" });
+    const name = input({ value: existing ? existing.name : "", placeholder: t("es. Proton Italia") });
     const kind = el("select", { className: "focusable" },
-      el("option", { value: "wireguard" }, "WireGuard dentro VodMax (consigliato)"),
-      el("option", { value: "system" }, "VPN già attiva fuori da VodMax (sul dispositivo o sul router)"));
+      el("option", { value: "wireguard" }, t("WireGuard dentro VodMax (consigliato)")),
+      el("option", { value: "system" }, t("VPN già attiva fuori da VodMax (sul dispositivo o sul router)")));
     kind.value = existing ? existing.kind || "wireguard" : "wireguard";
     kind.disabled = Boolean(existing);
     const conf = el("textarea", { className: "focusable", spellcheck: false,
-      placeholder: existing ? "Incolla un nuovo .conf per sostituirlo, oppure lascia vuoto" : "[Interface]\nPrivateKey = …\nAddress = …\nDNS = …\n\n[Peer]\nPublicKey = …\nEndpoint = …" });
+      placeholder: existing ? t("Incolla un nuovo .conf per sostituirlo, oppure lascia vuoto") : "[Interface]\nPrivateKey = …\nAddress = …\nDNS = …\n\n[Peer]\nPublicKey = …\nEndpoint = …" });
     const file = input({ type: "file", accept: ".conf,text/plain" });
     file.onchange = async () => { if (file.files[0]) conf.value = await file.files[0].text(); };
-    const warning = el("p", { className: "note bad full" }, "Con una VPN esterna VodMax contatta il provider con la normale rete del dispositivo: " +
+    const warning = el("p", { className: "note bad full" }, t("Con una VPN esterna VodMax contatta il provider con la normale rete del dispositivo: " +
       "è compito tuo che quella rete passi davvero dalla VPN (per esempio una VPN sul router per tutta la rete, o l'app VPN attiva sul telefono). " +
-      "Se la VPN cade, VodMax non se ne accorge.");
-    const confRows = [...field("File .conf", file), ...field("Configurazione", conf)];
+      "Se la VPN cade, VodMax non se ne accorge."));
+    const confRows = [...field(t("File .conf"), file), ...field(t("Configurazione"), conf)];
     const toggle = () => {
       const system = kind.value === "system";
       for (const e of confRows) e.hidden = system;
       warning.hidden = !system;
     };
     kind.onchange = toggle;
-    const save = el("button", { className: "small primary focusable full", type: "submit" }, existing ? "Salva le modifiche" : "Aggiungi");
-    const form = el("form", { className: "form" }, ...field("Nome", name), ...field("Tipo", kind), ...confRows, warning, save);
+    const save = el("button", { className: "small primary focusable full", type: "submit" }, existing ? t("Salva le modifiche") : t("Aggiungi"));
+    const form = el("form", { className: "form" }, ...field(t("Nome"), name), ...field(t("Tipo"), kind), ...confRows, warning, save);
     toggle();
     form.onsubmit = async (e) => {
       e.preventDefault();
@@ -382,7 +388,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       try {
         if (existing) await api("PATCH", "/api/v1/vpn/" + existing.id, { name: name.value, config: kind.value === "system" ? "" : conf.value });
         else await api("POST", "/api/v1/vpn", { name: name.value, kind: kind.value, config: kind.value === "system" ? "" : conf.value });
-        flash(existing ? "VPN aggiornata" : "VPN aggiunta");
+        flash(existing ? t("VPN aggiornata") : t("VPN aggiunta"));
         render();
       } catch (err) { flash(err.message); save.disabled = false; }
     };
@@ -393,19 +399,19 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
   // ---- Subscription picker for selection pages ----
   async function pickSubscription(main, title, note) {
     const subs = (await api("GET", "/api/v1/subscriptions")).filter((s) => s.kind !== "local");
-    if (!subs.length) { main.replaceChildren(el("p", { className: "note" }, "Nessun abbonamento: aggiungine uno nella scheda Abbonamenti.")); return null; }
+    if (!subs.length) { main.replaceChildren(el("p", { className: "note" }, t("Nessun abbonamento: aggiungine uno nella scheda Abbonamenti."))); return null; }
     if (!subs.some((s) => s.id === state.sub)) state.sub = subs[0].id;
     const pick = el("select", { className: "pick focusable" }, ...subs.map((s) => el("option", { value: s.id }, s.name)));
     pick.value = state.sub;
     pick.onchange = () => { state.sub = Number(pick.value); store.set("settingsSub", state.sub); render(); };
-    main.replaceChildren(el("h2", {}, title), el("p", { className: "note" }, note), el("div", { className: "toolbar" }, el("span", {}, "Abbonamento"), pick));
+    main.replaceChildren(el("h2", {}, title), el("p", { className: "note" }, note), el("div", { className: "toolbar" }, el("span", {}, t("Abbonamento")), pick));
     return subs.find((s) => s.id === state.sub);
   }
 
   // ---- Rules ----
   async function renderRules(main) {
-    const sub = await pickSubscription(main, "Selezione del catalogo",
-      "Cosa tenere della lista del provider. Le regole valgono a ogni sincronizzazione; le correzioni su singole categorie (scheda Categorie) prevalgono.");
+    const sub = await pickSubscription(main, t("Selezione del catalogo"),
+      t("Cosa tenere della lista del provider. Le regole valgono a ogni sincronizzazione; le correzioni su singole categorie (scheda Categorie) prevalgono."));
     if (!sub) return;
     const [rules, cats, current] = await Promise.all([
       api("GET", "/api/v1/subscriptions/" + sub.id + "/rules"),
@@ -418,8 +424,8 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     }
     const adult = input({ type: "checkbox", checked: rules.adult });
     const lowres = input({ type: "checkbox", checked: rules.low_res });
-    const movieYear = input({ type: "number", min: 1900, max: 2100, placeholder: "nessun limite", value: rules.movie_min_year || "" });
-    const seriesYear = input({ type: "number", min: 1900, max: 2100, placeholder: "nessun limite", value: rules.series_min_year || "" });
+    const movieYear = input({ type: "number", min: 1900, max: 2100, placeholder: t("nessun limite"), value: rules.movie_min_year || "" });
+    const seriesYear = input({ type: "number", min: 1900, max: 2100, placeholder: t("nessun limite"), value: rules.series_min_year || "" });
     const unknownYear = input({ type: "checkbox", checked: rules.hide_unknown_year });
     const countryBoxes = Object.entries(countries).sort((a, b) => b[1] - a[1]).map(([name, n]) => {
       const cb = input({ type: "checkbox", checked: (rules.countries || []).includes(name), value: name });
@@ -433,14 +439,14 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       hide_unknown_year: unknownYear.checked,
     });
     const showCounts = (preview) => {
-      const rows = [["live", "Canali"], ["movie", "Film"], ["series", "Serie"]].map(([k, label]) => {
+      const rows = [["live", t("Canali")], ["movie", t("Film")], ["series", t("Serie")]].map(([k, label]) => {
         const now = current[k] || {}, next = (preview || current)[k] || {};
-        const cell = (v, before) => el("td", { className: preview && v !== before ? "changed" : "" }, (v || 0).toLocaleString("it-IT"));
-        return el("tr", {}, el("td", {}, label), el("td", {}, (now.available || 0).toLocaleString("it-IT")),
+        const cell = (v, before) => el("td", { className: preview && v !== before ? "changed" : "" }, (v || 0).toLocaleString(locale));
+        return el("tr", {}, el("td", {}, label), el("td", {}, (now.available || 0).toLocaleString(locale)),
           cell(next.visible, now.visible), cell(next.cards, now.cards));
       });
-      table.replaceChildren(el("tr", {}, el("th", {}, ""), el("th", {}, "Dal provider"), el("th", {}, preview ? "Visibili (anteprima)" : "Visibili"),
-        el("th", {}, preview ? "Schede (anteprima)" : "Schede")), ...rows);
+      table.replaceChildren(el("tr", {}, el("th", {}, ""), el("th", {}, t("Dal provider")), el("th", {}, preview ? t("Visibili (anteprima)") : t("Visibili")),
+        el("th", {}, preview ? t("Schede (anteprima)") : t("Schede"))), ...rows);
     };
     showCounts(null);
     let previewTimer;
@@ -452,16 +458,16 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       }, 300);
     };
     const form = el("form", { className: "form" },
-      el("label", {}, "Paesi esteri da tenere"), el("div", { className: "countries" }, ...(countryBoxes.length ? countryBoxes : [el("span", { className: "note" }, "Nessun canale estero riconosciuto")])),
-      el("label", {}, "Contenuti per adulti"), el("label", { className: "check" }, adult, "Mostra"),
-      el("label", {}, "Doppioni a bassa qualità"), el("label", { className: "check" }, lowres, "Mostra (es. “SD Connessioni lente”)"),
-      ...field("Film dall'anno", movieYear), ...field("Serie dall'anno", seriesYear),
-      el("label", {}, "Titoli senza anno"), el("label", { className: "check" }, unknownYear, "Nascondi quando c'è un anno minimo"));
+      el("label", {}, t("Paesi esteri da tenere")), el("div", { className: "countries" }, ...(countryBoxes.length ? countryBoxes : [el("span", { className: "note" }, t("Nessun canale estero riconosciuto"))])),
+      el("label", {}, t("Contenuti per adulti")), el("label", { className: "check" }, adult, t("Mostra")),
+      el("label", {}, t("Doppioni a bassa qualità")), el("label", { className: "check" }, lowres, t("Mostra (es. “SD Connessioni lente”)")),
+      ...field(t("Film dall'anno"), movieYear), ...field(t("Serie dall'anno"), seriesYear),
+      el("label", {}, t("Titoli senza anno")), el("label", { className: "check" }, unknownYear, t("Nascondi quando c'è un anno minimo")));
     form.addEventListener("input", preview);
     form.addEventListener("change", preview);
-    const save = button("Salva le regole", async () => {
+    const save = button(t("Salva le regole"), async () => {
       save.disabled = true;
-      try { await api("PUT", "/api/v1/subscriptions/" + sub.id + "/rules", readRules()); flash("Regole salvate e applicate"); render(); }
+      try { await api("PUT", "/api/v1/subscriptions/" + sub.id + "/rules", readRules()); flash(t("Regole salvate e applicate")); render(); }
       catch (e) { flash(e.message); save.disabled = false; }
     }, "primary");
     main.append(form, table, el("div", { className: "buttons" }, save));
@@ -469,32 +475,32 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
 
   // ---- Categories ----
   async function renderCategories(main) {
-    const sub = await pickSubscription(main, "Categorie",
-      "Includi o escludi le categorie una per una e scegli in quale sezione della TV vanno i canali. “Automatico” segue le regole della scheda Selezione.");
+    const sub = await pickSubscription(main, t("Categorie"),
+      t("Includi o escludi le categorie una per una e scegli in quale sezione della TV vanno i canali. “Automatico” segue le regole della scheda Selezione."));
     if (!sub) return;
-    const kinds = el("div", { className: "toolbar" }, ...[["live", "Canali"], ["movie", "Film"], ["series", "Serie"]].map(([k, label]) => {
+    const kinds = el("div", { className: "toolbar" }, ...[["live", t("Canali")], ["movie", t("Film")], ["series", t("Serie")]].map(([k, label]) => {
       const b = button(label, () => { state.kind = k; render(); }, state.kind === k ? "primary" : "");
       return b;
     }));
-    const filter = input({ type: "search", placeholder: "Filtra per nome", className: "pick focusable" });
+    const filter = input({ type: "search", placeholder: t("Filtra per nome"), className: "pick focusable" });
     kinds.append(filter);
     const cats = await api("GET", "/api/v1/subscriptions/" + sub.id + "/categories?kind=" + state.kind);
     const table = el("table", { className: "cats" });
-    const head = el("tr", {}, el("th", {}, "Categoria"), el("th", {}, "Titoli"), el("th", {}, "Inclusa"),
-      state.kind === "live" ? el("th", {}, "Sezione") : null, el("th", {}, "Stato"));
+    const head = el("tr", {}, el("th", {}, t("Categoria")), el("th", {}, t("Titoli")), el("th", {}, t("Inclusa")),
+      state.kind === "live" ? el("th", {}, t("Sezione")) : null, el("th", {}, t("Stato")));
     const rows = cats.map((c) => {
-      const include = el("select", { className: "focusable" }, el("option", { value: "" }, "Automatico"),
-        el("option", { value: "true" }, "Sempre"), el("option", { value: "false" }, "Mai"));
+      const include = el("select", { className: "focusable" }, el("option", { value: "" }, t("Automatico")),
+        el("option", { value: "true" }, t("Sempre")), el("option", { value: "false" }, t("Mai")));
       include.value = c.enabled_override == null ? "" : String(c.enabled_override);
       let section = null;
       if (state.kind === "live") {
-        section = el("select", { className: "focusable" }, el("option", { value: "" }, "Automatico (" + ({ tv: "TV", sport: "Sport", radio: "Radio" }[c.effective.section || c.section] || "TV") + ")"),
+        section = el("select", { className: "focusable" }, el("option", { value: "" }, t("Automatico ({section})", { section: { tv: "TV", sport: "Sport", radio: "Radio" }[c.effective.section || c.section] || "TV" })),
           el("option", { value: "tv" }, "TV"), el("option", { value: "sport" }, "Sport"), el("option", { value: "radio" }, "Radio"));
         section.value = c.section_override || "";
       }
-      const status = el("td", {}, c.effective.enabled ? el("span", { className: "ok" }, "Inclusa") : el("span", { className: "why" }, c.effective.reason || "Esclusa"));
+      const status = el("td", {}, c.effective.enabled ? el("span", { className: "ok" }, t("Inclusa")) : el("span", { className: "why" }, c.effective.reason || t("Esclusa")));
       const row = el("tr", { className: c.effective.enabled ? "" : "off" }, el("td", { className: "name" }, c.name),
-        el("td", { className: "n" }, c.items.toLocaleString("it-IT")), el("td", {}, include), section ? el("td", {}, section) : null, status);
+        el("td", { className: "n" }, c.items.toLocaleString(locale)), el("td", {}, include), section ? el("td", {}, section) : null, status);
       row.dataset.name = c.name.toLowerCase();
       const save = async () => {
         const body = { enabled: include.value === "" ? null : include.value === "true", section: section && section.value ? section.value : null,
@@ -504,9 +510,9 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
           const fresh = (await api("GET", "/api/v1/subscriptions/" + sub.id + "/categories?kind=" + state.kind)).find((x) => x.id === c.id);
           if (fresh) {
             row.className = fresh.effective.enabled ? "" : "off";
-            status.replaceChildren(fresh.effective.enabled ? el("span", { className: "ok" }, "Inclusa") : el("span", { className: "why" }, fresh.effective.reason || "Esclusa"));
+            status.replaceChildren(fresh.effective.enabled ? el("span", { className: "ok" }, t("Inclusa")) : el("span", { className: "why" }, fresh.effective.reason || t("Esclusa")));
           }
-          flash("Salvato: " + c.name);
+          flash(t("Salvato: {name}", { name: c.name }));
         } catch (e) { flash(e.message); }
       };
       include.onchange = save;
@@ -519,38 +525,38 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       for (const r of rows) r.hidden = q && !r.dataset.name.includes(q);
     };
     const included = cats.filter((c) => c.effective.enabled).length;
-    main.append(kinds, el("p", { className: "note" }, included + " categorie incluse su " + cats.length), table);
+    main.append(kinds, el("p", { className: "note" }, t("{n} categorie incluse su {total}", { n: included, total: cats.length })), table);
   }
 
   // ---- System: problems and schedule ----
   async function renderSystem(main) {
     const status = await api("GET", "/api/v1/status");
-    const parts = [el("h2", {}, "Stato")];
-    if (!status.problems.length) parts.push(el("p", { className: "ok" }, "✓ Nessun problema: VPN collegate, abbonamenti attivi, guide aggiornate."));
+    const parts = [el("h2", {}, t("Stato"))];
+    if (!status.problems.length) parts.push(el("p", { className: "ok" }, "✓ " + t("Nessun problema: VPN collegate, abbonamenti attivi, guide aggiornate.")));
     for (const p of status.problems) parts.push(el("p", { className: p.level === "error" ? "bad" : "" }, "⚠ " + p.text));
     const sc = status.schedule;
-    const hour = el("select", { className: "focusable" }, el("option", { value: -1 }, "Mai (solo a mano)"),
+    const hour = el("select", { className: "focusable" }, el("option", { value: -1 }, t("Mai (solo a mano)")),
       ...Array.from({ length: 24 }, (_, h) => el("option", { value: h }, String(h).padStart(2, "0") + ":00")));
     hour.value = sc.catalog_hour;
-    const guide = el("select", { className: "focusable" }, el("option", { value: 0 }, "Mai (solo con il catalogo)"),
-      ...[1, 2, 3, 4, 6, 8, 12, 24].map((h) => el("option", { value: h }, "Ogni " + h + (h === 1 ? " ora" : " ore"))));
+    const guide = el("select", { className: "focusable" }, el("option", { value: 0 }, t("Mai (solo con il catalogo)")),
+      ...[1, 2, 3, 4, 6, 8, 12, 24].map((h) => el("option", { value: h }, h === 1 ? t("Ogni ora") : t("Ogni {h} ore", { h }))));
     guide.value = sc.guide_hours;
-    const save = el("button", { className: "small primary focusable full", type: "submit" }, "Salva");
-    const form = el("form", { className: "form" }, ...field("Catalogo, ogni notte alle", hour), ...field("Guida TV", guide), save);
+    const save = el("button", { className: "small primary focusable full", type: "submit" }, t("Salva"));
+    const form = el("form", { className: "form" }, ...field(t("Catalogo, ogni notte alle"), hour), ...field(t("Guida TV"), guide), save);
     form.onsubmit = async (e) => {
       e.preventDefault();
       try {
         await api("PUT", "/api/v1/settings/schedule", { catalog_hour: Number(hour.value), guide_hours: Number(guide.value) });
-        flash("Pianificazione salvata");
+        flash(t("Pianificazione salvata"));
         render();
       } catch (err) { flash(err.message); }
     };
-    parts.push(el("h2", {}, "Aggiornamenti automatici"),
-      el("p", { className: "note" }, "Il catalogo di ogni abbonamento (con la guida) si aggiorna ogni notte; se non riesce riprova ogni ora. La guida si aggiorna anche tra una notte e l'altra." +
-        (status.next_catalog ? " Prossimo aggiornamento del catalogo: " + when(status.next_catalog) + "." : "")), form);
+    parts.push(el("h2", {}, t("Aggiornamenti automatici")),
+      el("p", { className: "note" }, t("Il catalogo di ogni abbonamento (con la guida) si aggiorna ogni notte; se non riesce riprova ogni ora. La guida si aggiorna anche tra una notte e l'altra.") +
+        (status.next_catalog ? " " + t("Prossimo aggiornamento del catalogo: {when}.", { when: when(status.next_catalog) }) : "")), form);
     if (window.VodMax.native) {
-      parts.push(el("h2", {}, "App"), el("p", { className: "note" }, "VodMax per Android " + window.VodMax.native.version() + ", collegata a " + location.origin + "."),
-        el("div", { className: "buttons" }, button("Cambia server", () => window.VodMax.native.changeServer())));
+      parts.push(el("h2", {}, "App"), el("p", { className: "note" }, t("VodMax per Android {version}, collegata a {server}.", { version: window.VodMax.native.version(), server: location.origin })),
+        el("div", { className: "buttons" }, button(t("Cambia server"), () => window.VodMax.native.changeServer())));
     }
     parts.push(...await liveSection(), ...await recordingLimits(), ...(await metadataSection()).filter(Boolean), ...await backupSection());
     main.replaceChildren(...parts);
@@ -559,65 +565,67 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
   // ---- Live TV ----
   async function liveSection() {
     const ls = await api("GET", "/api/v1/settings/live");
-    const mode = el("select", { className: "focusable" }, el("option", { value: "timeshift" }, "Pausa e riavvolgimento, come Sky (consigliato)"),
-      el("option", { value: "direct" }, "Ritardo minimo, senza pausa"));
+    const mode = el("select", { className: "focusable" }, el("option", { value: "timeshift" }, t("Pausa e riavvolgimento, come Sky (consigliato)")),
+      el("option", { value: "direct" }, t("Ritardo minimo, senza pausa")));
     mode.value = ls.mode;
-    const win = el("select", { className: "focusable" }, ...[30, 60, 120, 180, 240, 360].map((m) => el("option", { value: m }, m < 60 ? m + " minuti" : m / 60 + (m === 60 ? " ora" : " ore"))));
+    const win = el("select", { className: "focusable" }, ...[30, 60, 120, 180, 240, 360].map((m) => el("option", { value: m }, m < 60 ? t("{n} minuti", { n: m }) : m === 60 ? t("1 ora") : t("{n} ore", { n: m / 60 }))));
     win.value = ls.window_minutes;
-    const save = el("button", { className: "small primary focusable full", type: "submit" }, "Salva");
-    const form = el("form", { className: "form" }, ...field("Diretta", mode), ...field("Si torna indietro fino a", win), save);
+    const save = el("button", { className: "small primary focusable full", type: "submit" }, t("Salva"));
+    const form = el("form", { className: "form" }, ...field(t("Diretta"), mode), ...field(t("Si torna indietro fino a"), win), save);
     form.onsubmit = async (e) => {
       e.preventDefault();
-      try { await api("PUT", "/api/v1/settings/live", { mode: mode.value, window_minutes: Number(win.value) }); flash("Salvato: vale dal prossimo cambio di canale"); }
+      try { await api("PUT", "/api/v1/settings/live", { mode: mode.value, window_minutes: Number(win.value) }); flash(t("Salvato: vale dal prossimo cambio di canale")); }
       catch (err) { flash(err.message); }
     };
-    return [el("h2", {}, "Diretta TV"),
-      el("p", { className: "note" }, "Con pausa e riavvolgimento il server tiene il canale che stai guardando su disco (circa 3 GB all'ora in HD; " +
-        "si cancella cambiando canale): la diretta è 6–8 secondi indietro e il cambio canale richiede 2–4 secondi. Con ritardo minimo si torna al flusso diretto."), form];
+    return [el("h2", {}, t("Diretta TV")),
+      el("p", { className: "note" }, t("Con pausa e riavvolgimento il server tiene il canale che stai guardando su disco (circa 3 GB all'ora in HD; " +
+        "si cancella cambiando canale): la diretta è 6–8 secondi indietro e il cambio canale richiede 2–4 secondi. Con ritardo minimo si torna al flusso diretto.")), form];
   }
 
   // ---- Recording space ----
   async function recordingLimits() {
     const sp = await api("GET", "/api/v1/recordings/space");
-    const gb = (b) => (b / 1e9).toLocaleString("it-IT", { maximumFractionDigits: 1 }) + " GB";
-    const max = input({ type: "number", min: 0, value: sp.max_gb || "", placeholder: "nessun limite" });
-    const days = input({ type: "number", min: 0, value: sp.keep_days || "", placeholder: "per sempre" });
-    const save = el("button", { className: "small primary focusable full", type: "submit" }, "Salva");
-    const form = el("form", { className: "form" }, ...field("Spazio massimo (GB)", max), ...field("Tieni per (giorni)", days), save);
+    const gb = (b) => (b / 1e9).toLocaleString(locale, { maximumFractionDigits: 1 }) + " GB";
+    const max = input({ type: "number", min: 0, value: sp.max_gb || "", placeholder: t("nessun limite") });
+    const days = input({ type: "number", min: 0, value: sp.keep_days || "", placeholder: t("per sempre") });
+    const save = el("button", { className: "small primary focusable full", type: "submit" }, t("Salva"));
+    const form = el("form", { className: "form" }, ...field(t("Spazio massimo (GB)"), max), ...field(t("Tieni per (giorni)"), days), save);
     form.onsubmit = async (e) => {
       e.preventDefault();
-      try { await api("PUT", "/api/v1/settings/recordings", { max_gb: Number(max.value) || 0, keep_days: Number(days.value) || 0 }); flash("Limiti salvati e applicati"); render(); }
+      try { await api("PUT", "/api/v1/settings/recordings", { max_gb: Number(max.value) || 0, keep_days: Number(days.value) || 0 }); flash(t("Limiti salvati e applicati")); render(); }
       catch (err) { flash(err.message); }
     };
-    return [el("h2", {}, "Spazio delle registrazioni"),
-      el("p", { className: "note" }, sp.count + " registrazioni, " + gb(sp.used_bytes) + (sp.free_bytes >= 0 ? "; liberi sul disco " + gb(sp.free_bytes) + " su " + gb(sp.total_bytes) : "") +
-        ". Oltre i limiti si cancellano le più vecchie; quelle protette (🔒) mai. Sotto 1 GB liberi le registrazioni non partono."), form];
+    return [el("h2", {}, t("Spazio delle registrazioni")),
+      el("p", { className: "note" }, (sp.free_bytes >= 0
+        ? t("{count} registrazioni, {used}; liberi sul disco {free} su {total}.", { count: sp.count, used: gb(sp.used_bytes), free: gb(sp.free_bytes), total: gb(sp.total_bytes) })
+        : t("{count} registrazioni, {used}.", { count: sp.count, used: gb(sp.used_bytes) })) +
+        " " + t("Oltre i limiti si cancellano le più vecchie; quelle protette (🔒) mai. Sotto 1 GB liberi le registrazioni non partono.")), form];
   }
 
   // ---- Covers and details (TMDB) ----
   async function metadataSection() {
     const m = await api("GET", "/api/v1/settings/metadata");
     const key = input({ type: "password", autocomplete: "off", spellcheck: false,
-      placeholder: m.tmdb ? "configurata: incolla una nuova chiave per sostituirla" : "Chiave API (v3) o token di accesso in lettura (v4)" });
-    const save = el("button", { className: "small primary focusable full", type: "submit" }, "Salva la chiave");
-    const form = el("form", { className: "form" }, ...field("Chiave TMDB", key), save);
+      placeholder: m.tmdb ? t("configurata: incolla una nuova chiave per sostituirla") : t("Chiave API (v3) o token di accesso in lettura (v4)") });
+    const save = el("button", { className: "small primary focusable full", type: "submit" }, t("Salva la chiave"));
+    const form = el("form", { className: "form" }, ...field(t("Chiave TMDB"), key), save);
     form.onsubmit = async (e) => {
       e.preventDefault();
       save.disabled = true;
-      try { await api("PUT", "/api/v1/settings/metadata", { tmdb_key: key.value }); flash("Chiave TMDB verificata e salvata"); render(); }
+      try { await api("PUT", "/api/v1/settings/metadata", { tmdb_key: key.value }); flash(t("Chiave TMDB verificata e salvata")); render(); }
       catch (err) { flash(err.message); save.disabled = false; }
     };
-    const remove = m.tmdb ? button("Togli la chiave", async () => {
-      try { await api("PUT", "/api/v1/settings/metadata", { tmdb_key: "" }); flash("Chiave tolta"); render(); } catch (e) { flash(e.message); }
+    const remove = m.tmdb ? button(t("Togli la chiave"), async () => {
+      try { await api("PUT", "/api/v1/settings/metadata", { tmdb_key: "" }); flash(t("Chiave tolta")); render(); } catch (e) { flash(e.message); }
     }, "danger") : null;
-    return [el("h2", {}, "Copertine e schede (TMDB)"),
-      el("p", { className: "note" }, "Le schede di film e serie vengono dal provider. Con una chiave gratuita di The Movie Database si aggiungono " +
+    return [el("h2", {}, t("Copertine e schede (TMDB)")),
+      el("p", { className: "note" }, t("Le schede di film e serie vengono dal provider. Con una chiave gratuita di The Movie Database si aggiungono " +
         "la locandina dove il provider non ce l'ha o l'ha rotta, la trama in italiano quando manca, lo sfondo e il cast. " +
-        "La chiave si crea su themoviedb.org → Impostazioni → API. Resta cifrata sul server e non viene mai mostrata."),
-      el("p", {}, m.tmdb ? el("span", { className: "ok" }, "✓ TMDB attivo") : el("span", { className: "note" }, "TMDB non configurato")),
+        "La chiave si crea su themoviedb.org → Impostazioni → API. Resta cifrata sul server e non viene mai mostrata.")),
+      el("p", {}, m.tmdb ? el("span", { className: "ok" }, "✓ " + t("TMDB attivo")) : el("span", { className: "note" }, t("TMDB non configurato"))),
       form, remove ? el("div", { className: "buttons" }, remove) : null,
       // Attribution required by TMDB's terms of use.
-      el("p", { className: "note" }, "Questo prodotto usa le API di TMDB ma non è approvato né certificato da TMDB.")];
+      el("p", { className: "note" }, t("Questo prodotto usa le API di TMDB ma non è approvato né certificato da TMDB."))];
   }
 
   // ---- Backup ----
@@ -625,7 +633,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     const res = await fetch(path, { method, body, headers: { Authorization: "Bearer " + window.VodMax.token(), ...headers } });
     if (!res.ok) {
       const data = await res.json().catch(() => null);
-      throw new Error(data && data.error ? data.error : "errore " + res.status);
+      throw new Error(data && data.error ? data.error : t("errore {status}", { status: res.status }));
     }
     const name = (/filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") || "") || [])[1] || "vodmax.vodmaxbackup";
     const url = URL.createObjectURL(await res.blob());
@@ -637,61 +645,61 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
   }
 
   async function restoreFrom(send) {
-    if (!confirm("Il ripristino sostituisce abbonamenti, VPN, regole, preferiti, avanzamenti e registrazioni programmate con quelli del backup. " +
-      "Prima viene fatta una copia automatica dello stato attuale. Continuare?")) return;
+    if (!confirm(t("Il ripristino sostituisce abbonamenti, VPN, regole, preferiti, avanzamenti e registrazioni programmate con quelli del backup. " +
+      "Prima viene fatta una copia automatica dello stato attuale. Continuare?"))) return;
     try {
       await send();
-      flash("Ripristino fatto: i cataloghi si stanno scaricando di nuovo (circa un minuto per abbonamento)");
+      flash(t("Ripristino fatto: i cataloghi si stanno scaricando di nuovo (circa un minuto per abbonamento)"));
       render();
     } catch (e) { flash(e.message); }
   }
 
   async function backupSection() {
-    const pass = input({ type: "password", autocomplete: "new-password", placeholder: "almeno 8 caratteri" });
+    const pass = input({ type: "password", autocomplete: "new-password", placeholder: t("almeno 8 caratteri") });
     const pass2 = input({ type: "password", autocomplete: "new-password" });
-    const make = el("button", { className: "small primary focusable full", type: "submit" }, "Scarica il backup");
-    const exportForm = el("form", { className: "form" }, ...field("Password", pass), ...field("Ripeti la password", pass2), make);
+    const make = el("button", { className: "small primary focusable full", type: "submit" }, t("Scarica il backup"));
+    const exportForm = el("form", { className: "form" }, ...field("Password", pass), ...field(t("Ripeti la password"), pass2), make);
     exportForm.onsubmit = async (e) => {
       e.preventDefault();
-      if (pass.value !== pass2.value) { flash("Le due password non coincidono"); return; }
+      if (pass.value !== pass2.value) { flash(t("Le due password non coincidono")); return; }
       make.disabled = true;
-      try { await download("POST", "/api/v1/backup", JSON.stringify({ password: pass.value }), { "Content-Type": "application/json" }); flash("Backup scaricato"); }
+      try { await download("POST", "/api/v1/backup", JSON.stringify({ password: pass.value }), { "Content-Type": "application/json" }); flash(t("Backup scaricato")); }
       catch (err) { flash(err.message); }
       make.disabled = false;
     };
     const file = input({ type: "file", accept: ".vodmaxbackup" });
     const rpass = input({ type: "password", autocomplete: "off" });
-    const restoreButton = el("button", { className: "small focusable full", type: "submit" }, "Ripristina da questo file");
-    const importForm = el("form", { className: "form" }, ...field("File", file), ...field("Password del backup", rpass), restoreButton);
+    const restoreButton = el("button", { className: "small focusable full", type: "submit" }, t("Ripristina da questo file"));
+    const importForm = el("form", { className: "form" }, ...field("File", file), ...field(t("Password del backup"), rpass), restoreButton);
     importForm.onsubmit = (e) => {
       e.preventDefault();
-      if (!file.files[0]) { flash("Scegli il file del backup"); return; }
+      if (!file.files[0]) { flash(t("Scegli il file del backup")); return; }
       restoreFrom(async () => {
         const res = await fetch("/api/v1/restore", { method: "POST", body: file.files[0],
           headers: { Authorization: "Bearer " + window.VodMax.token(), "X-Backup-Password": rpass.value } });
-        if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d && d.error ? d.error : "errore " + res.status); }
+        if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d && d.error ? d.error : t("errore {status}", { status: res.status })); }
       });
     };
     const list = await api("GET", "/api/v1/backups");
     const rows = list.map((b) => el("tr", {}, el("td", {}, when(b.created)), el("td", { className: "n size" }, Math.max(1, Math.round(b.size / 1024)) + " kB"),
-      el("td", {}, button("Scarica", () => download("GET", "/api/v1/backups/" + b.name).catch((e) => flash(e.message))),
-        " ", button("Ripristina", () => restoreFrom(() => api("POST", "/api/v1/backups/" + b.name + "/restore"))))));
-    const now = button("Crea una copia adesso", async () => {
-      try { await api("POST", "/api/v1/backups"); flash("Copia creata"); render(); } catch (e) { flash(e.message); }
+      el("td", {}, button(t("Scarica"), () => download("GET", "/api/v1/backups/" + b.name).catch((e) => flash(e.message))),
+        " ", button(t("Ripristina"), () => restoreFrom(() => api("POST", "/api/v1/backups/" + b.name + "/restore"))))));
+    const now = button(t("Crea una copia adesso"), async () => {
+      try { await api("POST", "/api/v1/backups"); flash(t("Copia creata")); render(); } catch (e) { flash(e.message); }
     });
     return [
       el("h2", {}, "Backup"),
-      el("p", { className: "note" }, "Contiene abbonamenti e VPN (con le credenziali), regole di selezione, categorie, titoli nascosti, preferiti, " +
-        "avanzamenti, registrazioni programmate e impostazioni. Non contiene il catalogo né i file registrati: il catalogo si riscarica da solo dopo il ripristino."),
-      el("h3", {}, "Backup da conservare altrove"),
-      el("p", { className: "note" }, "Cifrato con una password tua: si può ripristinare anche su un'altra installazione. Senza la password non si apre: non c'è modo di recuperarla."),
+      el("p", { className: "note" }, t("Contiene abbonamenti e VPN (con le credenziali), regole di selezione, categorie, titoli nascosti, preferiti, " +
+        "avanzamenti, registrazioni programmate e impostazioni. Non contiene il catalogo né i file registrati: il catalogo si riscarica da solo dopo il ripristino.")),
+      el("h3", {}, t("Backup da conservare altrove")),
+      el("p", { className: "note" }, t("Cifrato con una password tua: si può ripristinare anche su un'altra installazione. Senza la password non si apre: non c'è modo di recuperarla.")),
       exportForm,
-      el("h3", {}, "Ripristina da un file"),
+      el("h3", {}, t("Ripristina da un file")),
       importForm,
-      el("h3", {}, "Copie automatiche"),
-      el("p", { className: "note" }, "Una al giorno, le ultime 14, sul server. Si aprono solo su questa installazione: per un guasto del disco serve il backup con password."),
-      list.length ? el("table", { className: "cats" }, el("tr", {}, el("th", {}, "Creata"), el("th", {}, "Dimensione"), el("th", {}, "")), ...rows)
-        : el("p", { className: "note" }, "Nessuna copia ancora."),
+      el("h3", {}, t("Copie automatiche")),
+      el("p", { className: "note" }, t("Una al giorno, le ultime 14, sul server. Si aprono solo su questa installazione: per un guasto del disco serve il backup con password.")),
+      list.length ? el("table", { className: "cats" }, el("tr", {}, el("th", {}, t("Creata")), el("th", {}, t("Dimensione")), el("th", {}, "")), ...rows)
+        : el("p", { className: "note" }, t("Nessuna copia ancora.")),
       el("div", { className: "buttons" }, now),
     ];
   }
@@ -699,90 +707,90 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
   // ---- External guides ----
   async function renderGuideSources(main) {
     const list = await api("GET", "/api/v1/guide/sources");
-    const parts = [el("h2", {}, "Guide TV esterne"),
-      el("p", { className: "note" }, "La guida arriva dal provider. Una guida XMLTV esterna (un sito di EPG, il Tvheadend di casa, anche .xml.gz) " +
+    const parts = [el("h2", {}, t("Guide TV esterne")),
+      el("p", { className: "note" }, t("La guida arriva dal provider. Una guida XMLTV esterna (un sito di EPG, il Tvheadend di casa, anche .xml.gz) " +
         "completa i canali che ne sono senza e i giorni che mancano; non sostituisce mai i programmi che il provider ha già. " +
-        "Viene scaricata direttamente, senza VPN (non è il provider), e si aggiorna con la guida.")];
+        "Viene scaricata direttamente, senza VPN (non è il provider), e si aggiorna con la guida."))];
     for (const g of list) {
       const box = el("section", { className: "box" }, el("h3", {}, g.name), el("div", { className: "facts" },
-        el("span", {}, "Stato ", el("b", { className: g.status === "error" ? "bad" : g.status === "ok" ? "ok" : "" },
-          !g.enabled ? "disattivata" : g.status === "ok" ? "aggiornata" : g.status === "error" ? "errore" : "mai scaricata")),
-        g.synced_at ? el("span", {}, "Ultimo aggiornamento ", el("b", {}, when(g.synced_at))) : null,
-        el("span", {}, "Canali completati ", el("b", {}, g.channels)), el("span", {}, "Programmi ", el("b", {}, g.programmes.toLocaleString("it-IT")))),
+        el("span", {}, t("Stato") + " ", el("b", { className: g.status === "error" ? "bad" : g.status === "ok" ? "ok" : "" },
+          !g.enabled ? t("disattivata") : g.status === "ok" ? t("aggiornata") : g.status === "error" ? t("errore") : t("mai scaricata"))),
+        g.synced_at ? el("span", {}, t("Ultimo aggiornamento") + " ", el("b", {}, when(g.synced_at))) : null,
+        el("span", {}, t("Canali completati") + " ", el("b", {}, g.channels)), el("span", {}, t("Programmi") + " ", el("b", {}, g.programmes.toLocaleString(locale)))),
         el("p", { className: "note" }, g.url), g.error ? el("p", { className: "note bad" }, g.error) : null);
-      const sync = button("Aggiorna ora", async () => {
+      const sync = button(t("Aggiorna ora"), async () => {
         sync.disabled = true;
-        sync.textContent = "Scaricamento…";
-        try { const r = await api("POST", "/api/v1/guide/sources/" + g.id + "/sync"); flash(r.channels + " canali completati, " + r.programmes + " programmi"); }
+        sync.textContent = t("Scaricamento…");
+        try { const r = await api("POST", "/api/v1/guide/sources/" + g.id + "/sync"); flash(t("{channels} canali completati, {programmes} programmi", { channels: r.channels, programmes: r.programmes })); }
         catch (e) { flash(e.message); }
         render();
       }, "primary");
       sync.disabled = !g.enabled;
-      const toggle = button(g.enabled ? "Disattiva" : "Attiva", async () => {
+      const toggle = button(g.enabled ? t("Disattiva") : t("Attiva"), async () => {
         try { await api("PATCH", "/api/v1/guide/sources/" + g.id, { enabled: !g.enabled }); } catch (e) { flash(e.message); }
         render();
       });
-      const del = button("Elimina", async () => {
-        if (!confirm("Eliminare la guida “" + g.name + "” e i suoi programmi?")) return;
+      const del = button(t("Elimina"), async () => {
+        if (!confirm(t("Eliminare la guida “{name}” e i suoi programmi?", { name: g.name }))) return;
         try { await api("DELETE", "/api/v1/guide/sources/" + g.id); } catch (e) { flash(e.message); }
         render();
       }, "danger");
       box.append(el("div", { className: "buttons" }, sync, toggle, del));
       parts.push(box);
     }
-    const name = input({ placeholder: "es. EPG Italia" });
-    const url = input({ placeholder: "https://…/guida.xml.gz", spellcheck: false });
-    const add = el("button", { className: "small primary focusable full", type: "submit" }, "Aggiungi e scarica");
-    const form = el("form", { className: "form" }, ...field("Nome", name), ...field("Indirizzo XMLTV", url), add);
+    const name = input({ placeholder: t("es. EPG Italia") });
+    const url = input({ placeholder: t("https://…/guida.xml.gz"), spellcheck: false });
+    const add = el("button", { className: "small primary focusable full", type: "submit" }, t("Aggiungi e scarica"));
+    const form = el("form", { className: "form" }, ...field(t("Nome"), name), ...field(t("Indirizzo XMLTV"), url), add);
     form.onsubmit = async (e) => {
       e.preventDefault();
       add.disabled = true;
-      add.textContent = "Scaricamento…";
+      add.textContent = t("Scaricamento…");
       try {
         const r = await api("POST", "/api/v1/guide/sources", { name: name.value, url: url.value });
         const res = await api("POST", "/api/v1/guide/sources/" + r.id + "/sync").catch((err) => { flash(err.message); return null; });
-        if (res) flash("Guida aggiunta: " + res.channels + " canali completati");
+        if (res) flash(t("Guida aggiunta: {channels} canali completati", { channels: res.channels }));
         render();
-      } catch (err) { flash(err.message); add.disabled = false; add.textContent = "Aggiungi e scarica"; }
+      } catch (err) { flash(err.message); add.disabled = false; add.textContent = t("Aggiungi e scarica"); }
     };
-    parts.push(el("h2", {}, "Aggiungi una guida"), form);
+    parts.push(el("h2", {}, t("Aggiungi una guida")), form);
     main.replaceChildren(...parts);
   }
 
   // ---- Profiles ----
-  const KINDS = [["admin", "Amministratore"], ["standard", "Normale"], ["kids", "Bambini"]];
+  const KINDS = [["admin", t("Amministratore")], ["standard", t("Normale")], ["kids", t("Bambini")]];
   async function renderProfiles(main) {
     const list = await api("GET", "/api/v1/profiles");
-    const parts = [el("h2", {}, "Profili"),
-      el("p", { className: "note" }, "Ogni profilo ha i suoi preferiti e il suo “Continua a guardare”. I profili Bambini non vedono mai contenuti per adulti " +
-        "e non programmano registrazioni. Solo gli amministratori aprono le impostazioni: dai loro un PIN se in casa ci sono bambini.")];
+    const parts = [el("h2", {}, t("Profili")),
+      el("p", { className: "note" }, t("Ogni profilo ha i suoi preferiti e il suo “Continua a guardare”. I profili Bambini non vedono mai contenuti per adulti " +
+        "e non programmano registrazioni. Solo gli amministratori aprono le impostazioni: dai loro un PIN se in casa ci sono bambini."))];
     for (const p of list) {
       const box = el("section", { className: "box" }, el("h3", {}, p.name), el("div", { className: "facts" },
-        el("span", {}, "Tipo ", el("b", {}, KINDS.find((k) => k[0] === p.kind)[1])),
-        el("span", {}, "PIN ", el("b", {}, p.has_pin ? "sì" : "no"))));
-      const edit = button("Modifica", () => { edit.disabled = true; box.append(profileForm(p)); });
-      const del = button("Elimina", async () => {
-        if (!confirm("Eliminare il profilo “" + p.name + "” con i suoi preferiti e i suoi avanzamenti?")) return;
-        try { await api("DELETE", "/api/v1/profiles/" + p.id); flash("Profilo eliminato"); } catch (e) { flash(e.message); }
+        el("span", {}, t("Tipo") + " ", el("b", {}, KINDS.find((k) => k[0] === p.kind)[1])),
+        el("span", {}, "PIN ", el("b", {}, p.has_pin ? t("sì") : t("no")))));
+      const edit = button(t("Modifica"), () => { edit.disabled = true; box.append(profileForm(p)); });
+      const del = button(t("Elimina"), async () => {
+        if (!confirm(t("Eliminare il profilo “{name}” con i suoi preferiti e i suoi avanzamenti?", { name: p.name }))) return;
+        try { await api("DELETE", "/api/v1/profiles/" + p.id); flash(t("Profilo eliminato")); } catch (e) { flash(e.message); }
         render();
       }, "danger");
       box.append(el("div", { className: "buttons" }, edit, del));
       parts.push(box);
     }
-    parts.push(el("h2", {}, "Nuovo profilo"), profileForm());
+    parts.push(el("h2", {}, t("Nuovo profilo")), profileForm());
     main.replaceChildren(...parts);
   }
 
   function profileForm(existing) {
-    const name = input({ value: existing ? existing.name : "", placeholder: "es. Giulia" });
+    const name = input({ value: existing ? existing.name : "", placeholder: t("es. Giulia") });
     const kind = el("select", { className: "focusable" }, ...KINDS.map(([v, l]) => el("option", { value: v }, l)));
     kind.value = existing ? existing.kind : "standard";
     const pin = input({ type: "password", inputMode: "numeric", autocomplete: "new-password", maxLength: 8,
-      placeholder: existing && existing.has_pin ? "lascia vuoto per non cambiarlo" : "facoltativo, 4-8 cifre" });
+      placeholder: existing && existing.has_pin ? t("lascia vuoto per non cambiarlo") : t("facoltativo, 4-8 cifre") });
     const removePin = input({ type: "checkbox" });
-    const save = el("button", { className: "small primary focusable full", type: "submit" }, existing ? "Salva" : "Crea il profilo");
-    const form = el("form", { className: "form" }, ...field("Nome", name), ...field("Tipo", kind), ...field("PIN", pin),
-      existing && existing.has_pin ? el("label", {}, "") : null, existing && existing.has_pin ? el("label", { className: "check" }, removePin, "Togli il PIN") : null, save);
+    const save = el("button", { className: "small primary focusable full", type: "submit" }, existing ? t("Salva") : t("Crea il profilo"));
+    const form = el("form", { className: "form" }, ...field(t("Nome"), name), ...field(t("Tipo"), kind), ...field("PIN", pin),
+      existing && existing.has_pin ? el("label", {}, "") : null, existing && existing.has_pin ? el("label", { className: "check" }, removePin, t("Togli il PIN")) : null, save);
     form.onsubmit = async (e) => {
       e.preventDefault();
       const body = { name: name.value, kind: kind.value };
@@ -791,7 +799,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       try {
         if (existing) await api("PATCH", "/api/v1/profiles/" + existing.id, body);
         else await api("POST", "/api/v1/profiles", body);
-        flash(existing ? "Profilo aggiornato" : "Profilo creato");
+        flash(existing ? t("Profilo aggiornato") : t("Profilo creato"));
         render();
       } catch (err) { flash(err.message); }
     };
@@ -803,46 +811,56 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     const [devices, profiles] = await Promise.all([api("GET", "/api/v1/devices"), api("GET", "/api/v1/profiles")]);
     const profileName = fromEntries(profiles.map((p) => [p.id, p.name]));
     const lockSelect = (value) => {
-      const s = el("select", { className: "focusable" }, el("option", { value: "" }, "Tutti i profili (si sceglie all'avvio)"),
-        ...profiles.map((p) => el("option", { value: p.id }, "Solo " + p.name)));
+      const s = el("select", { className: "focusable" }, el("option", { value: "" }, t("Tutti i profili (si sceglie all'avvio)")),
+        ...profiles.map((p) => el("option", { value: p.id }, t("Solo {name}", { name: p.name }))));
       s.value = value == null ? "" : value;
       return s;
     };
-    const code = input({ placeholder: "es. K7Q-29M", autocomplete: "off", spellcheck: false, maxLength: 7 });
-    const name = input({ placeholder: "es. TV salotto" });
+    const code = input({ placeholder: t("es. K7Q-29M"), autocomplete: "off", spellcheck: false, maxLength: 7 });
+    const name = input({ placeholder: t("es. TV salotto") });
     const lock = lockSelect(null);
-    const pairButton = el("button", { className: "small primary focusable full", type: "submit" }, "Abbina");
-    const pairForm = el("form", { className: "form" }, ...field("Codice mostrato", code), ...field("Nome del dispositivo", name), ...field("Profili", lock), pairButton);
+    const pairButton = el("button", { className: "small primary focusable full", type: "submit" }, t("Abbina"));
+    const pairForm = el("form", { className: "form" }, ...field(t("Codice mostrato"), code), ...field(t("Nome del dispositivo"), name), ...field(t("Profili"), lock), pairButton);
     pairForm.onsubmit = async (e) => {
       e.preventDefault();
       try {
         await api("POST", "/api/v1/pair/approve", { code: code.value, name: name.value, profile_lock: lock.value ? Number(lock.value) : null });
-        flash("Dispositivo abbinato: entro pochi secondi si apre da solo");
+        flash(t("Dispositivo abbinato: entro pochi secondi si apre da solo"));
         render();
       } catch (err) { flash(err.message); }
     };
     const rows = devices.map((d) => {
       const sel = lockSelect(d.profile_lock);
       sel.onchange = async () => {
-        try { await api("PATCH", "/api/v1/devices/" + d.id, { name: d.name, profile_lock: sel.value ? Number(sel.value) : null }); flash("Salvato"); }
+        try { await api("PATCH", "/api/v1/devices/" + d.id, { name: d.name, profile_lock: sel.value ? Number(sel.value) : null }); flash(t("Salvato")); }
         catch (e) { flash(e.message); }
       };
-      return el("tr", {}, el("td", { className: "name" }, d.name), el("td", {}, d.last_seen ? when(d.last_seen) : "mai"), el("td", {}, sel),
-        el("td", {}, button("Revoca", async () => {
-          if (!confirm("Revocare “" + d.name + "”? Dovrà essere abbinato di nuovo.")) return;
-          try { await api("DELETE", "/api/v1/devices/" + d.id); flash("Dispositivo revocato"); } catch (e) { flash(e.message); }
+      return el("tr", {}, el("td", { className: "name" }, d.name), el("td", {}, d.last_seen ? when(d.last_seen) : t("mai")), el("td", {}, sel),
+        el("td", {}, button(t("Revoca"), async () => {
+          if (!confirm(t("Revocare “{name}”? Dovrà essere abbinato di nuovo.", { name: d.name }))) return;
+          try { await api("DELETE", "/api/v1/devices/" + d.id); flash(t("Dispositivo revocato")); } catch (e) { flash(e.message); }
           render();
         }, "danger")));
     });
     main.replaceChildren(
-      el("h2", {}, "Abbina un dispositivo"),
-      el("p", { className: "note" }, "Apri VodMax sul nuovo dispositivo (TV, telefono, PC): mostra un codice. Inseriscilo qui. " +
-        "Con “Solo …” il dispositivo usa sempre quel profilo, per esempio il tablet dei bambini."),
+      el("h2", {}, t("Abbina un dispositivo")),
+      el("p", { className: "note" }, t("Apri VodMax sul nuovo dispositivo (TV, telefono, PC): mostra un codice. Inseriscilo qui. " +
+        "Con “Solo …” il dispositivo usa sempre quel profilo, per esempio il tablet dei bambini.")),
       pairForm,
-      el("h2", {}, "Dispositivi abbinati"),
-      devices.length ? el("table", { className: "cats" }, el("tr", {}, el("th", {}, "Nome"), el("th", {}, "Ultimo uso"), el("th", {}, "Profili"), el("th", {}, "")), ...rows)
-        : el("p", { className: "note" }, "Nessun dispositivo abbinato: per ora si entra con il token di amministrazione."),
-      el("p", { className: "note" }, "Profili: " + Object.values(profileName).join(", ")));
+      el("h2", {}, t("Dispositivi abbinati")),
+      devices.length ? el("table", { className: "cats" }, el("tr", {}, el("th", {}, t("Nome")), el("th", {}, t("Ultimo uso")), el("th", {}, t("Profili")), el("th", {}, "")), ...rows)
+        : el("p", { className: "note" }, t("Nessun dispositivo abbinato: per ora si entra con il token di amministrazione.")),
+      el("p", { className: "note" }, t("Profili: {names}", { names: Object.values(profileName).join(", ") })));
+  }
+
+  // ---- Language (this device only; also open to non-admin profiles) ----
+  function languageSection() {
+    return [el("h2", {}, t("Lingua")),
+      el("p", { className: "note" }, t("La lingua vale per questo dispositivo; i messaggi del server seguono la stessa lingua.")),
+      window.VodMaxI18n.picker()];
+  }
+  async function renderLanguage(main) {
+    main.replaceChildren(...languageSection());
   }
 
   buildSections();
@@ -910,9 +928,10 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     const who = await window.VodMax.me().catch(() => null);
     if (!who) return;
     if (!who.admin) {
-      $("content").replaceChildren(el("h2", {}, "Impostazioni"),
-        el("p", { className: "note" }, "Le impostazioni sono riservate ai profili amministratore."),
-        button("Cambia profilo", () => { store.set("profile", ""); window.VodMax.showProfiles(); }, "primary"));
+      $("content").replaceChildren(el("h2", {}, t("Impostazioni")),
+        el("p", { className: "note" }, t("Le impostazioni sono riservate ai profili amministratore.")),
+        button(t("Cambia profilo"), () => { store.set("profile", ""); window.VodMax.showProfiles(); }, "primary"),
+        ...languageSection());
       $("sections").hidden = true;
       document.body.classList.remove("at-list");
       return;
