@@ -121,7 +121,7 @@ func (s *Store) ExportBackup(ctx context.Context, openVPN, openSub func(id int64
 	if err != nil {
 		return nil, err
 	}
-	err = eachRow(ctx, tx, `SELECT id, name, kind, vpn_id, settings, rules, secret FROM subscription ORDER BY id`, func(rows *sql.Rows) error {
+	err = eachRow(ctx, tx, `SELECT id, name, kind, coalesce(vpn_id, 0), settings, rules, secret FROM subscription ORDER BY id`, func(rows *sql.Rows) error {
 		var sub BackupSub
 		var settings, rules string
 		var sealed []byte
@@ -319,7 +319,7 @@ func (s *Store) ImportBackup(ctx context.Context, b *Backup, sealVPN, sealSub fu
 			rules = "{}"
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO subscription (id, name, kind, vpn_id, settings, rules, secret, created_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, sub.ID, sub.Name, sub.Kind, sub.VPNID, string(sub.Settings), rules,
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, sub.ID, sub.Name, sub.Kind, nullID(sub.VPNID), string(sub.Settings), rules,
 			sealSub(sub.ID, sub.Secret), now); err != nil {
 			return fmt.Errorf("abbonamento %q: %w", sub.Name, err)
 		}

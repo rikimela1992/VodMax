@@ -11,9 +11,11 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/rikimela1992/vodmax/internal/library"
 	"github.com/rikimela1992/vodmax/internal/provider"
 	"github.com/rikimela1992/vodmax/internal/store"
 )
@@ -80,6 +82,12 @@ func (s *Service) Logo(ctx context.Context, itemID int64, sig string) (store.Cac
 	src, subID, err := s.st.ItemImage(ctx, itemID)
 	if err != nil {
 		return store.CachedImage{}, err
+	}
+	if strings.HasPrefix(src, library.ImageScheme) {
+		if img, err := s.localImage(ctx, subID, src); err == nil {
+			return img, nil
+		}
+		src = "" // no picture in the folder: TMDB's, if known
 	}
 	if !imageURL(src) {
 		if poster := s.tmdbPoster(ctx, itemID); poster != "" {

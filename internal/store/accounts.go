@@ -18,7 +18,8 @@ type VPN struct {
 	Config    []byte    `json:"-"`
 }
 
-// Subscription is a provider playlist. Secret is sealed and holds the
+// Subscription is a provider playlist, or a local collection (kind
+// "local": a folder, no VPN, VPNID 0). Secret is sealed and holds the
 // Xtream password or the M3U URL (which usually embeds credentials).
 type Subscription struct {
 	ID         int64           `json:"id"`
@@ -114,7 +115,7 @@ func (s *Store) AddSubscription(ctx context.Context, sub Subscription, seal func
 	defer tx.Rollback()
 	res, err := tx.ExecContext(ctx,
 		`INSERT INTO subscription (name, kind, vpn_id, settings, secret, created_at) VALUES (?, ?, ?, ?, x'', ?)`,
-		sub.Name, sub.Kind, sub.VPNID, string(sub.Settings), time.Now().Unix())
+		sub.Name, sub.Kind, nullID(sub.VPNID), string(sub.Settings), time.Now().Unix())
 	if err != nil {
 		return 0, err
 	}
@@ -125,7 +126,7 @@ func (s *Store) AddSubscription(ctx context.Context, sub Subscription, seal func
 	return id, tx.Commit()
 }
 
-const subscriptionColumns = `id, name, kind, vpn_id, settings, created_at, synced_at, sync_status, sync_error, account, secret`
+const subscriptionColumns = `id, name, kind, coalesce(vpn_id, 0), settings, created_at, synced_at, sync_status, sync_error, account, secret`
 
 func scanSubscription(row interface{ Scan(...any) error }) (Subscription, error) {
 	var sub Subscription
@@ -193,6 +194,14 @@ func (s *Store) SetSyncResult(ctx context.Context, id int64, status, errText str
 		`UPDATE subscription SET synced_at = ?, sync_status = ?, sync_error = ?, account = coalesce(?, account) WHERE id = ?`,
 		time.Now().Unix(), status, errText, nullable(account), id)
 	return err
+}
+
+// nullID stores 0 as NULL (no VPN).
+func nullID(id int64) any {
+	if id == 0 {
+		return nil
+	}
+	return id
 }
 
 func nullable(raw json.RawMessage) any {

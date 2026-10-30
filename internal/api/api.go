@@ -60,6 +60,7 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	route("GET /api/v1/settings/schedule", levelAdmin, a.getSchedule)
 	route("PUT /api/v1/settings/schedule", levelAdmin, a.putSchedule)
 	route("PATCH /api/v1/subscriptions/{id}", levelAdmin, a.patchSubscription)
+	route("GET /api/v1/folders", levelAdmin, a.listFolders)
 	route("GET /api/v1/subscriptions", levelAdmin, a.listSubscriptions)
 	route("POST /api/v1/subscriptions", levelAdmin, a.addSubscription)
 	route("POST /api/v1/subscriptions/{id}/sync", levelAdmin, a.syncSubscription)
@@ -315,6 +316,16 @@ func (a *api) deleteVPN(w http.ResponseWriter, r *http.Request) {
 
 func (a *api) listSubscriptions(w http.ResponseWriter, r *http.Request) {
 	list, err := a.svc.Subscriptions(r.Context())
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+// listFolders: the server's folders, to choose a local collection.
+func (a *api) listFolders(w http.ResponseWriter, r *http.Request) {
+	list, err := a.svc.Folders(r.URL.Query().Get("path"))
 	if err != nil {
 		a.fail(w, r, err)
 		return

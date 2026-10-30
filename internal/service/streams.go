@@ -146,6 +146,9 @@ func (s *Service) upstream(ctx context.Context, subID int64, url, rangeHeader st
 	if err != nil {
 		return nil, err
 	}
+	if sub.Kind == "local" {
+		return openLocal(url, rangeHeader) // url is the collection's file
+	}
 	tun, err := s.tunnel(ctx, sub.VPNID)
 	if err != nil {
 		return nil, fmt.Errorf("VPN: %w", err)

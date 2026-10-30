@@ -45,7 +45,11 @@ func (s *Service) Episodes(ctx context.Context, seriesItemID int64) ([]store.Epi
 	if err != nil {
 		return nil, err
 	}
-	if time.Since(fetched) > episodesFreshFor {
+	_, local, err := s.local(ctx, it.SubscriptionID)
+	if err != nil {
+		return nil, err
+	}
+	if !local && time.Since(fetched) > episodesFreshFor {
 		if err := s.loadEpisodes(ctx, it); err != nil {
 			// Stale episodes are better than none.
 			if eps, serr := s.st.Episodes(ctx, profile, seriesItemID); serr == nil && len(eps) > 0 {
@@ -170,6 +174,7 @@ type vodSession struct {
 	subFile  string // WebVTT being written by the current remux
 	catchup  *catchupInfo
 	cache    *rangeCache // direct mode: the single provider connection
+	local    bool        // url is a file of a local collection
 }
 
 // addVODSession registers a session, replacing the viewer's previous one.
@@ -284,11 +289,22 @@ func (s *Service) NewPlaybackSession(ctx context.Context, media string, id int64
 	default:
 		return PlaybackSession{}, invalid("tipo non valido: movie o episode")
 	}
-	client, err := s.xtreamClient(ctx, it.SubscriptionID, time.Minute)
+	ext := strings.ToLower(it.Extension)
+	sourceID := it.SourceID // the episode's for an episode
+	var url string
+	file, local, err := s.localFile(ctx, it.SubscriptionID, sourceID)
 	if err != nil {
 		return PlaybackSession{}, err
 	}
-	ext := strings.ToLower(it.Extension)
+	if local {
+		url = file
+	} else {
+		client, err := s.xtreamClient(ctx, it.SubscriptionID, time.Minute)
+		if err != nil {
+			return PlaybackSession{}, err
+		}
+		url = client.StreamURL(kind, sourceID, ext)
+	}
 	auto := mode == ""
 	if mode == "" {
 		mode = "remux"
@@ -300,7 +316,7 @@ func (s *Service) NewPlaybackSession(ctx context.Context, media string, id int64
 		return PlaybackSession{}, invalid("modalità non valida")
 	}
 	sess := &vodSession{id: randomToken(), viewer: viewer, media: media, mediaID: id, subID: it.SubscriptionID,
-		url: client.StreamURL(kind, it.SourceID, ext), title: title, mode: mode, internal: randomToken(),
+		url: url, local: local, title: title, mode: mode, internal: randomToken(),
 		expires: time.Now().Add(8 * time.Hour)}
 	s.addVODSession(sess)
 
@@ -363,6 +379,9 @@ func (s *Service) OpenDirect(ctx context.Context, sessionID, rangeHeader string,
 	}
 	if sess.mode != "direct" {
 		return nil, invalid("sessione non diretta")
+	}
+	if sess.local {
+		return openLocalDirect(sess.url, sess.title, rangeHeader)
 	}
 	from, to, ranged, err := parseRange(rangeHeader)
 	if err != nil {

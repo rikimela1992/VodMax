@@ -24,6 +24,11 @@ func (s *Service) loadSelection(ctx context.Context, subID int64, extra *catalog
 	if extra != nil {
 		rules[subID] = *extra
 	}
+	subs, err := s.st.Subscriptions(ctx)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	localRules(rules, subs)
 	cats, err := s.st.SelectionCategories(ctx, 0)
 	if err != nil {
 		return nil, nil, nil, err

@@ -32,6 +32,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
   const SECTIONS = [
     ["Contenuti", [
       ["subscriptions", "layers", "Abbonamenti", "Playlist Xtream e M3U"],
+      ["libraries", "folder", "Raccolte", "Cartelle di film e serie"],
       ["vpn", "lock", "VPN", "Come si raggiunge il provider"],
       ["rules", "check", "Selezione", "Paesi, anni, cosa entra nel catalogo"],
       ["categories", "list", "Categorie", "Includi o escludi una per una"],
@@ -100,7 +101,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     const main = $("content");
     main.replaceChildren(el("p", { className: "note" }, "Caricamento…"));
     try {
-      await ({ subscriptions: renderSubscriptions, vpn: renderVPN, rules: renderRules, categories: renderCategories, system: renderSystem, profiles: renderProfiles, devices: renderDevices, guide: renderGuideSources })[state.view](main);
+      await ({ subscriptions: renderSubscriptions, libraries: renderLibraries, vpn: renderVPN, rules: renderRules, categories: renderCategories, system: renderSystem, profiles: renderProfiles, devices: renderDevices, guide: renderGuideSources })[state.view](main);
     } catch (e) {
       main.replaceChildren(el("p", { className: "note bad" }, e.message));
     }
@@ -112,7 +113,8 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
 
   // ---- Subscriptions ----
   async function renderSubscriptions(main) {
-    const [subs, vpns] = await Promise.all([api("GET", "/api/v1/subscriptions"), api("GET", "/api/v1/vpn")]);
+    const [all, vpns] = await Promise.all([api("GET", "/api/v1/subscriptions"), api("GET", "/api/v1/vpn")]);
+    const subs = all.filter((s) => s.kind !== "local");
     const vpnName = fromEntries(vpns.map((v) => [v.id, v.name]));
     const parts = [el("h2", {}, "Abbonamenti"),
       el("p", { className: "note" }, "Playlist dei provider (Xtream Codes o M3U). Ogni abbonamento passa dalla sua VPN: senza VPN il provider non viene mai contattato.")];
@@ -166,6 +168,102 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     const select = button("Selezione del catalogo", () => { state.sub = s.id; store.set("settingsSub", s.id); open("rules"); });
     box.append(el("div", { className: "buttons" }, syncButton, select, edit, del));
     return box;
+  }
+
+  // ---- Local collections: folders of films or series ----
+  const CONTENT = { movie: "Film", series: "Serie" };
+  async function renderLibraries(main) {
+    const libs = (await api("GET", "/api/v1/subscriptions")).filter((s) => s.kind === "local");
+    const parts = [el("h2", {}, "Raccolte"),
+      el("p", { className: "note" }, "Cartelle di film o di serie che il server legge così come sono: titolo e anno dai nomi (“Il Padrino (1972).mkv”, “Twin Peaks/Stagione 1/S01E03.mkv”), " +
+        "trama e locandine dai file .nfo e dalle immagini accanto ai video, se ci sono. Non passano dalla VPN. Si aggiornano ogni notte e con “Aggiorna ora”.")];
+    for (const l of libs) parts.push(libraryBox(l));
+    parts.push(el("h2", {}, "Aggiungi una raccolta"), libraryForm());
+    main.replaceChildren(...parts);
+  }
+
+  function libraryBox(l) {
+    const set = l.settings || {}, counts = l.counts || {};
+    const box = el("section", { className: "box" }, el("h3", {}, l.name),
+      el("div", { className: "facts" },
+        el("span", {}, "Contenuto ", el("b", {}, CONTENT[set.content] || "?")),
+        el("span", {}, "Cartella ", el("b", { className: "path" }, set.path || "?"))),
+      el("div", { className: "facts" },
+        el("span", {}, "Ultimo aggiornamento ", el("b", { className: l.sync_status === "error" ? "bad" : "" }, when(l.synced_at) + (l.sync_status === "error" ? " (errore)" : ""))),
+        el("span", {}, CONTENT[set.content] || "Titoli", " ", el("b", {}, counts[set.content] || 0))),
+      l.sync_error ? el("p", { className: "note bad" }, l.sync_error) : null);
+    const scan = button(l.syncing ? "Aggiornamento in corso…" : "Aggiorna ora", async () => {
+      scan.disabled = true;
+      scan.textContent = "Lettura della cartella…";
+      try {
+        const r = await api("POST", "/api/v1/subscriptions/" + l.id + "/sync");
+        const sel = (r.selection || {})[set.content];
+        flash("Raccolta aggiornata: " + (sel ? sel.visible : 0) + " " + (set.content === "series" ? "serie" : "film"));
+      } catch (e) { flash(e.message); }
+      render();
+    }, "primary");
+    scan.disabled = l.syncing;
+    const edit = button("Modifica", () => { edit.disabled = true; box.append(libraryForm(l)); });
+    const del = button("Elimina", async () => {
+      if (!confirm("Togliere la raccolta “" + l.name + "” da VodMax? I file nella cartella non vengono toccati.")) return;
+      try { await api("DELETE", "/api/v1/subscriptions/" + l.id); flash("Raccolta tolta"); } catch (e) { flash(e.message); }
+      render();
+    }, "danger");
+    box.append(el("div", { className: "buttons" }, scan, edit, del));
+    return box;
+  }
+
+  function libraryForm(existing) {
+    const set = (existing && existing.settings) || {};
+    const name = input({ value: existing ? existing.name : "", placeholder: "es. Film di casa" });
+    const content = el("select", { className: "focusable" }, el("option", { value: "movie" }, "Film"), el("option", { value: "series" }, "Serie (una cartella per serie)"));
+    content.value = set.content || "movie";
+    const path = input({ value: set.path || "", placeholder: "/percorso/della/cartella", spellcheck: false });
+    const browse = button("Sfoglia…", () => folderPicker(path.value, (chosen) => { path.value = chosen; path.focus(); }, browse));
+    const form = el("form", { className: "form" }, ...field("Nome", name), ...field("Contenuto", content),
+      el("label", {}, "Cartella"), el("div", { className: "path-field" }, path, browse));
+    const save = el("button", { className: "small primary focusable full", type: "submit" }, existing ? "Salva le modifiche" : "Aggiungi e leggi la cartella");
+    form.append(save);
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      save.disabled = true;
+      try {
+        const body = { name: name.value, path: path.value, content: content.value };
+        let id = existing && existing.id;
+        if (existing) await api("PATCH", "/api/v1/subscriptions/" + id, body);
+        else id = (await api("POST", "/api/v1/subscriptions", { ...body, kind: "local" })).id;
+        save.textContent = "Lettura della cartella…";
+        const r = await api("POST", "/api/v1/subscriptions/" + id + "/sync");
+        const sel = (r.selection || {})[content.value];
+        flash("Raccolta pronta: " + (sel ? sel.visible : 0) + " " + (content.value === "series" ? "serie" : "film"));
+        render();
+      } catch (err) { flash(err.message); save.disabled = false; render(); }
+    };
+    return form;
+  }
+
+  // A panel to walk the server's folders with arrows and OK.
+  function folderPicker(start, done, opener) {
+    const panel = el("section", { className: "box picker-panel" });
+    (opener.closest(".path-field") || opener).after(panel);
+    opener.disabled = true;
+    const close = () => { panel.remove(); opener.disabled = false; opener.focus(); };
+    const show = async (dir) => {
+      let list;
+      try { list = await api("GET", "/api/v1/folders?path=" + encodeURIComponent(dir || "")); }
+      catch (e) { if (dir) { show(""); return; } flash(e.message); close(); return; }
+      const rows = list.folders.map((f) => button(f.name, () => show(f.path), "folder-row"));
+      panel.replaceChildren(
+        el("div", { className: "facts" }, el("span", {}, "Cartella ", el("b", { className: "path" }, list.path)),
+          list.videos ? el("span", {}, el("b", {}, list.videos), " video qui dentro") : null),
+        el("div", { className: "buttons" },
+          button("Usa questa cartella", () => { done(list.path); close(); }, "primary"),
+          list.parent ? button("↑ Cartella superiore", () => show(list.parent)) : null,
+          button("Annulla", close)),
+        rows.length ? el("div", { className: "folders" }, ...rows) : el("p", { className: "note" }, "Nessuna sottocartella."));
+      panel.querySelector("button").focus();
+    };
+    show(start);
   }
 
   // Add (existing undefined) or edit a subscription.
@@ -294,7 +392,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
 
   // ---- Subscription picker for selection pages ----
   async function pickSubscription(main, title, note) {
-    const subs = await api("GET", "/api/v1/subscriptions");
+    const subs = (await api("GET", "/api/v1/subscriptions")).filter((s) => s.kind !== "local");
     if (!subs.length) { main.replaceChildren(el("p", { className: "note" }, "Nessun abbonamento: aggiungine uno nella scheda Abbonamenti.")); return null; }
     if (!subs.some((s) => s.id === state.sub)) state.sub = subs[0].id;
     const pick = el("select", { className: "pick focusable" }, ...subs.map((s) => el("option", { value: s.id }, s.name)));

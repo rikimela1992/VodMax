@@ -493,3 +493,23 @@ func (s *Store) BrowseCategories(ctx context.Context, kind string, noAdult bool)
 	}
 	return out, rows.Err()
 }
+
+// ItemIDs maps the source ids of a subscription's items of one kind to
+// their ids (available or not).
+func (s *Store) ItemIDs(ctx context.Context, subID int64, kind string) (map[string]int64, error) {
+	rows, err := s.r.QueryContext(ctx, `SELECT source_id, id FROM item WHERE subscription_id = ? AND kind = ?`, subID, kind)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int64{}
+	for rows.Next() {
+		var src string
+		var id int64
+		if err := rows.Scan(&src, &id); err != nil {
+			return nil, err
+		}
+		out[src] = id
+	}
+	return out, rows.Err()
+}

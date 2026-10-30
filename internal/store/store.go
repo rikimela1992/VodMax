@@ -304,7 +304,32 @@ var migrations = []string{
 	// 11: VPN kind: "wireguard" (internal tunnel) or "system" (a VPN the
 	// user runs outside VodMax, on the device or the router).
 	`ALTER TABLE vpn ADD COLUMN kind TEXT NOT NULL DEFAULT 'wireguard' CHECK (kind IN ('wireguard', 'system'));`,
+	// 12: local collections: a subscription of kind "local" reads a
+	// folder and has no VPN. SQLite cannot change a CHECK or NOT NULL, so
+	// the table is rebuilt (with foreign keys off: see noForeignKeys).
+	`CREATE TABLE subscription_new (
+		id          INTEGER PRIMARY KEY,
+		name        TEXT NOT NULL UNIQUE,
+		kind        TEXT NOT NULL CHECK (kind IN ('xtream', 'm3u', 'local')),
+		vpn_id      INTEGER REFERENCES vpn(id),   -- NULL for local collections
+		settings    TEXT NOT NULL,
+		secret      BLOB NOT NULL,
+		created_at  INTEGER NOT NULL,
+		synced_at   INTEGER,
+		sync_status TEXT NOT NULL DEFAULT 'never',
+		sync_error  TEXT NOT NULL DEFAULT '',
+		account     TEXT NOT NULL DEFAULT '{}',
+		rules       TEXT NOT NULL DEFAULT '{}'
+	);
+	INSERT INTO subscription_new (id, name, kind, vpn_id, settings, secret, created_at, synced_at, sync_status, sync_error, account, rules)
+		SELECT id, name, kind, vpn_id, settings, secret, created_at, synced_at, sync_status, sync_error, account, rules FROM subscription;
+	DROP TABLE subscription;
+	ALTER TABLE subscription_new RENAME TO subscription;`,
 }
+
+// noForeignKeys lists migrations (1-based) that rebuild a parent table:
+// with foreign keys on, dropping the old table would delete its children.
+var noForeignKeys = map[int]bool{12: true}
 
 func (s *Store) migrate(ctx context.Context) error {
 	if _, err := s.w.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)`); err != nil {
@@ -323,21 +348,40 @@ func (s *Store) migrate(ctx context.Context) error {
 		return fmt.Errorf("database creato da una versione più recente (schema %d)", version)
 	}
 	for i := version; i < len(migrations); i++ {
-		tx, err := s.w.BeginTx(ctx, nil)
-		if err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, migrations[i]); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("migrazione %d: %w", i+1, err)
-		}
-		if _, err := tx.ExecContext(ctx, `UPDATE schema_version SET version = ?`, i+1); err != nil {
-			tx.Rollback()
-			return err
-		}
-		if err := tx.Commit(); err != nil {
+		if err := s.migrateOne(ctx, i+1, migrations[i]); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (s *Store) migrateOne(ctx context.Context, n int, script string) error {
+	// The writer pool has one connection: the pragma applies to it.
+	if noForeignKeys[n] {
+		if _, err := s.w.ExecContext(ctx, `PRAGMA foreign_keys = OFF`); err != nil {
+			return err
+		}
+		defer s.w.ExecContext(context.WithoutCancel(ctx), `PRAGMA foreign_keys = ON`)
+	}
+	tx, err := s.w.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, script); err != nil {
+		return fmt.Errorf("migrazione %d: %w", n, err)
+	}
+	if noForeignKeys[n] {
+		var broken int
+		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM pragma_foreign_key_check`).Scan(&broken); err != nil {
+			return err
+		}
+		if broken > 0 {
+			return fmt.Errorf("migrazione %d: %d riferimenti non validi", n, broken)
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE schema_version SET version = ?`, n); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

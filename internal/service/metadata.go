@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rikimela1992/vodmax/internal/library"
 	"github.com/rikimela1992/vodmax/internal/playlist/xtream"
 	"github.com/rikimela1992/vodmax/internal/store"
 	"github.com/rikimela1992/vodmax/internal/tmdb"
@@ -157,7 +158,7 @@ func (s *Service) Details(ctx context.Context, itemID int64) (ItemDetails, error
 	if d.Duration == 0 {
 		d.Duration = t.Runtime * 60
 	}
-	if (len(p.Backdrops) > 0 && imageURL(p.Backdrops[0])) || t.Backdrop != "" {
+	if (len(p.Backdrops) > 0 && (imageURL(p.Backdrops[0]) || strings.HasPrefix(p.Backdrops[0], library.ImageScheme))) || t.Backdrop != "" {
 		d.Backdrop = "/img/meta/" + strconv.FormatInt(itemID, 10) + "/backdrop?s=" + s.metaSignature(itemID, "backdrop")
 	}
 	if p.Plot != "" || p.Cast != "" || p.Genre != "" || len(p.Backdrops) > 0 {
@@ -190,6 +191,9 @@ func (s *Service) providerDetails(ctx context.Context, m store.MetaItem) xtream.
 		}
 	}
 	sub, err := s.st.Subscription(ctx, m.SubscriptionID)
+	if err == nil && sub.Kind == "local" {
+		return s.localDetails(ctx, m) // read from the folder each time: cheap, always current
+	}
 	if err != nil || sub.Kind != "xtream" {
 		return d
 	}
@@ -275,6 +279,11 @@ func (s *Service) MetaImage(ctx context.Context, itemID int64, which, sig string
 		return store.CachedImage{}, err
 	}
 	p := s.providerDetails(ctx, m)
+	if len(p.Backdrops) > 0 && strings.HasPrefix(p.Backdrops[0], library.ImageScheme) {
+		if img, err := s.localImage(ctx, m.SubscriptionID, p.Backdrops[0]); err == nil {
+			return img, nil
+		}
+	}
 	if len(p.Backdrops) > 0 && imageURL(p.Backdrops[0]) {
 		src := p.Backdrops[0]
 		img, err := s.cachedImage(ctx, src, func(ctx context.Context) (store.CachedImage, error) { return s.fetchImage(ctx, m.SubscriptionID, src) })

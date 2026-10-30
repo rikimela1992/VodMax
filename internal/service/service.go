@@ -252,6 +252,9 @@ type SubscriptionInput struct {
 	Username string `json:"username,omitempty"`
 	Password string `json:"password,omitempty"`
 	URL      string `json:"url,omitempty"`
+	// Local collection: the folder and what it holds (movie or series).
+	Path    string `json:"path,omitempty"`
+	Content string `json:"content,omitempty"`
 }
 
 type xtreamSettings struct {
@@ -270,6 +273,15 @@ func (s *Service) AddSubscription(ctx context.Context, in SubscriptionInput) (in
 	in.Name = strings.TrimSpace(in.Name)
 	if in.Name == "" || len(in.Name) > 80 {
 		return 0, invalid("nome dell'abbonamento obbligatorio (max 80 caratteri)")
+	}
+	if in.Kind == "local" {
+		set, err := checkLocal(in.Path, in.Content)
+		if err != nil {
+			return 0, err
+		}
+		rawSettings, _ := json.Marshal(set)
+		return s.st.AddSubscription(ctx, store.Subscription{Name: in.Name, Kind: "local", Settings: rawSettings},
+			func(id int64) []byte { return s.box.Seal([]byte("{}"), subOwner(id)) })
 	}
 	if _, err := s.st.VPN(ctx, in.VPNID); err != nil {
 		return 0, invalid("ogni abbonamento richiede una connessione VPN esistente")
@@ -308,6 +320,8 @@ type SubscriptionPatch struct {
 	Username *string `json:"username"`
 	Password *string `json:"password"`
 	URL      *string `json:"url"`
+	Path     *string `json:"path"`
+	Content  *string `json:"content"`
 }
 
 func (s *Service) UpdateSubscription(ctx context.Context, id int64, p SubscriptionPatch) error {
@@ -321,6 +335,22 @@ func (s *Service) UpdateSubscription(ctx context.Context, id int64, p Subscripti
 			return invalid("nome dell'abbonamento obbligatorio (max 80 caratteri)")
 		}
 		p.Name = &n
+	}
+	if sub.Kind == "local" {
+		var set localSettings
+		json.Unmarshal(sub.Settings, &set)
+		if p.Path != nil {
+			set.Path = *p.Path
+		}
+		if p.Content != nil {
+			set.Content = *p.Content
+		}
+		set, err := checkLocal(set.Path, set.Content)
+		if err != nil {
+			return err
+		}
+		settings, _ := json.Marshal(set)
+		return s.st.UpdateSubscription(ctx, id, p.Name, nil, settings, nil)
 	}
 	if p.VPNID != nil {
 		if _, err := s.st.VPN(ctx, *p.VPNID); err != nil {
@@ -465,6 +495,24 @@ func (s *Service) Sync(ctx context.Context, id int64, allowDrop bool) (SyncResul
 	}()
 
 	started := time.Now()
+	if sub, err := s.st.Subscription(ctx, id); err == nil && sub.Kind == "local" {
+		res, err := s.syncLocal(ctx, sub, allowDrop)
+		if err != nil {
+			s.st.SetSyncResult(context.Background(), id, "error", err.Error(), nil)
+			return SyncResult{}, err
+		}
+		if err := s.st.SetSyncResult(ctx, id, "ok", "", nil); err != nil {
+			return SyncResult{}, err
+		}
+		if _, err := s.ApplySelection(ctx); err != nil {
+			return SyncResult{}, err
+		}
+		if res.Selection, err = s.SubscriptionStats(ctx, id, nil); err != nil {
+			return SyncResult{}, err
+		}
+		res.Duration = time.Since(started) / time.Millisecond
+		return res, nil
+	}
 	snap, err := s.fetch(ctx, id)
 	if err != nil {
 		var account json.RawMessage

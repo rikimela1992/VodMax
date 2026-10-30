@@ -22,6 +22,9 @@ type Rules struct {
 	SeriesMinYear int `json:"series_min_year"`
 	// With a minimum year set, titles whose year is unknown are hidden too.
 	HideUnknownYear bool `json:"hide_unknown_year"`
+	// Prefer puts this subscription's variants first (local collections);
+	// set by the server, not stored.
+	Prefer bool `json:"-"`
 }
 
 // ParseRules accepts the stored JSON ("{}" means defaults).
@@ -107,7 +110,8 @@ type KindStats struct {
 type Stats map[string]*KindStats
 
 // Select decides, for every item, whether it is shown, which variant of
-// each group is the primary one (best quality, then lowest id) and in
+// each group is the primary one (a preferred subscription's, then best
+// quality, then lowest id) and in
 // which section a live channel goes. It mutates items and returns stats.
 // Variants are grouped across subscriptions.
 func Select(rules map[int64]Rules, cats []store.SelectionCategory, items []store.SelectionItem) Stats {
@@ -153,6 +157,9 @@ func Select(rules map[int64]Rules, cats []store.SelectionCategory, items []store
 	for _, members := range groups {
 		sort.Slice(members, func(a, b int) bool {
 			x, y := items[members[a]], items[members[b]]
+			if px, py := rules[x.SubscriptionID].Prefer, rules[y.SubscriptionID].Prefer; px != py {
+				return px
+			}
 			if x.Quality != y.Quality {
 				return x.Quality > y.Quality
 			}

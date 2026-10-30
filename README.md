@@ -2,8 +2,9 @@
 
 Media center in stile Plex / Jellyfin / IPTV Extreme: aggiungi i tuoi
 **abbonamenti** (playlist M3U o accessi Xtream Codes, con guida TV) e ritrovi
-tutto in una sola Home, una sola ricerca, una sola lista. Ogni abbonamento
-può passare da una **VPN** registrata.
+tutto in una sola Home, una sola ricerca, una sola lista, insieme alle tue
+**raccolte** (cartelle di film e serie sul server). Ogni abbonamento passa
+da una **VPN** registrata.
 
 Un'unica applicazione che funziona da sola su un dispositivo (**Agent**) e
 che può diventare il **Server** della casa per gli altri dispositivi.
@@ -17,6 +18,8 @@ che può diventare il **Server** della casa per gli altri dispositivi.
 >   scheda per titolo) con anteprima;
 > - **TV** come un decoder (numerazione da telecomando, preferiti, comandi a
 >   schermo), **guida a griglia** anche da fonti XMLTV esterne;
+> - **raccolte locali**: cartelle di film e serie lette dai nomi dei file,
+>   dai `.nfo` e dalle locandine accanto ai video;
 > - **film e serie** con "Continua a guardare", lingua dell'audio e
 >   sottotitoli, schede dal provider e (con una chiave) da TMDB;
 > - **registrazioni** dal programma in onda, dalla guida o **per regola**,
@@ -45,6 +48,10 @@ diventano condivisi.
 Solo **playlist**: M3U / M3U8 (URL o file) e Xtream Codes, con guida TV
 XMLTV. Dettagli nella
 [decisione 0011](docs/decisioni/0011-abbonamenti-e-tipi-di-account.md).
+
+Accanto agli abbonamenti, le **raccolte**: cartelle del server con film o
+serie, che non passano dalla VPN
+([decisione 0022](docs/decisioni/0022-raccolte-locali.md)).
 
 **Nessun contatto col provider senza VPN.** Server e app hanno una VPN
 WireGuard interna: se non è collegata, gli abbonamenti restano bloccati.

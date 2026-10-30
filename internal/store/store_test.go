@@ -155,3 +155,54 @@ func TestReadsDoNotWaitForImport(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Migration 12 rebuilds the subscription table: the catalog that refers
+// to it must survive, and a local collection needs no VPN.
+func TestSubscriptionRebuildKeepsCatalog(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "vodmax.db")
+	all := migrations
+	migrations = all[:11]
+	st, err := Open(path)
+	if err != nil {
+		migrations = all
+		t.Fatal(err)
+	}
+	vpnID, _ := st.AddVPN(ctx, "test", "wireguard", func(int64) []byte { return []byte("sealed") })
+	subID, err := st.AddSubscription(ctx, Subscription{Name: "B", Kind: "xtream", VPNID: vpnID, Settings: json.RawMessage(`{}`)},
+		func(int64) []byte { return []byte("sealed") })
+	if err == nil {
+		_, err = st.ReplaceCatalog(ctx, subID, []string{"movie"}, nil, movies(10, "Film"), false)
+	}
+	st.Close()
+	migrations = all
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err = Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if c, err := st.Counts(ctx, subID); err != nil || c["movie"] != 10 {
+		t.Fatalf("film dopo la migrazione: %v %v", c, err)
+	}
+	local, err := st.AddSubscription(ctx, Subscription{Name: "Raccolta", Kind: "local", Settings: json.RawMessage(`{}`)},
+		func(int64) []byte { return []byte("sealed") })
+	if err != nil {
+		t.Fatal(err)
+	}
+	sub, err := st.Subscription(ctx, local)
+	if err != nil || sub.VPNID != 0 {
+		t.Fatalf("raccolta: %+v %v", sub, err)
+	}
+	// Foreign keys are back on: deleting the subscription removes its items.
+	if err := st.DeleteSubscription(ctx, subID); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	st.r.QueryRowContext(ctx, `SELECT count(*) FROM item`).Scan(&n)
+	if n != 0 {
+		t.Fatalf("%d film rimasti dopo la cancellazione dell'abbonamento", n)
+	}
+}
