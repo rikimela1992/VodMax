@@ -83,15 +83,21 @@ func TestDownloads(t *testing.T) {
 	if !strings.Contains(string(body), "Scaricati · Film") {
 		t.Fatalf("collection: %s", body)
 	}
-	_, body = e.do(t, "GET", "/api/v1/catalog/movie?q=1408", nil, true)
-	var page struct {
-		Items []struct {
-			SubscriptionID int64 `json:"subscription_id"`
-		} `json:"items"`
-	}
-	json.Unmarshal(body, &page)
-	if len(page.Items) != 1 || page.Items[0].SubscriptionID == 1 {
-		t.Fatalf("local copy first: %s", body)
+	// The collection is scanned just after the download is marked done.
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(100 * time.Millisecond) {
+		_, body = e.do(t, "GET", "/api/v1/catalog/movie?q=1408", nil, true)
+		var page struct {
+			Items []struct {
+				SubscriptionID int64 `json:"subscription_id"`
+			} `json:"items"`
+		}
+		json.Unmarshal(body, &page)
+		if len(page.Items) == 1 && page.Items[0].SubscriptionID != 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("local copy first: %s", body)
+		}
 	}
 
 	// A whole series: each episode in its season folder.
