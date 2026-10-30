@@ -40,10 +40,14 @@ var (
 
 // repeatGap is how far apart two airings of the same programme must
 // start to be one programme and its rerun rather than one event on two
-// channels; repeatWithin is how far back an earlier airing counts.
+// channels; repeatWithin is how far back an earlier airing counts, and
+// repeatSameDay how far for a title on air often ("Calcio Serie A" can
+// be a different match every day).
 const (
-	repeatGap    = 90 * time.Minute
-	repeatWithin = 4 * 24 * time.Hour
+	repeatGap     = 90 * time.Minute
+	repeatWithin  = 4 * 24 * time.Hour
+	repeatSameDay = 20 * time.Hour
+	oftenOnAir    = 6
 )
 
 // airingIndex lists when each programme was on air, to recognise reruns.
@@ -52,6 +56,8 @@ type airingIndex map[string][]aired
 type aired struct {
 	start, stop int64
 	channel     string
+	desc        string // folded
+	live        bool   // said live in the title or by the guide
 }
 
 // liveTitle is a title that starts by saying it is live ("LIVE: F1
@@ -71,21 +77,38 @@ func (ix airingIndex) add(p store.Programme, channel string) {
 			return // the same airing on another channel
 		}
 	}
-	ix[k] = append(ix[k], aired{p.Start, p.Stop, channel})
+	ix[k] = append(ix[k], aired{p.Start, p.Stop, channel, fold(p.Description), saidLive(p)})
 }
 
-// earlier finds a previous airing of p. A title on every day ("Serie A",
-// "Calcio") says nothing, so titles aired more often than a big match and
-// its reruns do not count.
+func saidLive(p store.Programme) bool {
+	return p.Airing == "live" || liveTitle.MatchString(fold(p.Title))
+}
+
+// hasLive tells whether some airing of p is said live: then the guide
+// marks the live ones, and the others are reruns.
+func (ix airingIndex) hasLive(p store.Programme) bool {
+	for _, a := range ix[airingKey(p)] {
+		if a.live {
+			return true
+		}
+	}
+	return false
+}
+
+// earlier finds a previous airing of p: same title, and same description
+// when both have one. A title on air often only counts within a day.
 func (ix airingIndex) earlier(p store.Programme) *aired {
 	list := ix[airingKey(p)]
-	if len(list) > 6 {
-		return nil
-	}
+	often := len(list) > oftenOnAir
+	desc := fold(p.Description)
 	for i := range list {
 		a := &list[i]
 		gap := time.Duration(p.Start-a.start) * time.Second
-		if a.stop <= p.Start && gap >= repeatGap && gap <= repeatWithin {
+		switch {
+		case a.stop > p.Start || gap < repeatGap || gap > repeatWithin:
+		case a.desc != "" && desc != "" && a.desc != desc: // another event, same title
+		case often && (gap > repeatSameDay || a.desc == "" || desc == ""):
+		default:
 			return a
 		}
 	}
@@ -137,6 +160,9 @@ func airingOf(ctx context.Context, p store.Programme, channel string, ix airingI
 	// a show that is live every day keeps its name.
 	if m := liveTitle.FindString(fold(p.Title)); m != "" {
 		return Airing{"live", T(ctx, "il titolo inizia con “%s”", strings.TrimSpace(m))}
+	}
+	if ix.hasLive(p) {
+		return Airing{"rerun", T(ctx, "la diretta di questo programma ha “live” nel titolo, questa no")}
 	}
 	if a := ix.earlier(p); a != nil {
 		return Airing{"rerun", T(ctx, "già in onda %s su %s", time.Unix(a.start, 0).Format("02/01 15:04"), a.channel)}

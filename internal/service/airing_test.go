@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -24,8 +25,11 @@ func TestAiringOf(t *testing.T) {
 	}
 	ix.add(prog("LIVE: F1 Paddock Live", "", "", -24), "Sky Sport F1")
 	ix.add(prog("LIVE: F1 Paddock Live", "", "", 0), "Sky Sport F1")
-	for i := 0; i < 8; i++ {
-		ix.add(prog("Calcio Serie A", "", "", -24*i-3), "Sport 1")
+	for i := 0; i < 8; i++ { // a different match every day
+		ix.add(prog("Calcio Serie A", fmt.Sprint("Partita ", i), "", -24*i-3), "Sport 1")
+	}
+	for h := -40; h < 0; h += 5 { // on air often, the same show
+		ix.add(prog("Paddock Show", "Commenti", "", h), "Sky Sport F1")
 	}
 	cases := []struct {
 		p       store.Programme
@@ -43,7 +47,9 @@ func TestAiringOf(t *testing.T) {
 		{prog("Juventus - Inter", "", "", 0), "Inter Classic", "rerun"},
 		{prog("Serie A: Juventus - Inter", "", "", 0), "Sport 2", "rerun"}, // on air last night
 		{prog("Serie A: Juventus - Inter", "", "", -25), "Sport 2", ""},    // overlaps: one event on two channels
-		{prog("Calcio Serie A", "", "", 0), "Sport 1", ""},                 // a title of every day says nothing
+		{prog("Calcio Serie A", "Partita 9", "", 0), "Sport 1", ""},        // another match, same title
+		{prog("Calcio Serie A", "", "", 0), "Sport 1", ""},                 // often on air, nothing to compare
+		{prog("Paddock Show", "Commenti", "", 0), "Sky Sport F1", "rerun"}, // often on air, but the same show hours ago
 		{prog("Liverpool - Chelsea", "", "", 0), "Sport 1", ""},            // "live" is a whole word
 		{prog("Liverpool - Chelsea", "In diretta da Anfield", "", 0), "Sport 1", "live"},
 		{prog("Juventus - Inter", "", "premiere", 0), "Sport 1", "live"},
