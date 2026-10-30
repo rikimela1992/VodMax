@@ -328,3 +328,8 @@ video::cue { font-size: 1.6rem; background: rgba(0, 0, 0, 0.65); }
   .matches li { padding: 0.6rem 0.8rem; }
   .rule-form button[type=submit] { justify-self: stretch; }
 }
+
+/* Section titles of the recordings and downloads pages, like the settings. */
+h2.section { padding-bottom: 0.6rem; color: var(--accent); border-bottom: 1px solid var(--line); }
+h2.section:not(:first-child) { margin-top: 2.6rem; }
+h3.section { margin: 2rem 0 0.4rem; font-size: 1.05rem; color: var(--accent); }

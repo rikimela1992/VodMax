@@ -337,7 +337,7 @@
     const day = (ts) => new Date(ts * 1000).toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short" });
     const usage = [t("Usati {size}", { size: gb(space.used_bytes) }), space.free_bytes >= 0 ? t("liberi {size}", { size: gb(space.free_bytes) }) : "",
       space.max_gb ? t("limite {n} GB", { n: space.max_gb }) : "", space.keep_days ? t("si tengono {n} giorni", { n: space.keep_days }) : ""].filter(Boolean).join(" · ");
-    const parts = [el("h2", {}, t("Registrazioni")), el("p", { className: "empty" }, usage)];
+    const parts = [el("h2", { className: "section" }, t("Registrazioni")), el("p", { className: "empty" }, usage)];
     if (!list.length) parts.push(el("p", { className: "empty" }, t("Nessuna registrazione. In TV premi R (tasto blu) sul programma in onda, " +
       "oppure registra dalla Guida, oppure crea una regola qui sotto.")));
     else {
@@ -377,7 +377,7 @@
   function downloadsSection(list) {
     const gb = (b) => b >= 1e9 ? (b / 1e9).toLocaleString(locale, { maximumFractionDigits: 2 }) + " GB"
       : Math.round(b / 1e6).toLocaleString(locale) + " MB";
-    const box = el("section", { id: "downloads" }, el("h2", {}, t("Download")));
+    const box = el("section", { id: "downloads" }, el("h2", { className: "section" }, t("Download")));
     if (!list.length) {
       box.append(el("p", { className: "empty" }, t("Nessun download. Nella scheda di un film o di una serie premi “Scarica”: il server lo copia sul suo disco, " +
         "senza togliere la connessione a chi guarda, e lo trovi nelle raccolte «Scaricati».")));
@@ -440,7 +440,7 @@
 
   async function rulesSection() {
     const rules = await api("GET", "/api/v1/recording-rules");
-    const out = [el("h2", {}, t("Regole automatiche")),
+    const out = [el("h2", { className: "section" }, t("Regole automatiche")),
       el("p", { className: "empty" }, t("Una regola registra da sola i programmi della guida che contengono certe parole: per esempio tutte le partite " +
         "della Juve, o gara e qualifiche di Formula 1. Si applica ogni 10 minuti ai prossimi giorni di guida."))];
     for (const r of rules) {
@@ -463,7 +463,7 @@
       box.append(el("div", { className: "actions" }, edit, toggle, del));
       out.push(box);
     }
-    out.push(el("h3", {}, t("Nuova regola")), ruleForm());
+    out.push(el("h3", { className: "section" }, t("Nuova regola")), ruleForm());
     return out;
   }
 
