@@ -296,13 +296,13 @@
     panel.close = close;
     const draw = () => {
       const f = filter.value.trim().toLowerCase();
-      const all = el("button", { className: "chip focusable" + (b.category ? "" : " active") }, t("Tutte"));
+      const all = el("button", { className: "chip focusable" + (b.category ? "" : " active") }, el("span", { className: "name" }, t("Tutte")));
       all.onclick = () => { close(); set({ category: "", categoryName: "" }); };
       // Names that start with the text first ("azione" before "animazione").
       const found = list.filter((c) => !f || c.name.toLowerCase().includes(f))
         .sort((x, y) => (f ? Number(!x.name.toLowerCase().startsWith(f)) - Number(!y.name.toLowerCase().startsWith(f)) : 0));
       options.replaceChildren(...(f ? [] : [all]), ...found.map((c) => {
-        const o = el("button", { className: "chip focusable" + (c.id === b.category ? " active" : "") }, c.name + " ", el("small", {}, c.titles));
+        const o = el("button", { className: "chip focusable" + (c.id === b.category ? " active" : ""), title: c.name }, el("span", { className: "name" }, c.name), el("small", {}, c.titles));
         o.onclick = () => { close(); set({ category: c.id, categoryName: c.name }); };
         return o;
       }));

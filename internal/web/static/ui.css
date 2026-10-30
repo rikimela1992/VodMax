@@ -285,8 +285,14 @@ h2 { margin: 1.8rem 0 0.8rem; font-size: 1.2rem; font-weight: 600; color: var(--
   border-radius: 999px;
 }
 .picker input:focus { border-color: var(--focus); outline: none; }
-.picker .options { overflow-y: auto; display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0.4rem; }
-.picker .chip small { color: inherit; opacity: 0.7; }
+/* Same-size cells in fixed columns, so the remote's arrows go straight
+   up, down and across; long names end with "…". */
+.picker .options { overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); grid-auto-rows: 3rem; gap: 0.5rem; padding: 0.4rem; }
+.picker .options .chip { min-width: 0; height: 100%; justify-content: space-between; border-radius: 12px; transform: none; }
+.picker .options .chip:focus { transform: none; color: #0b0c10; background: var(--focus); box-shadow: 0 0 0 3px var(--accent); transition: none; }
+body:has(#picker) #server-problems { display: none; }
+.picker .chip .name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: left; }
+.picker .chip small { flex: none; color: inherit; opacity: 0.7; }
 .scrim { position: fixed; inset: 0; z-index: 7; background: rgba(0, 0, 0, 0.55); }
 
 /* ---- Phone: bottom navigation bar and the "Altro" sheet ---- */
