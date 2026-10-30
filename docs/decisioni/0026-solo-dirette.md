@@ -24,11 +24,19 @@ sempre allo stesso modo della diretta.
   3. un anno nel titolo prima dell'anno scorso ("Juve - Inter 2006"; la
      stagione "2025/26" vale ancora);
   4. il canale: "+1", "Classic", "Story", "Storia", "Timeshift";
-  5. lo stesso titolo già in onda da 90 minuti a 4 giorni prima (la guida
-     tiene 7 giorni di storia); un titolo in onda più di 6 volte nella
-     finestra ("Calcio Serie A") non conta;
-  6. "diretta", "in diretta", "live", "dal vivo" nel titolo o nella
+  5. "LIVE:" / "Diretta:" all'inizio del titolo, o "(Live)" alla fine:
+     diretta (Sky li usa per programmi in diretta ogni giorno con lo stesso
+     nome);
+  6. se un'altra messa in onda dello stesso programma ha quel segno e
+     questa no: replica;
+  7. lo stesso titolo (e la stessa descrizione, se entrambi ne hanno una)
+     già in onda da 90 minuti a 4 giorni prima; per un titolo in onda più
+     di 6 volte ("Calcio Serie A") solo entro 20 ore e con la stessa
+     descrizione;
+  8. "diretta", "in diretta", "live", "dal vivo" nel titolo o nella
      descrizione; `<premiere/>` / `<new/>` della guida.
+- Sinonimi nelle parole delle regole: "Formula 1" ↔ "F1", "MotoGP" ↔
+  "Moto GP"; senza parole la regola cerca il suo nome.
 - Senza indizi il programma si registra: perdere una diretta costa più che
   registrare una replica.
 

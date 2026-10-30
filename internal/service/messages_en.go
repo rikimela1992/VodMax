@@ -144,7 +144,6 @@ var messagesEN = map[string]string{
 	"canale in differita o di repertorio (%s)":                        "timeshift or archive channel (%s)",
 	"già in onda %s su %s":                                            "already on air %s on %s",
 	"la diretta di questo programma ha “live” nel titolo, questa no":  "the live airing of this programme has “live” in its title, this one does not",
-	"il titolo inizia con “%s”":                                       "the title starts with “%s”",
 	"la guida dice “%s”":                                              "the guide says “%s”",
 	"prima visione secondo la guida":                                  "first showing according to the guide",
 	"errore: %s":                                                      "error: %s",

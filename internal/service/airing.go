@@ -60,14 +60,26 @@ type aired struct {
 	live        bool   // said live in the title or by the guide
 }
 
-// liveTitle is a title that starts by saying it is live ("LIVE: F1
-// Paddock", "Diretta: Juventus - Inter").
-var liveTitle = regexp.MustCompile(`^(live|diretta|in diretta|en direct|en vivo) `)
+// A title says it is live at the start ("LIVE: F1 Paddock", "Diretta:
+// Juventus - Inter") or at the end ("F4 - Gara 1 (Live)"), there only in
+// brackets: "F1 Paddock Live" is the name of a show.
+var (
+	liveTitle  = regexp.MustCompile(`^(live|diretta|in diretta|en direct|en vivo) `)
+	liveSuffix = regexp.MustCompile(`(?i)\s*[(\[](live|diretta|in diretta)[)\]]\s*$`)
+)
+
+// liveMarker is how the title says it is live, "" if it does not.
+func liveMarker(title string) string {
+	if m := liveSuffix.FindStringSubmatch(title); m != nil {
+		return strings.ToLower(m[1])
+	}
+	return strings.TrimSpace(liveTitle.FindString(fold(title)))
+}
 
 // airingKey identifies a programme across airings: "LIVE: F1 Paddock" and
 // its rerun "F1 Paddock" are the same.
 func airingKey(p store.Programme) string {
-	return liveTitle.ReplaceAllString(fold(p.Title+" "+p.Subtitle), "")
+	return liveTitle.ReplaceAllString(fold(liveSuffix.ReplaceAllString(p.Title, "")+" "+p.Subtitle), "")
 }
 
 func (ix airingIndex) add(p store.Programme, channel string) {
@@ -81,7 +93,7 @@ func (ix airingIndex) add(p store.Programme, channel string) {
 }
 
 func saidLive(p store.Programme) bool {
-	return p.Airing == "live" || liveTitle.MatchString(fold(p.Title))
+	return p.Airing == "live" || liveMarker(p.Title) != ""
 }
 
 // hasLive tells whether some airing of p is said live: then the guide
@@ -158,8 +170,8 @@ func airingOf(ctx context.Context, p store.Programme, channel string, ix airingI
 	}
 	// Said in front of the title, live beats a title already on air:
 	// a show that is live every day keeps its name.
-	if m := liveTitle.FindString(fold(p.Title)); m != "" {
-		return Airing{"live", T(ctx, "il titolo inizia con “%s”", strings.TrimSpace(m))}
+	if m := liveMarker(p.Title); m != "" {
+		return Airing{"live", T(ctx, "il titolo dice “%s”", m)}
 	}
 	if ix.hasLive(p) {
 		return Airing{"rerun", T(ctx, "la diretta di questo programma ha “live” nel titolo, questa no")}

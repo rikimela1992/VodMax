@@ -25,6 +25,7 @@ func TestAiringOf(t *testing.T) {
 	}
 	ix.add(prog("LIVE: F1 Paddock Live", "", "", -24), "Sky Sport F1")
 	ix.add(prog("LIVE: F1 Paddock Live", "", "", 0), "Sky Sport F1")
+	ix.add(prog("Mugello - F4 - Gara 1 (Live)", "", "", 0), "Aci Sport")
 	for i := 0; i < 8; i++ { // a different match every day
 		ix.add(prog("Calcio Serie A", fmt.Sprint("Partita ", i), "", -24*i-3), "Sport 1")
 	}
@@ -57,6 +58,8 @@ func TestAiringOf(t *testing.T) {
 		// A show live every day under the same name; its rerun drops "LIVE:".
 		{prog("LIVE: F1 Paddock Live", "", "", 0), "Sky Sport F1", "live"},
 		{prog("F1 Paddock Live", "", "", 3), "Sky Sport F1", "rerun"},
+		{prog("Mugello - F4 - Gara 1 (Live)", "", "", 0), "Aci Sport", "live"},
+		{prog("Mugello - F4 - Gara 1", "", "", 3), "Aci Sport", "rerun"},
 	}
 	for _, c := range cases {
 		a := airingOf(ctx, c.p, c.channel, ix)
