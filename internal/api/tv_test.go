@@ -391,3 +391,73 @@ func TestLogosThroughServer(t *testing.T) {
 	}
 	p.mu.Unlock()
 }
+
+func TestOutputToOtherApps(t *testing.T) {
+	e, _ := tvSetup(t)
+	get := func(path string) (int, string) {
+		resp, err := http.Get(e.srv.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, string(b)
+	}
+	// Off by default: nothing answers, not even with a made-up key.
+	if code, _ := get("/out/0123456789abcdef0123456789abcdef/lineup.json"); code != 404 {
+		t.Fatalf("output answers while off: %d", code)
+	}
+	code, body := e.do(t, "PUT", "/api/v1/settings/output", map[string]bool{"enabled": true}, true)
+	var o struct {
+		Enabled bool
+		Tuners  int
+		Links   map[string]string
+	}
+	if code != 200 || json.Unmarshal(body, &o) != nil || !o.Enabled || o.Links["tuner"] == "" {
+		t.Fatalf("enable: %d %s", code, body)
+	}
+	tuner := strings.TrimPrefix(o.Links["tuner"], e.srv.URL)
+	// HDHomeRun, as Plex and Jellyfin read it.
+	if code, d := get(tuner + "/discover.json"); code != 200 || !strings.Contains(d, `"LineupURL":"`+o.Links["tuner"]+`/lineup.json"`) || !strings.Contains(d, `"TunerCount":`) {
+		t.Fatalf("discover: %d %s", code, d)
+	}
+	code, lineup := get(tuner + "/lineup.json")
+	var ch []struct{ GuideNumber, GuideName, URL string }
+	if code != 200 || json.Unmarshal([]byte(lineup), &ch) != nil || len(ch) == 0 || !strings.HasPrefix(ch[0].URL, o.Links["tuner"]+"/channel/") {
+		t.Fatalf("lineup: %d %s", code, lineup)
+	}
+	// M3U and XMLTV: the same channels, the guide with its programmes.
+	if code, m3u := get(tuner + "/playlist.m3u"); code != 200 || !strings.HasPrefix(m3u, "#EXTM3U url-tvg=") || !strings.Contains(m3u, ch[0].URL) {
+		t.Fatalf("playlist: %d %s", code, m3u)
+	}
+	if code, epg := get(tuner + "/epg.xml"); code != 200 || !strings.Contains(epg, "<programme") || !strings.Contains(epg, "Film della sera") ||
+		!strings.Contains(epg, "<previously-shown></previously-shown>") {
+		t.Fatalf("guide: %d %s", code, epg)
+	}
+	// A channel plays through VodMax.
+	resp, err := http.Get(ch[0].URL)
+	if err != nil || resp.StatusCode != 200 || resp.Header.Get("Content-Type") != "video/mp2t" {
+		t.Fatalf("channel: %v %v", err, resp)
+	}
+	buf := make([]byte, 188)
+	if _, err := io.ReadFull(resp.Body, buf); err != nil {
+		t.Fatalf("channel data: %v", err)
+	}
+	resp.Body.Close()
+	// A new key cuts off the old addresses; off, nothing answers.
+	e.do(t, "PUT", "/api/v1/settings/output", map[string]bool{"enabled": true, "new_key": true}, true)
+	if code, _ := get(tuner + "/lineup.json"); code != 404 {
+		t.Fatalf("old key still works: %d", code)
+	}
+	e.do(t, "PUT", "/api/v1/settings/output", map[string]bool{"enabled": false}, true)
+	_, body = e.do(t, "GET", "/api/v1/settings/output", nil, true)
+	json.Unmarshal(body, &o)
+	if code, _ := get(strings.TrimPrefix(o.Links["tuner"], e.srv.URL) + "/discover.json"); code != 404 {
+		t.Fatalf("output answers when off: %d", code)
+	}
+	// Only admins see and change it.
+	kid := addKids(t, e)
+	if code, _ := e.call(t, "GET", "/api/v1/settings/output", nil, kid.device, kid.profile); code != 403 {
+		t.Fatalf("kids see the output: %d", code)
+	}
+}

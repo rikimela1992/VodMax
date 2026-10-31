@@ -590,7 +590,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       parts.push(el("h2", {}, "App"), el("p", { className: "note" }, t("VodMax per Android {version}, collegata a {server}.", { version: window.VodMax.native.version(), server: location.origin })),
         appButtons, appStatus);
     }
-    parts.push(...await downloadSection(), ...await liveSection(), ...await recordingLimits(), ...(await metadataSection()).filter(Boolean), ...await backupSection());
+    parts.push(...await downloadSection(), ...await liveSection(), ...await outputSection(), ...await recordingLimits(), ...(await metadataSection()).filter(Boolean), ...await backupSection());
     main.replaceChildren(...parts);
   }
 
@@ -675,6 +675,38 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     return [el("h2", {}, t("Diretta TV")),
       el("p", { className: "note" }, t("Con pausa e riavvolgimento il server tiene il canale che stai guardando su disco (circa 3 GB all'ora in HD; " +
         "si cancella cambiando canale): la diretta è 6–8 secondi indietro e il cambio canale richiede 2–4 secondi. Con ritardo minimo si torna al flusso diretto.")), form];
+  }
+
+  // ---- Output to other apps (HDHomeRun, M3U, XMLTV) ----
+  async function outputSection() {
+    const o = await api("GET", "/api/v1/settings/output");
+    const parts = [el("h2", {}, t("Uscita verso altre app")),
+      el("p", { className: "note" }, t("VodMax può dare i suoi canali ad altre app di casa: Plex, Jellyfin ed Emby lo vedono come un sintonizzatore " +
+        "HDHomeRun (e registrano con il loro DVR), TiviMate, Kodi e VLC usano la playlist M3U con la guida XMLTV. I canali passano comunque da VodMax: " +
+        "stesse connessioni, stessa VPN. Gli indirizzi contengono una chiave segreta: chi li ha può guardare i canali, quindi non condividerli fuori casa."))];
+    const toggle = button(o.enabled ? t("Spegni") : t("Accendi"), async () => {
+      try { await api("PUT", "/api/v1/settings/output", { enabled: !o.enabled }); flash(o.enabled ? t("Uscita spenta") : t("Uscita accesa")); render(); }
+      catch (e) { flash(e.message); }
+    }, o.enabled ? "" : "primary");
+    if (o.enabled && o.links) {
+      const row = (label, url, hint) => el("div", { className: "box output-link" }, el("h3", {}, label), el("pre", { className: "cmd" }, url),
+        el("p", { className: "note" }, hint), el("div", { className: "buttons" }, button(t("Copia"), () => {
+          (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(() => flash(t("Copiato")), () => flash(url));
+        })));
+      parts.push(el("p", { className: "ok" }, "✓ " + t("Accesa: {n} canali alla volta (le connessioni degli abbonamenti).", { n: o.tuners })),
+        row(t("Sintonizzatore HDHomeRun"), o.links.tuner, t("Plex: Impostazioni → TV in diretta e DVR → Configura → inserisci l'indirizzo a mano. Jellyfin/Emby: TV in diretta → Aggiungi sintonizzatore → HDHomeRun.")),
+        row(t("Playlist M3U"), o.links.playlist, t("TiviMate, Kodi (PVR IPTV Simple), VLC, o Jellyfin come sintonizzatore M3U.")),
+        row(t("Guida XMLTV"), o.links.guide, t("La guida dei canali della playlist, per le app che la chiedono a parte.")));
+      const renew = button(t("Cambia la chiave"), async () => {
+        if (!confirm(t("Gli indirizzi attuali smettono di funzionare: le app andranno configurate di nuovo. Continuare?"))) return;
+        try { await api("PUT", "/api/v1/settings/output", { enabled: true, new_key: true }); flash(t("Chiave cambiata")); render(); }
+        catch (e) { flash(e.message); }
+      });
+      parts.push(el("div", { className: "buttons" }, toggle, renew));
+    } else {
+      parts.push(el("div", { className: "buttons" }, toggle));
+    }
+    return parts;
   }
 
   // ---- Recording space ----

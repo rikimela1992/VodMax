@@ -202,6 +202,21 @@ older TVs work with a less polished layout.
 There is no Samsung (Tizen) app yet: use the TV browser at
 `http://<server>:8095`.
 
+### Other apps: Plex, Jellyfin, Emby, TiviMate, Kodi
+
+**Settings → System → Output to other apps → Turn on** gives three
+addresses with a secret key:
+
+- **HDHomeRun tuner** — Plex (*Settings → Live TV & DVR → Set up*, enter the
+  address manually), Jellyfin and Emby (*Live TV → Add tuner → HDHomeRun*)
+  see VodMax as a tuner and record with their own DVR.
+- **M3U playlist** and **XMLTV guide** — TiviMate, Kodi (PVR IPTV Simple),
+  VLC, or Jellyfin as an M3U tuner.
+
+Channels still go through VodMax (same connections, same VPN); as many play
+at once as your subscriptions allow. Whoever has the addresses can watch the
+channels: keep them at home; *Change the key* cuts off the old ones.
+
 ## 4. Troubleshooting
 
 | Problem | What to do |

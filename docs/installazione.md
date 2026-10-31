@@ -204,6 +204,22 @@ meno curata.
 Non c'è ancora un'app Samsung (Tizen): usa il browser della TV su
 `http://<server>:8095`.
 
+### Altre app: Plex, Jellyfin, Emby, TiviMate, Kodi
+
+**Impostazioni → Sistema → Uscita verso altre app → Accendi** dà tre
+indirizzi con una chiave segreta:
+
+- **Sintonizzatore HDHomeRun**: Plex (*Impostazioni → TV in diretta e DVR →
+  Configura*, inserisci l'indirizzo a mano), Jellyfin ed Emby (*TV in diretta
+  → Aggiungi sintonizzatore → HDHomeRun*) vedono VodMax come un sintonizzatore
+  e registrano con il loro DVR.
+- **Playlist M3U** e **guida XMLTV**: TiviMate, Kodi (PVR IPTV Simple), VLC, o
+  Jellyfin come sintonizzatore M3U.
+
+I canali passano comunque da VodMax (stesse connessioni, stessa VPN); ne
+vanno insieme quanti ne permettono gli abbonamenti. Chi ha gli indirizzi può
+guardare i canali: tienili in casa; *Cambia la chiave* blocca i vecchi.
+
 ## 4. Problemi comuni
 
 | Problema | Cosa fare |

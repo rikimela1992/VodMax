@@ -3,6 +3,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -109,6 +110,8 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	route("PUT /api/v1/settings/live", levelAdmin, a.putLiveSettings)
 	route("GET /api/v1/series/{id}/episodes", levelViewer, a.episodes)
 	route("PUT /api/v1/series/{id}/markers", levelViewer, a.seriesMarkers)
+	route("GET /api/v1/settings/output", levelAdmin, a.getOutput)
+	route("PUT /api/v1/settings/output", levelAdmin, a.putOutput)
 	route("GET /api/v1/mylist", levelViewer, a.myList)
 	route("GET /api/v1/mylist/{id}", levelViewer, a.inMyList)
 	route("PUT /api/v1/mylist/{id}", levelViewer, a.setMyList)
@@ -141,6 +144,14 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	mux.HandleFunc("POST /stream/timeshift/{session}/stop", a.timeshiftStop)
 	mux.HandleFunc("GET /img/logo/{id}", a.logo)
 	mux.HandleFunc("GET /img/episode/{id}", a.episodeThumb)
+	// Output to other apps: the key in the address is the permission.
+	mux.HandleFunc("GET /out/{key}/discover.json", a.outDiscover)
+	mux.HandleFunc("GET /out/{key}/lineup_status.json", a.outLineupStatus)
+	mux.HandleFunc("GET /out/{key}/lineup.json", a.outLineup)
+	mux.HandleFunc("POST /out/{key}/lineup.post", a.outLineupStatus)
+	mux.HandleFunc("GET /out/{key}/playlist.m3u", a.outPlaylist)
+	mux.HandleFunc("GET /out/{key}/epg.xml", a.outGuide)
+	mux.HandleFunc("GET /out/{key}/channel/{file}", a.outChannel)
 	mux.HandleFunc("GET /img/meta/{id}/{which}", a.metaImage)
 	mux.HandleFunc("GET /stream/vod/{session}", a.vodDirect)
 	mux.HandleFunc("GET /stream/vod/{session}/remux", a.vodRemux)
@@ -749,6 +760,119 @@ func (a *api) episodes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, list)
+}
+
+// ---- Output to other apps ----
+
+// baseURL is the address the request came to, as other apps reach it.
+func baseURL(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+		scheme = "https"
+	}
+	return scheme + "://" + r.Host
+}
+
+func (a *api) outputView(r *http.Request, o service.OutputSettings) map[string]any {
+	out := map[string]any{"enabled": o.Enabled, "tuners": a.svc.OutputTuners(r.Context())}
+	if o.Key != "" {
+		out["links"] = service.OutputLinks(baseURL(r), o)
+	}
+	return out
+}
+
+func (a *api) getOutput(w http.ResponseWriter, r *http.Request) {
+	o, err := a.svc.OutputSettings(r.Context())
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, a.outputView(r, o))
+}
+
+func (a *api) putOutput(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Enabled bool `json:"enabled"`
+		NewKey  bool `json:"new_key"`
+	}
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	o, err := a.svc.SetOutput(r.Context(), in.Enabled, in.NewKey)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, a.outputView(r, o))
+}
+
+func (a *api) outFail(w http.ResponseWriter, err error) {
+	if errors.Is(err, service.ErrOutputOff) || errors.Is(err, store.ErrNotFound) {
+		http.NotFound(w, nil)
+		return
+	}
+	http.Error(w, "VodMax: "+err.Error(), http.StatusServiceUnavailable)
+}
+
+func (a *api) outDiscover(w http.ResponseWriter, r *http.Request) {
+	d, err := a.svc.OutputDevice(r.Context(), r.PathValue("key"), baseURL(r))
+	if err != nil {
+		a.outFail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, d)
+}
+
+func (a *api) outLineupStatus(w http.ResponseWriter, r *http.Request) {
+	if _, err := a.svc.OutputDevice(r.Context(), r.PathValue("key"), baseURL(r)); err != nil {
+		a.outFail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ScanInProgress": 0, "ScanPossible": 1, "Source": "Cable", "SourceList": []string{"Cable"}})
+}
+
+func (a *api) outLineup(w http.ResponseWriter, r *http.Request) {
+	l, err := a.svc.OutputLineup(r.Context(), r.PathValue("key"), baseURL(r))
+	if err != nil {
+		a.outFail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, l)
+}
+
+func (a *api) outPlaylist(w http.ResponseWriter, r *http.Request) {
+	var buf bytes.Buffer
+	if err := a.svc.WriteOutputPlaylist(r.Context(), &buf, r.PathValue("key"), baseURL(r)); err != nil {
+		a.outFail(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "audio/x-mpegurl; charset=utf-8")
+	w.Write(buf.Bytes())
+}
+
+func (a *api) outGuide(w http.ResponseWriter, r *http.Request) {
+	var buf bytes.Buffer
+	if err := a.svc.WriteOutputGuide(r.Context(), &buf, r.PathValue("key"), baseURL(r)); err != nil {
+		a.outFail(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
+	w.Write(buf.Bytes())
+}
+
+func (a *api) outChannel(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(strings.TrimSuffix(r.PathValue("file"), ".ts"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	stream, err := a.svc.OpenOutput(r.Context(), r.PathValue("key"), id)
+	if err != nil {
+		a.outFail(w, err)
+		return
+	}
+	relay(w, stream, http.StatusOK)
 }
 
 func (a *api) myList(w http.ResponseWriter, r *http.Request) {
