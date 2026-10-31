@@ -60,14 +60,41 @@ func (s *Service) imageKey() []byte {
 }
 
 func (s *Service) imageSignature(itemID int64) string {
-	mac := hmac.New(sha256.New, s.imageKey())
-	mac.Write([]byte("logo:" + strconv.FormatInt(itemID, 10)))
-	return hex.EncodeToString(mac.Sum(nil)[:16])
+	return s.signImage("logo:" + strconv.FormatInt(itemID, 10))
 }
 
 // LogoURL is the signed local URL of an item's image.
 func (s *Service) LogoURL(itemID int64) string {
 	return "/img/logo/" + strconv.FormatInt(itemID, 10) + "?s=" + s.imageSignature(itemID)
+}
+
+// EpisodeThumbURL is the signed local URL of an episode's picture.
+func (s *Service) EpisodeThumbURL(episodeID int64) string {
+	return "/img/episode/" + strconv.FormatInt(episodeID, 10) + "?s=" + s.signImage("episode:"+strconv.FormatInt(episodeID, 10))
+}
+
+func (s *Service) signImage(what string) string {
+	mac := hmac.New(sha256.New, s.imageKey())
+	mac.Write([]byte(what))
+	return hex.EncodeToString(mac.Sum(nil)[:16])
+}
+
+// EpisodeThumb returns the picture of an episode, like Logo.
+func (s *Service) EpisodeThumb(ctx context.Context, episodeID int64, sig string) (store.CachedImage, error) {
+	if !hmac.Equal([]byte(sig), []byte(s.signImage("episode:"+strconv.FormatInt(episodeID, 10)))) {
+		return store.CachedImage{}, ErrBadSignature
+	}
+	src, subID, err := s.st.EpisodeImage(ctx, episodeID)
+	if err != nil {
+		return store.CachedImage{}, err
+	}
+	if strings.HasPrefix(src, library.ImageScheme) {
+		return s.localImage(ctx, subID, src)
+	}
+	if !imageURL(src) {
+		return store.CachedImage{}, ErrNoImage
+	}
+	return s.cachedImage(ctx, src, func(ctx context.Context) (store.CachedImage, error) { return s.fetchImage(ctx, subID, src) })
 }
 
 // ErrBadSignature is returned for image URLs not issued by this server.

@@ -42,6 +42,26 @@
 .episodes .bar { align-self: center; height: 4px; background: var(--raised); border-radius: 2px; overflow: hidden; }
 .episodes .bar div { height: 100%; background: var(--accent-grad); }
 
+/* Episodes of a series: a row of cards, picture above, title and plot. */
+.episodes.ep-row { display: flex; gap: var(--gap); padding: 0.6rem 0.4rem 1rem; margin: 0 -0.4rem; overflow-x: auto; scroll-behavior: smooth; scrollbar-width: none; }
+.episodes.ep-row::-webkit-scrollbar { display: none; }
+.episodes.ep-row li { flex: none; width: clamp(15rem, 22vw, 24rem); }
+.episodes .ep-card {
+  display: flex; flex-direction: column; gap: 0; height: 100%; padding: 0;
+  overflow: hidden; background: var(--raised); border: 1px solid var(--line); border-radius: 14px;
+  transition: transform 0.15s var(--ease);
+}
+.episodes .ep-card:focus { outline: 3px solid var(--focus); outline-offset: 2px; background: var(--raised); transform: scale(1.03); }
+.ep-thumb { position: relative; display: grid; place-items: center; aspect-ratio: 16 / 9; background: linear-gradient(160deg, #262a35, #15171d); }
+.ep-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.ep-num { font-size: 2.6rem; font-weight: 800; color: rgba(255, 255, 255, 0.18); }
+.ep-dur { position: absolute; right: 0.5rem; top: 0.5rem; padding: 0.1rem 0.45rem; font-size: 0.78rem; color: var(--text); background: rgba(8, 9, 11, 0.75); border-radius: 6px; }
+.ep-thumb .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; border-radius: 0; background: rgba(0, 0, 0, 0.5); }
+.ep-text { display: grid; gap: 0.35rem; padding: 0.8rem 0.9rem 0.95rem; }
+.ep-text strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ep-plot { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; color: var(--soft); font-size: 0.88rem; line-height: 1.4; }
+.ep-card.next .ep-num { color: rgba(0, 214, 202, 0.45); }
+
 /* Recordings */
 .recs { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
 .recs li button {
@@ -320,6 +340,7 @@ video::cue { font-size: 1.6rem; background: rgba(0, 0, 0, 0.65); }
   .detail .actions .button { margin: 0; }
   .seasons { margin: 1.4rem 0 0.6rem; }
   .episodes li button { grid-template-columns: 2rem minmax(0, 1fr) 3.5rem; gap: 0.6rem; padding: 0.6rem 0.4rem; }
+  .episodes.ep-row li { width: 72vw; }
 }
 
 /* Phone: recordings and rules in one column. */

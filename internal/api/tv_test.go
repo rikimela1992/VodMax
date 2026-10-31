@@ -134,7 +134,8 @@ func newTVProvider() *tvProvider {
 				w.Write([]byte(`[{"name":"Twin Peaks","series_id":77,"category_id":"20"}]`))
 			case "get_series_info":
 				w.Write([]byte(`{"info":{"name":"Twin Peaks"},"episodes":{
-					"1":[{"id":"9001","episode_num":1,"title":"Pilot","container_extension":"mp4","info":{"duration_secs":5400}},
+					"1":[{"id":"9001","episode_num":1,"title":"Pilot","container_extension":"mp4","info":{"duration_secs":5400,
+						"plot":"Laura Palmer è morta.","movie_image":"http://` + r.Host + `/logo/rai1.png"}},
 					     {"id":"9002","episode_num":2,"title":"Traces to Nowhere","container_extension":"mp4","info":{"duration_secs":2800}}],
 					"2":[{"id":"9101","episode_num":1,"title":"May the Giant Be with You","container_extension":"mp4"}]}}`))
 			default:

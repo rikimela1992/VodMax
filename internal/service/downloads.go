@@ -404,7 +404,10 @@ func (s *Service) DeleteDownload(ctx context.Context, id int64) error {
 	}
 	os.Remove(file + ".part")
 	os.Remove(file)
-	os.Remove(strings.TrimSuffix(file, filepath.Ext(file)) + ".nfo")
+	base := strings.TrimSuffix(file, filepath.Ext(file))
+	for _, x := range []string{".nfo", "-thumb.jpg", "-thumb.png", "-thumb.webp", "-thumb.gif"} {
+		os.Remove(base + x)
+	}
 	// Empty folders go too (the film's, a season's, a series').
 	for p := filepath.Dir(file); p != dir && strings.HasPrefix(p, dir); p = filepath.Dir(p) {
 		entries, err := os.ReadDir(p)
@@ -636,6 +639,14 @@ func (s *Service) finishDownload(ctx context.Context, d store.Download, file str
 			Plot    string   `xml:"plot,omitempty"`
 		}
 		writeXML(strings.TrimSuffix(file, filepath.Ext(file))+".nfo", ep{Title: m.Title, Season: m.Season, Episode: m.Episode, Plot: m.Plot})
+		// The episode's picture, as Kodi and Jellyfin name it.
+		if img, err := s.EpisodeThumb(ctx, d.MediaID, s.signImage("episode:"+strconv.FormatInt(d.MediaID, 10))); err == nil && len(img.Data) > 0 {
+			ext := map[string]string{"image/png": ".png", "image/webp": ".webp", "image/gif": ".gif"}[img.ContentType]
+			if ext == "" {
+				ext = ".jpg"
+			}
+			os.WriteFile(strings.TrimSuffix(file, filepath.Ext(file))+"-thumb"+ext, img.Data, 0o644)
+		}
 		if _, err := os.Stat(filepath.Join(folder, "tvshow.nfo")); err != nil {
 			type show struct {
 				XMLName xml.Name `xml:"tvshow"`

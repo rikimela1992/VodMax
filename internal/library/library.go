@@ -217,6 +217,7 @@ func scanSeries(root string) (*Result, error) {
 		eps := make([]store.Episode, 0, len(files))
 		for _, f := range files {
 			ep := parseEpisode(f, name)
+			ep.Image = imageRef(root, firstExisting(root, artwork(f, false, "thumb"))) // Kodi and Jellyfin: "<file>-thumb.jpg"
 			if nfo := ReadNFO(filepath.Join(root, filepath.FromSlash(strings.TrimSuffix(f, path.Ext(f))+".nfo"))); nfo.Title != "" || nfo.Plot != "" {
 				ep.Title = first(nfo.Title, ep.Title)
 				ep.Plot = nfo.Plot

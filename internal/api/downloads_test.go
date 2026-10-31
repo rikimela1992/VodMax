@@ -115,6 +115,21 @@ func TestDownloads(t *testing.T) {
 	if len(eps) != 3 || !strings.Contains(strings.Join(eps, "|"), "TV Shows/Twin Peaks/Season 2/") {
 		t.Fatalf("episodes: %v", eps)
 	}
+	// The episode with a picture gets it next to the file.
+	var pilot string
+	for _, p := range eps {
+		if strings.Contains(p, "S01E01") {
+			pilot = filepath.Join(dir, filepath.FromSlash(strings.TrimSuffix(p, filepath.Ext(p))))
+		}
+	}
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(100 * time.Millisecond) {
+		if _, err := os.Stat(pilot + "-thumb.png"); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("no picture next to %s", pilot)
+		}
+	}
 
 	// Deleting removes the file and leaves the collection without it.
 	id := strconv.FormatInt(list[0].ID, 10)

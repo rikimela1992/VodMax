@@ -86,9 +86,21 @@ func TestSeriesEpisodesAndContinue(t *testing.T) {
 		Season int    `json:"season"`
 		Number int    `json:"number"`
 		Title  string `json:"title"`
+		Plot   string `json:"plot"`
+		Thumb  string `json:"thumb"`
 	}
 	if code != 200 || json.Unmarshal(body, &eps) != nil || len(eps) != 3 || eps[0].Title != "Pilot" || eps[2].Season != 2 {
 		t.Fatalf("episodes: %d %s", code, body)
+	}
+	// The picture of an episode, through the server; not the provider's URL.
+	if eps[0].Plot == "" || !strings.HasPrefix(eps[0].Thumb, "/img/episode/") || eps[1].Thumb != "" || strings.Contains(string(body), "/logo/") {
+		t.Fatalf("episode picture: %s", body)
+	}
+	if resp, err := http.Get(e.srv.URL + eps[0].Thumb); err != nil || resp.StatusCode != 200 || resp.Header.Get("Content-Type") != "image/png" {
+		t.Fatalf("thumb: %v %v", err, resp)
+	}
+	if resp, _ := http.Get(e.srv.URL + strings.Replace(eps[0].Thumb, "?s=", "?s=0", 1)); resp.StatusCode == 200 {
+		t.Fatal("thumb with a wrong signature served")
 	}
 	ep := strconv.FormatInt(eps[1].ID, 10)
 	e.do(t, "PUT", "/api/v1/progress/episode/"+ep, map[string]int{"position": 600, "duration": 2800}, true)

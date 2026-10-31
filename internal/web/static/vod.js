@@ -675,6 +675,7 @@
 
   async function showVariants(item) {
     const list = await api("GET", "/api/v1/items/" + item.id + "/variants");
+    $("episodes").className = "episodes";
     $("episodes").replaceChildren(...list.map((v) => {
       const b = el("button", { className: "focusable" }, el("span", { className: "n" }, { 4: "4K", 3: "FHD", 2: "HD", 1: "SD" }[v.quality] || ""),
         el("span", {}, v.title), el("span", {}));
@@ -689,15 +690,30 @@
     const next = eps.find((e) => e.progress && !e.progress.completed) || eps.find((e) => !e.progress) || eps[0];
     const showSeason = (season) => {
       for (const b of $("seasons").children) b.classList.toggle("active", Number(b.dataset.season) === season);
+      // One card per episode, side by side: picture, number and title,
+      // plot. Without a picture, the number on the card.
+      $("episodes").className = "episodes ep-row";
       $("episodes").replaceChildren(...eps.filter((e) => e.season === season).map((e) => {
         const pct = e.progress ? (e.progress.completed ? 100 : (e.progress.position / (e.progress.duration || 1)) * 100) : 0;
-        const b = el("button", { className: "focusable" }, el("span", { className: "n" }, e.number),
-          el("span", {}, e.title || t("Episodio {n}", { n: e.number }), e.duration ? el("span", { className: "empty" }, " · " + clock(e.duration)) : null),
-          el("span", { className: "bar" }, el("div", { style: "width:" + pct + "%" })));
+        const thumb = el("span", { className: "ep-thumb" }, el("span", { className: "ep-num" }, e.number));
+        if (e.thumb) {
+          const img = el("img", { src: e.thumb, alt: "", loading: "lazy" });
+          img.onerror = () => img.remove();
+          thumb.append(img);
+        }
+        if (e.duration) thumb.append(el("span", { className: "ep-dur" }, Math.round(e.duration / 60) + " min"));
+        if (pct) thumb.append(el("span", { className: "bar" }, el("div", { style: "width:" + pct + "%" })));
+        const b = el("button", { className: "focusable ep-card" + (e === next ? " next" : "") }, thumb,
+          el("span", { className: "ep-text" }, el("strong", {}, e.number + ". " + (e.title || t("Episodio {n}", { n: e.number }))),
+            e.plot ? el("span", { className: "ep-plot" }, e.plot) : null));
+        b.title = e.plot || "";
         b.onclick = () => play("episode", e.id, item.display_title + " · S" + e.season + "E" + e.number + " " + e.title,
           e.progress && !e.progress.completed ? e.progress.position : 0);
         return el("li", {}, b);
       }));
+      // The episode to watch in view.
+      const cur = $("episodes").querySelector(".ep-card.next");
+      if (cur) $("episodes").scrollLeft = Math.max(0, cur.parentElement.offsetLeft - 16);
     };
     $("seasons").replaceChildren(...seasons.map((s) => {
       const b = el("button", { className: "tab focusable" }, t("Stagione {n}", { n: s }));

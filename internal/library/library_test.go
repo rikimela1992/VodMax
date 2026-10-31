@@ -102,6 +102,7 @@ func TestScanSeries(t *testing.T) {
 	write(t, root, "Twin Peaks (1990)/poster.jpg", "x")
 	write(t, root, "Twin Peaks (1990)/Stagione 1/Twin.Peaks.S01E01.Pilot.1080p.mkv", "x")
 	write(t, root, "Twin Peaks (1990)/Stagione 1/Twin Peaks S01E02 - Traces to Nowhere.mkv", "x")
+	write(t, root, "Twin Peaks (1990)/Stagione 1/Twin Peaks S01E02 - Traces to Nowhere-thumb.jpg", "x")
 	write(t, root, "Twin Peaks (1990)/Stagione 1/Twin Peaks S01E02 - Traces to Nowhere.nfo",
 		`<episodedetails><title>Tracce verso il nulla</title><plot>Cooper…</plot><runtime>47</runtime></episodedetails>`)
 	write(t, root, "Twin Peaks (1990)/Stagione 2/2x01 Possano i giganti.mkv", "x")
@@ -132,6 +133,9 @@ func TestScanSeries(t *testing.T) {
 		if eps[i].Season != w.s || eps[i].Number != w.n || eps[i].Title != w.title {
 			t.Errorf("episodio %d: %+v, atteso %+v", i, eps[i], w)
 		}
+	}
+	if eps[1].Image != "local:Twin Peaks (1990)/Stagione 1/Twin Peaks S01E02 - Traces to Nowhere-thumb.jpg" || eps[0].Image != "" {
+		t.Errorf("miniature: %q %q", eps[0].Image, eps[1].Image)
 	}
 	if eps[1].Duration != 47*60 || eps[1].Plot == "" {
 		t.Errorf("episodio dal .nfo: %+v", eps[1])

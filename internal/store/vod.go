@@ -18,6 +18,8 @@ type Episode struct {
 	Extension    string    `json:"-"`
 	Duration     int       `json:"duration,omitempty"`
 	Plot         string    `json:"plot,omitempty"`
+	Image        string    `json:"-"`               // provider URL or local: file
+	Thumb        string    `json:"thumb,omitempty"` // signed local URL of Image
 	Progress     *Progress `json:"progress,omitempty"`
 }
 
@@ -42,11 +44,12 @@ func (s *Store) ReplaceEpisodes(ctx context.Context, seriesItemID int64, eps []E
 	keep := make([]any, 0, len(eps)+1)
 	keep = append(keep, seriesItemID)
 	for _, e := range eps {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO episode (series_item_id, source_id, season, number, title, extension, duration, plot)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		if _, err := tx.ExecContext(ctx, `INSERT INTO episode (series_item_id, source_id, season, number, title, extension, duration, plot, image)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT (series_item_id, source_id) DO UPDATE SET season = excluded.season, number = excluded.number,
-				title = excluded.title, extension = excluded.extension, duration = excluded.duration, plot = excluded.plot`,
-			seriesItemID, e.SourceID, e.Season, e.Number, e.Title, e.Extension, e.Duration, e.Plot); err != nil {
+				title = excluded.title, extension = excluded.extension, duration = excluded.duration, plot = excluded.plot,
+				image = excluded.image`,
+			seriesItemID, e.SourceID, e.Season, e.Number, e.Title, e.Extension, e.Duration, e.Plot, e.Image); err != nil {
 			return err
 		}
 		keep = append(keep, e.SourceID)
@@ -74,7 +77,7 @@ func repeat(s string, n int) string {
 // Episodes lists a series' episodes in order, with the profile's progress.
 func (s *Store) Episodes(ctx context.Context, profileID, seriesItemID int64) ([]Episode, error) {
 	rows, err := s.r.QueryContext(ctx, `SELECT e.id, e.series_item_id, e.source_id, e.season, e.number, e.title, e.extension,
-			e.duration, e.plot, p.position, p.duration, p.completed, p.updated_at
+			e.duration, e.plot, e.image, p.position, p.duration, p.completed, p.updated_at
 		FROM episode e LEFT JOIN progress p ON p.profile_id = ? AND p.media = 'episode' AND p.media_id = e.id
 		WHERE e.series_item_id = ? ORDER BY e.season, e.number, e.id`, profileID, seriesItemID)
 	if err != nil {
@@ -86,7 +89,7 @@ func (s *Store) Episodes(ctx context.Context, profileID, seriesItemID int64) ([]
 		var e Episode
 		var pos, dur, completed, updated sql.NullInt64
 		if err := rows.Scan(&e.ID, &e.SeriesItemID, &e.SourceID, &e.Season, &e.Number, &e.Title, &e.Extension,
-			&e.Duration, &e.Plot, &pos, &dur, &completed, &updated); err != nil {
+			&e.Duration, &e.Plot, &e.Image, &pos, &dur, &completed, &updated); err != nil {
 			return nil, err
 		}
 		if pos.Valid {
@@ -525,4 +528,16 @@ func (s *Store) SetSeriesMarkers(ctx context.Context, seriesItemID int64, m Seri
 		credits = CASE WHEN excluded.credits > 0 THEN excluded.credits ELSE credits END,
 		updated_at = excluded.updated_at`, key, m.IntroStart, m.IntroEnd, m.Credits, time.Now().Unix())
 	return err
+}
+
+// EpisodeImage is the picture of an episode and its subscription.
+func (s *Store) EpisodeImage(ctx context.Context, episodeID int64) (string, int64, error) {
+	var src string
+	var sub int64
+	err := s.r.QueryRowContext(ctx, `SELECT e.image, i.subscription_id FROM episode e JOIN item i ON i.id = e.series_item_id
+		WHERE e.id = ?`, episodeID).Scan(&src, &sub)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", 0, ErrNotFound
+	}
+	return src, sub, err
 }

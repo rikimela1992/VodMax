@@ -358,6 +358,9 @@ var migrations = []string{
 		credits     INTEGER NOT NULL DEFAULT 0,      -- length of the end credits, 0: not known
 		updated_at  INTEGER NOT NULL
 	)`,
+	// 17: a picture of each episode; the episodes are loaded again to get it.
+	`ALTER TABLE episode ADD COLUMN image TEXT NOT NULL DEFAULT '';
+	DELETE FROM series_fetch`,
 }
 
 // noForeignKeys lists migrations (1-based) that rebuild a parent table:

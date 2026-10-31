@@ -137,6 +137,7 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	mux.HandleFunc("POST /stream/timeshift/{session}/keepalive", a.timeshiftKeepAlive)
 	mux.HandleFunc("POST /stream/timeshift/{session}/stop", a.timeshiftStop)
 	mux.HandleFunc("GET /img/logo/{id}", a.logo)
+	mux.HandleFunc("GET /img/episode/{id}", a.episodeThumb)
 	mux.HandleFunc("GET /img/meta/{id}/{which}", a.metaImage)
 	mux.HandleFunc("GET /stream/vod/{session}", a.vodDirect)
 	mux.HandleFunc("GET /stream/vod/{session}/remux", a.vodRemux)
@@ -694,6 +695,16 @@ func (a *api) logo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	img, err := a.svc.Logo(r.Context(), id, r.URL.Query().Get("s"))
+	a.image(w, r, img, err)
+}
+
+func (a *api) episodeThumb(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	img, err := a.svc.EpisodeThumb(r.Context(), id, r.URL.Query().Get("s"))
 	a.image(w, r, img, err)
 }
 

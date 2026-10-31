@@ -53,12 +53,22 @@ func (s *Service) Episodes(ctx context.Context, seriesItemID int64) ([]store.Epi
 		if err := s.loadEpisodes(ctx, it); err != nil {
 			// Stale episodes are better than none.
 			if eps, serr := s.st.Episodes(ctx, profile, seriesItemID); serr == nil && len(eps) > 0 {
-				return eps, nil
+				return s.withThumbs(eps), nil
 			}
 			return nil, err
 		}
 	}
-	return s.st.Episodes(ctx, profile, seriesItemID)
+	eps, err := s.st.Episodes(ctx, profile, seriesItemID)
+	return s.withThumbs(eps), err
+}
+
+func (s *Service) withThumbs(eps []store.Episode) []store.Episode {
+	for i := range eps {
+		if eps[i].Image != "" {
+			eps[i].Thumb = s.EpisodeThumbURL(eps[i].ID)
+		}
+	}
+	return eps
 }
 
 func (s *Service) loadEpisodes(ctx context.Context, it store.PlaybackItem) error {
@@ -78,7 +88,7 @@ func (s *Service) loadEpisodes(ctx context.Context, it store.PlaybackItem) error
 		title := episodeTitle(e.Title.String())
 		eps = append(eps, store.Episode{SourceID: e.ID.String(), Season: int(e.Season.Int()), Number: int(e.EpisodeNum.Int()),
 			Title: title, Extension: e.ContainerExtension.String(), Duration: int(e.Info.DurationSecs.Int()),
-			Plot: strings.TrimSpace(e.Info.Plot.String())})
+			Plot: strings.TrimSpace(e.Info.Plot.String()), Image: strings.TrimSpace(e.Info.Image.String())})
 	}
 	return s.st.ReplaceEpisodes(ctx, it.ID, eps)
 }
