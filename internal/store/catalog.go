@@ -544,3 +544,40 @@ func (s *Store) InMyList(ctx context.Context, profileID, itemID int64) (bool, er
 		WHERE f.profile_id = ? AND i.id = ?`, profileID, itemID).Scan(&n)
 	return n > 0, err
 }
+
+// TitlesByTMDB finds the visible titles of a kind with these TMDB ids or
+// group keys: tmdb id → item, group key → item.
+func (s *Store) TitlesByTMDB(ctx context.Context, kind string, ids, keys []string, noAdult bool) (map[string]CatalogItem, map[string]CatalogItem, error) {
+	byID, byKey := map[string]CatalogItem{}, map[string]CatalogItem{}
+	if len(ids)+len(keys) == 0 {
+		return byID, byKey, nil
+	}
+	args := []any{kind, noAdult}
+	in := func(list []string) string {
+		if len(list) == 0 {
+			return "''"
+		}
+		for _, v := range list {
+			args = append(args, v)
+		}
+		return "?" + strings.Repeat(", ?", len(list)-1)
+	}
+	q := `SELECT ` + itemColumns + ` FROM item i WHERE i.kind = ? AND i.available = 1 AND i.visible = 1 AND i.primary_variant = 1
+		AND (? = 0 OR i.adult = 0) AND (i.tmdb_id IN (` + in(ids) + `) OR i.group_key IN (` + in(keys) + `))`
+	rows, err := s.r.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		it, err := scanItem(rows)
+		if err != nil {
+			return nil, nil, err
+		}
+		if it.TMDBID != "" {
+			byID[it.TMDBID] = it
+		}
+		byKey[it.GroupKey] = it
+	}
+	return byID, byKey, rows.Err()
+}

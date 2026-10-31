@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/silirim/vodmax/internal/catalog"
 	"github.com/silirim/vodmax/internal/library"
 	"github.com/silirim/vodmax/internal/playlist/xtream"
 	"github.com/silirim/vodmax/internal/store"
@@ -297,4 +298,79 @@ func (s *Service) MetaImage(ctx context.Context, itemID int64, which, sig string
 		return s.cachedImage(ctx, t.Backdrop, func(ctx context.Context) (store.CachedImage, error) { return s.fetchDirect(ctx, t.Backdrop) })
 	}
 	return store.CachedImage{}, ErrNoImage
+}
+
+// ---- Trending: TMDB's week, as far as the catalog has it ----
+
+const trendingFor = 6 * time.Hour
+
+type trendingCache struct {
+	mu   sync.Mutex
+	at   time.Time
+	list map[string][]tmdb.Trend // movie, tv
+}
+
+// Trending lists the titles of the catalog in TMDB's weekly ranking,
+// films and series alternating, at most 24. Without a TMDB key: none.
+func (s *Service) Trending(ctx context.Context) ([]store.CatalogItem, error) {
+	c := s.tmdbClient(ctx)
+	if c == nil {
+		return []store.CatalogItem{}, nil
+	}
+	s.trend.mu.Lock()
+	if time.Since(s.trend.at) > trendingFor || s.trend.list == nil {
+		list := map[string][]tmdb.Trend{}
+		var err error
+		for _, kind := range []string{"movie", "tv"} {
+			if list[kind], err = c.Trending(ctx, kind); err != nil && len(list[kind]) == 0 {
+				break
+			}
+		}
+		if err == nil || s.trend.list == nil {
+			s.trend.list, s.trend.at = list, time.Now()
+		}
+	}
+	ranking := s.trend.list
+	s.trend.mu.Unlock()
+
+	matched := map[string][]store.CatalogItem{}
+	for kind, catalogKind := range map[string]string{"movie": "movie", "tv": "series"} {
+		var ids, keys []string
+		for _, t := range ranking[kind] {
+			ids = append(ids, t.ID)
+			keys = append(keys, catalog.GroupKey(catalogKind, t.Title, t.Year), catalog.GroupKey(catalogKind, t.Title, 0))
+			if t.OriginalTitle != "" && t.OriginalTitle != t.Title {
+				keys = append(keys, catalog.GroupKey(catalogKind, t.OriginalTitle, t.Year), catalog.GroupKey(catalogKind, t.OriginalTitle, 0))
+			}
+		}
+		byID, byKey, err := s.st.TitlesByTMDB(ctx, catalogKind, ids, keys, viewerOf(ctx).Kids)
+		if err != nil {
+			return nil, err
+		}
+		seen := map[int64]bool{}
+		for _, t := range ranking[kind] {
+			it, ok := byID[t.ID]
+			for _, k := range []string{catalog.GroupKey(catalogKind, t.Title, t.Year), catalog.GroupKey(catalogKind, t.Title, 0),
+				catalog.GroupKey(catalogKind, t.OriginalTitle, t.Year), catalog.GroupKey(catalogKind, t.OriginalTitle, 0)} {
+				if !ok {
+					it, ok = byKey[k]
+				}
+			}
+			if ok && !seen[it.ID] {
+				seen[it.ID] = true
+				matched[kind] = append(matched[kind], it)
+			}
+		}
+	}
+	out := []store.CatalogItem{}
+	for i := 0; len(out) < 24 && (i < len(matched["movie"]) || i < len(matched["tv"])); i++ {
+		if i < len(matched["movie"]) {
+			out = append(out, matched["movie"][i])
+		}
+		if i < len(matched["tv"]) && len(out) < 24 {
+			out = append(out, matched["tv"][i])
+		}
+	}
+	s.catalogImages(ctx, out)
+	return out, nil
 }

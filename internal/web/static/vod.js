@@ -140,19 +140,22 @@
   async function renderHome(main) {
     main.replaceChildren(el("section", { className: "hero skeleton" }), el("h2", { className: "section" }, t("Continua a guardare")), skeletonRow(true),
       el("h2", { className: "section" }, t("Nuovi film")), skeletonRow(false));
-    const [cont, films, series, favorites, recordings, mine] = await Promise.all([
+    const [cont, films, series, favorites, recordings, mine, trending] = await Promise.all([
       api("GET", "/api/v1/continue"),
       api("GET", "/api/v1/catalog/movie?sort=recent&limit=24"),
       api("GET", "/api/v1/catalog/series?sort=recent&limit=24"),
       api("GET", "/api/v1/tv/channels?list=favorites").catch(() => []),
       api("GET", "/api/v1/recordings").catch(() => []),
       api("GET", "/api/v1/mylist").catch(() => []),
+      api("GET", "/api/v1/trending").catch(() => []),
     ]);
     const hero = el("section", { className: "hero" });
     const parts = [hero, el("h2", { className: "section" }, t("Continua a guardare"))];
     parts.push(cont.length ? el("div", { className: "row" }, ...cont.map(continueCard))
       : el("p", { className: "empty" }, t("Qui compaiono i film e gli episodi iniziati e la prossima puntata delle serie che stai seguendo.")));
     if (mine.length) parts.push(el("h2", { className: "section" }, t("La mia lista")), el("div", { className: "row" }, ...mine.slice(0, 24).map(itemCard)));
+    // TMDB's week, among the titles you have (with a TMDB key).
+    if (trending.length) parts.push(el("h2", { className: "section" }, t("Di tendenza questa settimana")), el("div", { className: "row" }, ...trending.map(itemCard)));
     if (favorites.length) parts.push(el("h2", { className: "section" }, t("In onda sui tuoi canali")), el("div", { className: "row" }, ...favorites.slice(0, 20).map(channelCard)));
     parts.push(el("h2", { className: "section" }, t("Nuovi film")), el("div", { className: "row" }, ...films.items.map(itemCard)));
     parts.push(el("h2", { className: "section" }, t("Nuove serie")), el("div", { className: "row" }, ...series.items.map(itemCard)));

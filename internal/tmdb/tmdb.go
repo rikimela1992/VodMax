@@ -187,3 +187,39 @@ func (c *Client) get(ctx context.Context, path string, q url.Values, out any) er
 	}
 	return json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(out)
 }
+
+// Trend is a title of the week's ranking.
+type Trend struct {
+	ID            string
+	Title         string
+	OriginalTitle string
+	Year          int
+}
+
+// Trending is the week's ranking of films ("movie") or series ("tv"),
+// two pages (40 titles), most popular first.
+func (c *Client) Trending(ctx context.Context, kind string) ([]Trend, error) {
+	var out []Trend
+	for page := 1; page <= 2; page++ {
+		var res struct {
+			Results []struct {
+				ID            int    `json:"id"`
+				Title         string `json:"title"`
+				Name          string `json:"name"`
+				OriginalTitle string `json:"original_title"`
+				OriginalName  string `json:"original_name"`
+				ReleaseDate   string `json:"release_date"`
+				FirstAirDate  string `json:"first_air_date"`
+			} `json:"results"`
+		}
+		q := url.Values{"language": {"it-IT"}, "page": {strconv.Itoa(page)}}
+		if err := c.get(ctx, "/trending/"+kind+"/week", q, &res); err != nil {
+			return out, err
+		}
+		for _, r := range res.Results {
+			year, _ := strconv.Atoi(first(r.ReleaseDate, r.FirstAirDate, "0000")[:4])
+			out = append(out, Trend{ID: strconv.Itoa(r.ID), Title: first(r.Title, r.Name), OriginalTitle: first(r.OriginalTitle, r.OriginalName), Year: year})
+		}
+	}
+	return out, nil
+}

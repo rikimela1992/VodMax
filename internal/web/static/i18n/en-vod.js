@@ -75,6 +75,7 @@ VodMaxI18n.add("en", {
   "regola": "rule",
   "Salta intro": "Skip intro",
   "Nella mia lista": "In my list",
+  "Di tendenza questa settimana": "Trending this week",
   "Aggiunto alla tua lista": "Added to your list",
   "Tolto dalla tua lista": "Removed from your list",
   "La lista è vuota. Nella scheda di un film o di una serie premi “La mia lista” per ritrovarlo qui.": "Your list is empty. On a film or series page press “My list” to find it here.",

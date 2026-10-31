@@ -113,6 +113,7 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	route("GET /api/v1/settings/output", levelAdmin, a.getOutput)
 	route("PUT /api/v1/settings/output", levelAdmin, a.putOutput)
 	route("GET /api/v1/mylist", levelViewer, a.myList)
+	route("GET /api/v1/trending", levelViewer, a.trending)
 	route("GET /api/v1/mylist/{id}", levelViewer, a.inMyList)
 	route("PUT /api/v1/mylist/{id}", levelViewer, a.setMyList)
 	route("PUT /api/v1/progress/{media}/{id}", levelViewer, a.putProgress)
@@ -873,6 +874,15 @@ func (a *api) outChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	relay(w, stream, http.StatusOK)
+}
+
+func (a *api) trending(w http.ResponseWriter, r *http.Request) {
+	list, err := a.svc.Trending(r.Context())
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
 }
 
 func (a *api) myList(w http.ResponseWriter, r *http.Request) {

@@ -54,6 +54,7 @@ type Service struct {
 	maint  maintenanceState
 	auth   authState
 	meta   metaState
+	trend  trendingCache
 	ts     timeshiftState
 	cu     catchupState
 	upd    updateState

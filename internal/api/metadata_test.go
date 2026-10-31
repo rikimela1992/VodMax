@@ -29,6 +29,19 @@ func fakeTMDB(t *testing.T) (*httptest.Server, *atomic.Int32) {
 		case "/movie/539":
 			w.Write([]byte(`{"title":"Psyco","original_title":"Psycho","overview":"Marion Crane fugge...","poster_path":"/psycho.jpg",
 				"backdrop_path":"/psycho-b.jpg","release_date":"1960-06-16","runtime":109,"vote_average":8.4,"genres":[{"name":"Horror"}]}`))
+		case "/trending/movie/week":
+			if r.URL.Query().Get("page") == "1" {
+				w.Write([]byte(`{"results":[{"id":539,"title":"Psyco","original_title":"Psycho","release_date":"1960-06-16"},
+					{"id":777,"title":"Non nel catalogo","release_date":"2026-01-01"}]}`))
+			} else {
+				w.Write([]byte(`{"results":[]}`))
+			}
+		case "/trending/tv/week":
+			if r.URL.Query().Get("page") == "1" {
+				w.Write([]byte(`{"results":[{"id":1920,"name":"I segreti di Twin Peaks","original_name":"Twin Peaks","first_air_date":"1990-04-08"}]}`))
+			} else {
+				w.Write([]byte(`{"results":[]}`))
+			}
 		case "/movie/3021":
 			w.Write([]byte(`{"title":"1408","overview":"Trama TMDB","poster_path":"/1408.jpg"}`))
 		default:
@@ -126,6 +139,16 @@ func TestDetailsAndTMDBFallback(t *testing.T) {
 	// The provider's plot wins (it is the one in Italian for this panel).
 	if d := readDetails(t, e, film); d.Plot != "Uno scrittore scettico..." || len(d.Sources) != 2 {
 		t.Fatalf("merged details: %+v", d)
+	}
+	// Trending: the week's titles the catalog has, films and series
+	// alternating (by TMDB id, or by the original title).
+	_, body = e.do(t, "GET", "/api/v1/trending", nil, true)
+	var trend []struct {
+		Title string `json:"display_title"`
+		Kind  string
+	}
+	if json.Unmarshal(body, &trend) != nil || len(trend) != 2 || trend[0].Title != "Psycho" || trend[1].Title != "Twin Peaks" {
+		t.Fatalf("trending: %s", body)
 	}
 	// Cached: no new TMDB calls.
 	before := calls.Load()
