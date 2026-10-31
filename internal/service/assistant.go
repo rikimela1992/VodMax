@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -425,30 +427,57 @@ Answer in %s with only a JSON object: {"intro": "one short sentence", "picks": [
 
 // titlesPrompt turns a request ("a Brad Pitt film from 2004") into titles
 // to look for in the catalog: the catalog knows titles and years, the
-// model knows who played in what.
-const titlesPrompt = `You help find films and series in a home catalog. List up to 8 titles that match the request below: films or series you know, and any title the request names. Give the original title and, when different, the Italian title as another entry; add the year when you are sure. Answer with only a JSON object: {"titles": [{"title": "Troy", "year": 2004}]}. If the request is only a mood or a genre, answer {"titles": []}.`
+// model knows who played in what (not always right: requestFor checks).
+const titlesPrompt = `You help find films and series in a home catalog. Read the request below, correcting misspelled names (for example "catrin z jones" is Catherine Zeta-Jones), and answer with only a JSON object: {"about": "person", "person": "Catherine Zeta-Jones", "titles": [{"title": "Chicago", "year": 2002}]}.
+- about: "person" if it asks for an actor or a director, "title" if it names films, series or a saga, "mood" if it is only a mood, a genre or a topic.
+- person: that actor or director, with the name spelled correctly; "" otherwise.
+- titles: as many as you can, up to 10 films or series that match, only ones you are sure about (for a person: what they really acted in or directed); the original title, and the Italian title as another entry when different; the year when you are sure. For a mood, [].`
 
-// requestedTitles looks in the catalog for the titles the model names for
-// the person's request; only titles the person really has come back.
-func (s *Service) requestedTitles(ctx context.Context, a AssistantSettings, wish string) []candidate {
+// request is what a precise request asks for, and the titles of the
+// catalog that answer it; a mood is not precise.
+type request struct {
+	precise bool
+	person  string
+	titles  []string // as the model named them, folded
+	found   []candidate
+}
+
+// requestFor asks the model what the request is about and looks for the
+// titles it names in the catalog. When the request names a person or a
+// year, each title found is checked on its detail page (cast, director,
+// release): the model can be wrong about who played in what, the page
+// cannot. Titles that cannot be checked are left out.
+func (s *Service) requestFor(ctx context.Context, a AssistantSettings, wish string) request {
+	var req request
 	answer, err := s.chat(ctx, a, []chatMessage{{Role: "system", Content: titlesPrompt}, {Role: "user", Content: wish}}, true)
 	if err != nil {
-		return nil
+		return req
 	}
 	var raw struct {
+		About  string `json:"about"`
+		Person string `json:"person"`
 		Titles []struct {
 			Title string `json:"title"`
 			Year  int    `json:"year"`
 		} `json:"titles"`
 	}
 	if jsonObject(answer, &raw) != nil {
-		return nil
+		return req
 	}
-	var out []candidate
+	req.person = truncate(strings.TrimSpace(raw.Person), 80)
+	req.precise = raw.About == "person" || raw.About == "title" || req.person != ""
+	year := 0
+	if m := yearRE.FindString(wish); m != "" {
+		year, _ = strconv.Atoi(m)
+		req.precise = true
+	}
 	seen := map[int64]bool{}
 	for i, t := range raw.Titles {
-		if i >= 10 || len(out) >= 10 {
+		if i >= 12 || len(req.found) >= 10 {
 			break
+		}
+		if f := fold(t.Title); f != "" {
+			req.titles = append(req.titles, f)
 		}
 		for _, kind := range []string{"movie", "series"} {
 			page, err := s.Catalog(ctx, store.Query{Kind: kind, Text: truncate(t.Title, 80), Limit: 5})
@@ -456,7 +485,8 @@ func (s *Service) requestedTitles(ctx context.Context, a AssistantSettings, wish
 				continue
 			}
 			for _, it := range page.Items {
-				if seen[it.ID] || (t.Year > 0 && it.Year != nil && (*it.Year < t.Year-1 || *it.Year > t.Year+1)) {
+				want := cmp.Or(year, t.Year)
+				if seen[it.ID] || (want > 0 && it.Year != nil && (*it.Year < want-1 || *it.Year > want+1)) {
 					continue
 				}
 				seen[it.ID] = true
@@ -464,12 +494,100 @@ func (s *Service) requestedTitles(ctx context.Context, a AssistantSettings, wish
 				if it.Year != nil {
 					extra += fmt.Sprintf(" (%d)", *it.Year)
 				}
-				out = append(out, candidate{Pick: Pick{Kind: it.Kind, Title: it.DisplayTitle, ItemID: it.ID, Image: it.Logo}, extra: extra + " (matches the request)"})
+				req.found = append(req.found, candidate{Pick: Pick{Kind: it.Kind, Title: it.DisplayTitle, ItemID: it.ID, Image: it.Logo},
+					extra: extra + " (matches the request)", year: it.Year})
 				break // the best match of each title is enough
 			}
 		}
 	}
-	return out
+	if req.person == "" && year == 0 || len(req.found) == 0 {
+		return req
+	}
+	keep := make([]bool, len(req.found))
+	vctx, cancel := context.WithTimeout(ctx, 25*time.Second)
+	defer cancel()
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 4)
+	for i, c := range req.found {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			d, err := s.Details(vctx, c.ItemID)
+			if err != nil {
+				return
+			}
+			ok := true
+			if req.person != "" {
+				ok = hasPerson(d.Cast+" "+d.Director, req.person)
+			}
+			if year > 0 && ok {
+				released := 0
+				if c.year != nil {
+					released = *c.year
+				} else if m := yearRE.FindString(d.Released); m != "" {
+					released, _ = strconv.Atoi(m)
+				}
+				ok = released >= year-1 && released <= year+1
+			}
+			keep[i] = ok
+		}()
+	}
+	wg.Wait()
+	checked := req.found[:0]
+	for i, c := range req.found {
+		if keep[i] {
+			if req.person != "" {
+				c.extra += " (with " + req.person + ")"
+			}
+			checked = append(checked, c)
+		}
+	}
+	req.found = checked
+	return req
+}
+
+// hasPerson: the surname of person (every word after the first) is among
+// the words of people, a cast or a director as the detail page writes it.
+func hasPerson(people, person string) bool {
+	have := map[string]bool{}
+	for _, w := range strings.Fields(fold(people)) {
+		have[w] = true
+	}
+	words := strings.Fields(fold(person))
+	if len(words) == 0 || len(have) == 0 {
+		return false
+	}
+	if len(words) > 1 {
+		words = words[1:]
+	}
+	for _, w := range words {
+		if !have[w] {
+			return false
+		}
+	}
+	return true
+}
+
+// answers says whether a pick answers a precise request: a title found
+// and checked, or a programme whose title is one the model named.
+func (r request) answers(p Pick) bool {
+	for _, c := range r.found {
+		if p.ItemID != 0 && c.ItemID == p.ItemID {
+			return true
+		}
+	}
+	if p.Kind != "tv" {
+		return false
+	}
+	t := fold(p.Title)
+	for _, named := range r.titles {
+		if len(named) >= 3 && (strings.Contains(t, named) || len(t) >= 3 && strings.Contains(named, t)) {
+			return true
+		}
+	}
+	return false
 }
 
 // AssistantTonight asks the model for tonight's picks among the viewer's
@@ -499,9 +617,11 @@ func (s *Service) AssistantTonight(ctx context.Context, wish string) (Tonight, e
 	}
 	lib := s.tonightLibrary(ctx)
 	matching := ""
+	var req request
 	if wish != "" {
 		// What they asked for comes first, without repeating a title.
-		asked := s.requestedTitles(ctx, a, wish)
+		req = s.requestFor(ctx, a, wish)
+		asked := slices.Clone(req.found)
 		have := map[int64]bool{}
 		for _, c := range asked {
 			have[c.ItemID] = true
@@ -559,6 +679,7 @@ func (s *Service) AssistantTonight(ctx context.Context, wish string) (Tonight, e
 	}
 	out.Intro = truncate(strings.TrimSpace(raw.Intro), 200)
 	seen := map[string]bool{} // codes and titles: the same film twice is one pick
+	dropped := 0
 	for _, r := range raw.Picks {
 		code := strings.ToUpper(strings.TrimSpace(r.Code))
 		if seen[code] || len(code) < 2 || len(out.Picks) == 5 {
@@ -580,6 +701,10 @@ func (s *Service) AssistantTonight(ctx context.Context, wish string) (Tonight, e
 		if seen["title:"+fold(p.Title)] {
 			continue
 		}
+		if req.precise && !req.answers(p) {
+			dropped++ // "an alternative": not what they asked for
+			continue
+		}
 		seen[code], seen["title:"+fold(p.Title)] = true, true
 		p.Why = truncate(strings.TrimSpace(r.Why), 200)
 		out.Picks = append(out.Picks, p)
@@ -587,7 +712,7 @@ func (s *Service) AssistantTonight(ctx context.Context, wish string) (Tonight, e
 	if len(out.Picks) == 0 {
 		// Nothing fits: the model says so, it is not a failure.
 		out.Picks = []Pick{}
-		if out.Intro == "" {
+		if out.Intro == "" || dropped > 0 {
 			out.Intro = T(ctx, "Niente di adatto tra i programmi di stasera e i tuoi titoli: prova con altre parole.")
 		}
 		return out, nil
@@ -604,6 +729,7 @@ func (s *Service) AssistantTonight(ctx context.Context, wish string) (Tonight, e
 type candidate struct {
 	Pick
 	extra string // what the model reads besides the title
+	year  *int   // of a library title, when the catalog knows it
 }
 
 // tonightWindow is "tonight" asked at now: before 18:00 the evening ahead

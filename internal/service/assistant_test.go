@@ -21,3 +21,21 @@ func TestTonightWindow(t *testing.T) {
 		}
 	}
 }
+
+func TestHasPerson(t *testing.T) {
+	for _, c := range []struct {
+		people, person string
+		want           bool
+	}{
+		{"Catherine Zeta-Jones, Michael Douglas", "Catherine Zeta-Jones", true},
+		{"Catherine Zeta Jones", "Catherine Zeta-Jones", true},
+		{"Brad Pitt, Eric Bana, Orlando Bloom Wolfgang Petersen", "Catherine Zeta-Jones", false},
+		{"Leonardo DiCaprio Christopher Nolan", "Nolan", true},
+		{"Kate Winslet", "Katherine Winslet", true}, // the given name may differ
+		{"", "Brad Pitt", false},
+	} {
+		if got := hasPerson(c.people, c.person); got != c.want {
+			t.Errorf("hasPerson(%q, %q) = %v", c.people, c.person, got)
+		}
+	}
+}

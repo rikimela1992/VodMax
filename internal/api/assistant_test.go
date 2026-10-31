@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -202,6 +203,48 @@ func TestAssistant(t *testing.T) {
 	if code != 200 || json.Unmarshal(body, &tn) != nil || len(tn.Picks) != 1 || tn.Picks[0].Title != asked.DisplayTitle {
 		t.Fatalf("asked for a title: %d %s", code, body)
 	}
+	// A person, misspelled: the model names titles (one wrong), VodMax
+	// keeps only those whose detail page has that person, and drops the
+	// "alternatives" the model adds anyway.
+	m.answer = func(system, user string) string {
+		if strings.Contains(system, "home catalog") {
+			return `{"about":"person","person":"John Cusack","titles":[{"title":"1408","year":2007},{"title":"Psycho"}]}`
+		}
+		var picks []string
+		for _, line := range strings.Split(user, "\n") {
+			if c := strings.TrimSpace(strings.SplitN(line, "|", 2)[0]); regexp.MustCompile(`^[LT][0-9]+$`).MatchString(c) {
+				picks = append(picks, `{"code":"`+c+`","why":"C'è lui."}`)
+			}
+		}
+		return `{"intro":"Ecco.","picks":[` + strings.Join(picks, ",") + `]}`
+	}
+	code, body = e.do(t, "POST", "/api/v1/assistant/tonight", map[string]string{"wish": "un film con jon cusak"}, true)
+	tn.Picks = nil
+	if code != 200 || json.Unmarshal(body, &tn) != nil || len(tn.Picks) != 1 || tn.Picks[0].Title != "1408" {
+		t.Fatalf("a person: %d %s", code, body)
+	}
+	if last := m.requests[len(m.requests)-1]; !strings.Contains(fmt.Sprint(last["messages"]), "(with John Cusack)") {
+		t.Fatalf("checked title not marked: %v", last["messages"])
+	}
+	// Psycho has no cast on its page: it cannot be checked, so it is not
+	// offered as a film with that actor.
+	m.answer = func(system, user string) string {
+		if strings.Contains(system, "home catalog") {
+			return `{"about":"person","person":"Anthony Perkins","titles":[{"title":"Psycho","year":1960}]}`
+		}
+		for _, line := range strings.Split(user, "\n") {
+			if strings.Contains(line, "Psycho") {
+				return `{"intro":"Psycho!","picks":[{"code":"` + strings.TrimSpace(strings.SplitN(line, "|", 2)[0]) + `","why":"C'è lui."}]}`
+			}
+		}
+		return `{"intro":"Niente.","picks":[]}`
+	}
+	code, body = e.do(t, "POST", "/api/v1/assistant/tonight", map[string]string{"wish": "un film con anthony perkins"}, true)
+	tn.Picks, tn.Intro = nil, ""
+	if code != 200 || json.Unmarshal(body, &tn) != nil || len(tn.Picks) != 0 || tn.Intro == "Psycho!" {
+		t.Fatalf("unchecked title: %d %s", code, body)
+	}
+
 	// Nothing fits: a sentence, not an error.
 	m.answer = func(system, user string) string {
 		if strings.Contains(system, "home catalog") {
