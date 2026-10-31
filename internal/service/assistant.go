@@ -291,7 +291,14 @@ func (s *Service) AssistantRule(ctx context.Context, text string) (RuleProposal,
 	if err := jsonObject(answer, &out); err != nil {
 		return p, err
 	}
-	p.Rule = RuleInput{Name: truncate(out.Name, 60), All: out.All, Any: out.Any, None: out.None, LiveOnly: out.LiveOnly, Keep: out.Keep}
+	name := strings.TrimSpace(out.Name)
+	if name == "" { // small models sometimes leave it out: the words name the rule
+		name = strings.Join(out.All, " ")
+	}
+	if name == "" {
+		name = text
+	}
+	p.Rule = RuleInput{Name: truncate(name, 60), All: out.All, Any: out.Any, None: out.None, LiveOnly: out.LiveOnly, Keep: out.Keep}
 	if out.Section == "sport" || out.Section == "tv" {
 		p.Rule.Section = out.Section
 	}
