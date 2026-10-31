@@ -37,7 +37,8 @@ sudo systemctl enable --now vodmax
 vodmax-server -version
 ```
 
-- **ffmpeg**: install it from your distribution (`sudo apt install ffmpeg`).
+- **ffmpeg**: install it from your distribution (`sudo apt install ffmpeg`;
+  it also brings `libgomp1`, needed by the built-in assistant).
   Without it VodMax works, but there is no pause of live TV, no recordings
   and MKV/AVI files do not play in the browser (the Android app plays them
   anyway).

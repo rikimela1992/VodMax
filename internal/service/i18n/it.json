@@ -31,6 +31,8 @@
   "VPN “%s” non funziona (%s): gli abbonamenti che la usano non sono raggiungibili": "VPN “%s” non funziona (%s): gli abbonamenti che la usano non sono raggiungibili",
   "accelerazione sconosciuta: vaapi, qsv o nvenc": "accelerazione sconosciuta: vaapi, qsv o nvenc",
   "accesso non riuscito: riprova dall'inizio": "accesso non riuscito: riprova dall'inizio",
+  "al motore manca la libreria di sistema %s: installala (Debian: apt install %s)": "al motore manca la libreria di sistema %s: installala (Debian: apt install %s)",
+  "al motore mancano librerie di sistema: installale con  apt install %s  e ricarica la pagina": "al motore mancano librerie di sistema: installale con  apt install %s  e ricarica la pagina",
   "annullata a mano": "annullata a mano",
   "assistente non raggiungibile: %w": "assistente non raggiungibile: %w",
   "avatar non disponibile": "avatar non disponibile",

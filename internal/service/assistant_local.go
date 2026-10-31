@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bufio"
 	"bytes"
+	"cmp"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
@@ -19,6 +20,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -96,6 +99,7 @@ type localState struct {
 	last    time.Time
 	busy    int
 	exited  chan struct{}
+	died    string // why the last engine stopped by itself
 }
 
 // LocalJob is an installation in progress (or just failed).
@@ -121,13 +125,14 @@ func (s *Service) SetAssistantDir(dir, ollama string, log *slog.Logger) {
 
 // LocalHardware is what the server has, to offer the models that fit.
 type LocalHardware struct {
-	RAM      int64  `json:"ram"`
-	RAMFree  int64  `json:"ram_free"`
-	Disk     int64  `json:"disk_free"`
-	GPU      string `json:"gpu,omitempty"`
-	GPUNote  string `json:"gpu_note,omitempty"`
-	Backend  string `json:"backend"` // llama.cpp, ollama
-	NoReason string `json:"unavailable,omitempty"`
+	RAM      int64    `json:"ram"`
+	RAMFree  int64    `json:"ram_free"`
+	Disk     int64    `json:"disk_free"`
+	GPU      string   `json:"gpu,omitempty"`
+	GPUNote  string   `json:"gpu_note,omitempty"`
+	Backend  string   `json:"backend"` // llama.cpp, ollama
+	NoReason string   `json:"unavailable,omitempty"`
+	missing  []string // Debian packages of system libraries the engine needs
 }
 
 // LocalView is the state of the built-in assistant for the settings page.
@@ -158,6 +163,9 @@ func (s *Service) LocalAssistant(ctx context.Context) LocalView {
 	l.mu.Unlock()
 	hw := localHardware(dir, ollama)
 	hw.NoReason, hw.GPU, hw.GPUNote = T(ctx, hw.NoReason), T(ctx, hw.GPU), T(ctx, hw.GPUNote)
+	if hw.NoReason == "" && len(hw.missing) > 0 {
+		hw.NoReason = T(ctx, "al motore mancano librerie di sistema: installale con  apt install %s  e ricarica la pagina", strings.Join(hw.missing, " "))
+	}
 	v := LocalView{Hardware: hw, Job: job, Running: running}
 	installed := map[string]bool{}
 	if ollama != "" {
@@ -205,6 +213,8 @@ func localHardware(dir, ollama string) LocalHardware {
 		hw.NoReason = "l'assistente integrato funziona su Linux (x86-64 o ARM64): qui usa un servizio online o un tuo server"
 	} else if muslLibc() {
 		hw.NoReason = "questo sistema usa musl (Alpine): avvia il servizio \"assistant\" del docker-compose, oppure usa un servizio online"
+	} else {
+		hw.missing = missingLibraries()
 	}
 	if ollama == "" { // Ollama runs elsewhere, with its own memory
 		hw.RAM, hw.RAMFree = memInfo()
@@ -264,6 +274,39 @@ func memInfo() (total, free int64) {
 		}
 	}
 	return total, free
+}
+
+// engineLibraries: what the official builds need from the system, with
+// the Debian package that has it (libgomp1 usually comes with ffmpeg).
+var engineLibraries = map[string]string{"libgomp.so.1": "libgomp1", "libstdc++.so.6": "libstdc++6", "libssl.so.3": "libssl3", "libcrypto.so.3": "libssl3"}
+
+// missingLibraries asks the dynamic linker's cache which of them are not
+// installed; nothing when it cannot tell.
+func missingLibraries() []string {
+	var out []byte
+	for _, ldconfig := range []string{"/sbin/ldconfig", "/usr/sbin/ldconfig", "ldconfig"} {
+		var err error
+		if out, err = exec.Command(ldconfig, "-p").Output(); err == nil {
+			break
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	have := map[string]bool{}
+	for _, line := range strings.Split(string(out), "\n") {
+		if f := strings.Fields(line); len(f) > 1 && strings.Contains(line, "=>") {
+			have[f[0]] = true
+		}
+	}
+	var pkgs []string
+	for lib, pkg := range engineLibraries {
+		if !have[lib] && !slices.Contains(pkgs, pkg) {
+			pkgs = append(pkgs, pkg)
+		}
+	}
+	sort.Strings(pkgs)
+	return pkgs
 }
 
 func muslLibc() bool {
@@ -598,7 +641,7 @@ func (s *Service) localEndpoint(ctx context.Context, id string) (base, model str
 		l.mu.Unlock()
 	}
 	base = fmt.Sprintf("http://127.0.0.1:%d", port)
-	if err := waitHealthy(ctx, base, exited); err != nil {
+	if err := s.waitHealthy(ctx, base, exited); err != nil {
 		release()
 		return "", "", nil, err
 	}
@@ -632,15 +675,16 @@ func (s *Service) startLocal(m LocalModel) error {
 	l.log.Info("assistente integrato avviato", "modello", m.ID)
 	go func() {
 		err := cmd.Wait()
-		close(exited)
 		l.mu.Lock()
 		if l.cmd == cmd {
 			l.cmd, l.running = nil, ""
 			if err != nil {
-				l.log.Warn("assistente integrato fermato", "errore", err, "ultime righe", stderr.String())
+				l.died = stderr.String()
+				l.log.Warn("assistente integrato fermato", "errore", err, "ultime righe", l.died)
 			}
 		}
 		l.mu.Unlock()
+		close(exited)
 	}()
 	go s.idleStop(cmd, exited)
 	return nil
@@ -689,7 +733,7 @@ func (s *Service) stopLocal() {
 // StopAssistant stops the built-in engine (VodMax shutting down).
 func (s *Service) StopAssistant() { s.stopLocal() }
 
-func waitHealthy(ctx context.Context, base string, exited chan struct{}) error {
+func (s *Service) waitHealthy(ctx context.Context, base string, exited chan struct{}) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
 	client := &http.Client{Timeout: 5 * time.Second}
@@ -703,6 +747,14 @@ func waitHealthy(ctx context.Context, base string, exited chan struct{}) error {
 		}
 		select {
 		case <-exited:
+			s.asst.local.mu.Lock()
+			died := s.asst.local.died
+			s.asst.local.mu.Unlock()
+			// "error while loading shared libraries: libgomp.so.1: cannot open..."
+			if _, after, ok := strings.Cut(died, "error while loading shared libraries: "); ok {
+				lib, _, _ := strings.Cut(after, ":")
+				return fmt.Errorf("al motore manca la libreria di sistema %s: installala (Debian: apt install %s)", lib, cmp.Or(engineLibraries[lib], lib))
+			}
 			return errors.New("l'assistente integrato non è partito: controlla RAM e registro del server")
 		case <-ctx.Done():
 			return errors.New("l'assistente integrato non è pronto: il modello si sta ancora caricando, riprova tra poco")

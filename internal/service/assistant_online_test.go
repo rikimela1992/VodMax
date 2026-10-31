@@ -71,3 +71,22 @@ func TestClaudeOnline(t *testing.T) {
 		t.Fatalf("models %v, %v", ids, err)
 	}
 }
+
+// Settings saved by 0.6.0-beta.2 have no mode: they are the admin's server.
+func TestAssistantSettingsFromBeta2(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"choices":[{"message":{"role":"assistant","content":"Ollama in casa."}}]}`)
+	}))
+	defer srv.Close()
+	s, _ := localTestService(t)
+	ctx := context.Background()
+	if err := s.st.SetSetting(ctx, assistantKey, map[string]any{"enabled": true, "url": srv.URL + "/v1", "model": "qwen2.5:14b"}); err != nil {
+		t.Fatal(err)
+	}
+	if !s.AssistantOn(ctx) {
+		t.Fatal("off after the update")
+	}
+	if answer, _, err := s.TestAssistant(ctx); err != nil || answer != "Ollama in casa." {
+		t.Fatalf("answer %q, %v", answer, err)
+	}
+}

@@ -143,8 +143,9 @@ func TestInstallAndRunLocalAssistant(t *testing.T) {
 		w.Write(model)
 	}))
 	defer srv.Close()
-	oldEngines, oldModels := localEngines, localModels
-	t.Cleanup(func() { localEngines, localModels = oldEngines, oldModels })
+	oldEngines, oldModels, oldLibs := localEngines, localModels, engineLibraries
+	t.Cleanup(func() { localEngines, localModels, engineLibraries = oldEngines, oldModels, oldLibs })
+	engineLibraries = map[string]string{}
 	localEngines = map[string]struct{ URL, SHA256 string }{runtime.GOARCH: {srv.URL + "/engine.tar.gz", digest(engine)}}
 	localModels = []LocalModel{{ID: "balanced", Name: "Bilanciato", Size: int64(len(model)), url: srv.URL + "/m.gguf", sha256: digest(model)}}
 
@@ -226,5 +227,31 @@ func TestOllamaNextToVodMax(t *testing.T) {
 	}
 	if answer, _, err := s.TestAssistant(ctx); err != nil || answer != "Ollama." {
 		t.Fatalf("answer %q, %v", answer, err)
+	}
+}
+
+func TestLocalEngineMissingLibrary(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("shell script engine")
+	}
+	s, dir := localTestService(t)
+	ctx := context.Background()
+	engDir := filepath.Join(dir, "engine-"+localEngine)
+	os.MkdirAll(engDir, 0o755)
+	os.MkdirAll(filepath.Join(dir, "models"), 0o755)
+	os.WriteFile(filepath.Join(engDir, "llama-server"), []byte("#!/bin/sh\n"+
+		"echo \"$0: error while loading shared libraries: libgomp.so.1: cannot open shared object file: No such file or directory\" >&2\nexit 127\n"), 0o755)
+	os.WriteFile(filepath.Join(dir, "models", "balanced.gguf"), []byte("GGUF"), 0o644)
+	_, _, _, err := s.localEndpoint(ctx, "balanced")
+	if err == nil || !strings.Contains(err.Error(), "apt install libgomp1") {
+		t.Fatalf("error %v, want the package to install", err)
+	}
+	old := engineLibraries
+	t.Cleanup(func() { engineLibraries = old })
+	engineLibraries = map[string]string{"libvodmax-missing.so.9": "libvodmax9"}
+	if missing := missingLibraries(); len(missing) > 0 {
+		if err := s.InstallLocalAssistant(ctx, "balanced"); err == nil || !strings.Contains(err.Error(), "apt install libvodmax9") {
+			t.Fatalf("install with a missing library: %v", err)
+		}
 	}
 }
