@@ -23,6 +23,25 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
   }
   const button = (label, onclick, cls = "") => el("button", { className: "small focusable " + cls, type: "button", onclick }, label);
   const field = (label, input) => [el("label", {}, label), input];
+  // Copies text: the clipboard API exists only over HTTPS, and VodMax at
+  // home is usually plain HTTP, so the old way (a selected text area) too.
+  function copyText(text) {
+    const legacy = () => {
+      const area = el("textarea", { value: text, readOnly: true });
+      area.style.position = "fixed";
+      area.style.opacity = "0";
+      document.body.append(area);
+      area.select();
+      let ok = false;
+      try { ok = document.execCommand("copy"); } catch { /* not allowed */ }
+      area.remove();
+      flash(ok ? t("Copiato") : t("Copia non riuscita: seleziona il testo e copialo a mano"));
+    };
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(() => flash(t("Copiato")), legacy);
+    else legacy();
+  }
+  // An address or a command, wrapped on narrow screens, with its Copy button.
+  const cmd = (text) => el("div", { className: "cmd-row" }, el("pre", { className: "cmd" }, text), button(t("Copia"), () => copyText(text)));
   const input = (props) => el("input", { className: "focusable", ...props });
   const when = (ts) => {
     if (!ts) return t("mai");
@@ -615,7 +634,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       if (u.notes) box.append(el("pre", { className: "notes" }, u.notes));
       // A beta is installed by name: plain vodmax-update keeps to stable versions.
       box.append(el("p", { className: "note" }, t("Per aggiornare il server, sulla macchina dove gira:")),
-        el("pre", { className: "cmd" }, u.prerelease ? "sudo vodmax-update " + u.latest : "sudo vodmax-update"),
+        cmd(u.prerelease ? "sudo vodmax-update " + u.latest : "sudo vodmax-update"),
         el("p", { className: "note" }, t("Con Docker: immagine {image}.", { image: "ghcr.io/silirim/vodmax:" + (u.prerelease ? u.latest.replace(/^v/, "") : "latest") })),
         el("p", { className: "note" }, t("Lo script scarica la versione per questa macchina, verifica il checksum, tiene la precedente e riavvia il servizio. Le app Android si aggiornano da sole, con una conferma.")));
       if (u.page) box.append(el("p", {}, el("a", { href: u.page, target: "_blank", rel: "noopener", className: "focusable" }, t("Note complete su GitHub"))));
@@ -788,10 +807,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       catch (e) { flash(e.message); }
     }, o.enabled ? "" : "primary");
     if (o.enabled && o.links) {
-      const row = (label, url, hint) => el("div", { className: "box output-link" }, el("h3", {}, label), el("pre", { className: "cmd" }, url),
-        el("p", { className: "note" }, hint), el("div", { className: "buttons" }, button(t("Copia"), () => {
-          (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(() => flash(t("Copiato")), () => flash(url));
-        })));
+      const row = (label, url, hint) => el("div", { className: "box output-link" }, el("h3", {}, label), cmd(url), el("p", { className: "note" }, hint));
       parts.push(el("p", { className: "ok" }, "✓ " + t("Accesa: {n} canali alla volta (le connessioni degli abbonamenti).", { n: o.tuners })),
         row(t("Sintonizzatore HDHomeRun"), o.links.tuner, t("Plex: Impostazioni → TV in diretta e DVR → Configura → inserisci l'indirizzo a mano. Jellyfin/Emby: TV in diretta → Aggiungi sintonizzatore → HDHomeRun.")),
         row(t("Playlist M3U"), o.links.playlist, t("TiviMate, Kodi (PVR IPTV Simple), VLC, o Jellyfin come sintonizzatore M3U.")),
@@ -1129,7 +1145,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       el("p", { className: "note" }, t("Se in casa usi Authelia, Authentik, Keycloak o un altro provider OpenID Connect, chi apre VodMax da un browser " +
         "può entrare con il suo account invece del codice. Ogni account entra sempre e solo nel profilo che gli colleghi qui, senza PIN; " +
         "il browser compare tra i dispositivi abbinati e si revoca come gli altri. Nel provider crea un client con questo indirizzo di ritorno:")),
-      el("pre", { className: "cmd" }, o.redirect_uri),
+      cmd(o.redirect_uri),
       el("p", { className: "note" }, t("Scope: openid, email, profile. Il secret resta cifrato sul server e non viene mai mostrato.")), form];
   }
 

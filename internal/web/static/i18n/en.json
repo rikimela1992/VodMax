@@ -661,5 +661,6 @@
   "Con Docker: immagine {image}.": "With Docker: image {image}.",
   "Ti verranno proposte anche le beta": "Betas will be offered too",
   "Ti verranno proposte solo le versioni stabili": "Only stable versions will be offered",
-  "Proponi anche le versioni beta (novità in prova, possono avere difetti); vale anche per le app Android": "Offer beta versions too (new features being tested, they may have bugs); also for the Android apps"
+  "Proponi anche le versioni beta (novità in prova, possono avere difetti); vale anche per le app Android": "Offer beta versions too (new features being tested, they may have bugs); also for the Android apps",
+  "Copia non riuscita: seleziona il testo e copialo a mano": "Copy failed: select the text and copy it by hand"
 }
