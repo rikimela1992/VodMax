@@ -5,6 +5,25 @@ Thanks! Bug reports and ideas: open an
 vulnerabilities read [SECURITY.md](SECURITY.md). VodMax provides no
 content: issues asking for playlists, channels or providers are closed.
 
+## Translations
+
+Texts are written in Italian in the code and translated from flat JSON
+files keyed by the Italian text, ready for [Weblate](https://weblate.org):
+
+| Part | Files | Base |
+|------|-------|------|
+| Interface | `internal/web/static/i18n/<lang>.json` | `it.json` |
+| Server messages | `internal/service/i18n/<lang>.json` | `it.json` |
+| Android app | `clients/android/app/src/main/res/values-<lang>/strings.xml` | `values/strings.xml` |
+
+A new language is a new file: the server picks it up at the next build and
+the language appears in the picker. Keep `{name}` placeholders and `%s`,
+`%d`, `%v`, `%w` verbs as they are; an empty value means "not translated
+yet" and falls back to Italian. Tests check that every text of the
+interface and of the server is in the base files and translated into
+English. See [docs/traduzioni.md](docs/traduzioni.md) for the Weblate
+setup.
+
 ## Before a pull request
 
 - `gofmt`, `go vet ./...` and `go test -race ./...` must pass (CI checks
@@ -43,6 +62,15 @@ Grazie! Segnalazioni e proposte: apri una
 [issue](https://github.com/silirim/VodMax/issues). Per le vulnerabilità
 di sicurezza leggi [SECURITY.md](SECURITY.md). VodMax non fornisce
 contenuti: le issue che chiedono playlist, canali o provider vengono chiuse.
+
+### Traduzioni
+
+I testi sono scritti in italiano nel codice e si traducono in file JSON
+piatti con il testo italiano come chiave, pronti per Weblate (interfaccia:
+`internal/web/static/i18n/`, messaggi del server: `internal/service/i18n/`,
+app Android: `values-<lingua>/strings.xml`). Una lingua nuova è un file
+nuovo. Lascia intatti `{nome}` e `%s`, `%d`, `%v`, `%w`; un valore vuoto vuol
+dire "non ancora tradotto". Dettagli in [docs/traduzioni.md](docs/traduzioni.md).
 
 ### Prima di una pull request
 

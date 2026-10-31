@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -91,11 +92,26 @@ func TestMessagesTranslated(t *testing.T) {
 		if strings.Trim(verbRE.ReplaceAllString(msg, ""), " “”:;,.()") == "" {
 			continue // only arguments, e.g. "%v"
 		}
-		if _, ok := messagesEN[msg]; !ok {
+		if _, ok := catalogs["en"][msg]; !ok {
 			t.Errorf("%s: no English for %q", pos, msg)
 		}
 	}
-	for it, en := range messagesEN {
+	base := map[string]string{}
+	raw, _ := messageFiles.ReadFile("i18n/it.json")
+	if err := json.Unmarshal(raw, &base); err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range base {
+		if k != v {
+			t.Errorf("it.json: %q has the value %q", k, v)
+		}
+	}
+	for msg, pos := range sourceMessages(t, ".", "../store", "../api") {
+		if _, ok := base[msg]; !ok && strings.Trim(verbRE.ReplaceAllString(msg, ""), " “”:;,.()") != "" {
+			t.Errorf("%s: %q missing in it.json", pos, msg)
+		}
+	}
+	for it, en := range catalogs["en"] {
 		if !slices.Equal(verbs(it), verbs(en)) {
 			t.Errorf("verbs differ: %q → %q", it, en)
 		}
@@ -104,7 +120,7 @@ func TestMessagesTranslated(t *testing.T) {
 
 func TestLocalize(t *testing.T) {
 	err := invalid("id non valido")
-	if got := Localize("en", err); got != messagesEN["id non valido"] {
+	if got := Localize("en", err); got != catalogs["en"]["id non valido"] {
 		t.Errorf("en: %q", got)
 	}
 	if got := Localize("it", err); got != "id non valido" {

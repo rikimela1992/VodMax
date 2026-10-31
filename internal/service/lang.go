@@ -2,20 +2,50 @@ package service
 
 import (
 	"context"
+	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
+	"path"
 	"slices"
 	"strings"
 )
 
 // Messages for people are written in Italian, as format strings; other
-// languages translate those format strings (messages_<lang>.go). A message
-// without a translation stays in Italian.
+// languages translate those format strings in i18n/<lang>.json (it.json is
+// the base that translators see on Weblate). A message without a
+// translation stays in Italian.
 
-// Languages are the interface languages.
-var Languages = []string{"it", "en"}
+//go:embed i18n/*.json
+var messageFiles embed.FS
 
-var catalogs = map[string]map[string]string{"en": messagesEN}
+// Languages are the languages of the messages, Italian first.
+var Languages = []string{"it"}
+
+var catalogs = map[string]map[string]string{}
+
+func init() {
+	files, _ := fs.Glob(messageFiles, "i18n/*.json")
+	for _, f := range files {
+		code := strings.TrimSuffix(path.Base(f), ".json")
+		if code == "it" {
+			continue
+		}
+		raw, _ := messageFiles.ReadFile(f)
+		m := map[string]string{}
+		if err := json.Unmarshal(raw, &m); err != nil {
+			panic(f + ": " + err.Error())
+		}
+		for k, v := range m {
+			if v == "" { // not translated yet
+				delete(m, k)
+			}
+		}
+		catalogs[code] = m
+		Languages = append(Languages, code)
+	}
+}
 
 type langKey struct{}
 

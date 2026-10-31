@@ -234,7 +234,7 @@
 
   // ---- Films and series: filters (order, rating, category), then a
   // grid that loads more as asked. ----
-  const SORTS = [["recent", t("Novità")], ["title", "A–Z"], ["rating", t("Più votati")]];
+  const SORTS = [["recent", t("Più recenti")], ["title", "A–Z"], ["rating", t("Più votati")]];
   const RATINGS = [[0, t("Tutti")], [6, "6+"], [7, "7+"], [8, "8+"]];
   function browseState(kind) {
     return { sort: "recent", minRating: 0, category: "", categoryName: "", ...store.get("browse." + kind, {}) };

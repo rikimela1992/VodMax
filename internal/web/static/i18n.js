@@ -1,7 +1,8 @@
 // Interface languages. Texts are written in Italian in the code and shown
-// through t("Testo con {nome}", { nome }); each language adds its
-// dictionary (i18n/<lang>-*.js, keyed by the Italian text). A text without
-// a translation stays in Italian.
+// through t("Testo con {nome}", { nome }); each language has its
+// dictionary, i18n/<lang>.json keyed by the Italian text (translated on
+// Weblate), which the server hands out together as i18n/languages.js. A
+// text without a translation stays in Italian.
 //
 // Static text in the pages: an element with data-i18n has its text nodes
 // translated; data-i18n-attr="title,placeholder,aria-label" translates
@@ -9,10 +10,15 @@
 "use strict";
 
 (() => {
-  const LANGS = { it: "Italiano", en: "English" };
+  // Each language is named in itself.
+  const NAMES = { it: "Italiano", en: "English", de: "Deutsch", fr: "Français", es: "Español", pt: "Português", nl: "Nederlands",
+    pl: "Polski", ro: "Română", cs: "Čeština", sv: "Svenska", da: "Dansk", fi: "Suomi", el: "Ελληνικά", hu: "Magyar", tr: "Türkçe",
+    uk: "Українська", ru: "Русский", ar: "العربية", sq: "Shqip", hr: "Hrvatski", sl: "Slovenščina", sk: "Slovenčina", bg: "Български" };
   const LOCALES = { it: "it-IT", en: "en-GB" };
   const KEY = "vodmax.lang";
-  const dicts = {};
+  const dicts = window.VodMaxDicts || {};
+  const LANGS = { it: NAMES.it };
+  for (const code of Object.keys(dicts).sort()) LANGS[code] = NAMES[code] || code.toUpperCase();
 
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(KEY)); } catch { /* private mode */ }
@@ -73,8 +79,8 @@
     return row;
   }
 
-  // Dictionaries load after this file: translate when the page is parsed.
+  // Translate the static text once the page is parsed.
   document.addEventListener("DOMContentLoaded", () => apply());
 
-  window.VodMaxI18n = { lang, locale: LOCALES[lang], langs: LANGS, t, add, setLang, apply, picker };
+  window.VodMaxI18n = { lang, locale: LOCALES[lang] || lang, langs: LANGS, t, add, setLang, apply, picker };
 })();

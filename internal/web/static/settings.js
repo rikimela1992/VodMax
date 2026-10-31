@@ -1045,7 +1045,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       const account = input({ value: a.account, placeholder: t("e-mail o nome utente"), spellcheck: false, autocomplete: "off" });
       const profile = el("select", { className: "focusable" }, ...profiles.map((p) => el("option", { value: p.id }, p.name)));
       profile.value = a.profile_id;
-      const row = el("div", { className: "sso-account" }, account, profile, button(t("Togli"), () => row.remove(), "danger"));
+      const row = el("div", { className: "sso-account" }, account, profile, button(t("Rimuovi"), () => row.remove(), "danger"));
       row.read = () => ({ account: account.value.trim(), profile_id: Number(profile.value) });
       rows.append(row);
     };
