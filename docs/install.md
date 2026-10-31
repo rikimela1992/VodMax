@@ -155,6 +155,11 @@ is out.
      service.
    - **Your server**: any OpenAI-compatible API (Ollama, LM Studio...).
 
+   For requests like "a film with…", VodMax keeps the cast and director of
+   your films and series: from the detail pages you open and, while the
+   assistant is on, from one page every 3 seconds between 1:00 and 7:00
+   (through the subscription's VPN).
+
 ## 3. Devices
 
 Every device is **paired** once: it shows a code, and you approve it in

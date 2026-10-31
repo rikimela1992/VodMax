@@ -1,8 +1,10 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -256,5 +258,70 @@ func TestAssistant(t *testing.T) {
 	tn.Picks, tn.Intro = nil, ""
 	if code != 200 || json.Unmarshal(body, &tn) != nil || len(tn.Picks) != 0 || tn.Intro != "Stasera niente del genere." || !strings.Contains(string(body), `"picks":[]`) {
 		t.Fatalf("nothing fits: %d %s", code, body)
+	}
+}
+
+// The people index (decision 0036): opened pages and the night fill it;
+// the assistant finds every title of a person in it.
+func TestPeopleIndex(t *testing.T) {
+	e, _ := tvSetup(t)
+	m := newFakeModel(t)
+	e.svc.SetPeoplePause(0)
+	cfg := map[string]any{"enabled": true, "url": m.URL + "/v1", "model": "llama3", "key": "sk-test"}
+	if code, body := e.do(t, "PUT", "/api/v1/settings/assistant", cfg, true); code != 200 {
+		t.Fatalf("settings: %d %s", code, body)
+	}
+	coverage := func() (known, total int) {
+		_, body := e.do(t, "GET", "/api/v1/settings/assistant", nil, true)
+		var v struct{ People struct{ Known, Total int } }
+		json.Unmarshal(body, &v)
+		return v.People.Known, v.People.Total
+	}
+	if known, total := coverage(); known != 0 || total == 0 {
+		t.Fatalf("coverage before: %d of %d", known, total)
+	}
+	n := e.svc.FillPeople(context.Background(), slog.Default(), func() bool { return true })
+	if known, total := coverage(); n != total || known != 1 { // only 1408 has a cast
+		t.Fatalf("after the night: %d pages, %d of %d known", n, known, total)
+	}
+	if again := e.svc.FillPeople(context.Background(), slog.Default(), func() bool { return true }); again != 0 {
+		t.Fatalf("pages read twice: %d", again)
+	}
+	// The model only understands who; the index knows the titles.
+	m.answer = func(system, user string) string {
+		if strings.Contains(system, "home catalog") {
+			return `{"about":"person","person":"John Cusack","titles":[]}`
+		}
+		for _, line := range strings.Split(user, "\n") {
+			if strings.Contains(line, "(with John Cusack)") {
+				return `{"intro":"Eccolo.","picks":[{"code":"` + strings.TrimSpace(strings.SplitN(line, "|", 2)[0]) + `","why":"C'è lui."}]}`
+			}
+		}
+		return `{"intro":"Niente.","picks":[]}`
+	}
+	code, body := e.do(t, "POST", "/api/v1/assistant/tonight", map[string]string{"wish": "un film con jon cusak"}, true)
+	var tn struct{ Picks []struct{ Title string } }
+	if code != 200 || json.Unmarshal(body, &tn) != nil || len(tn.Picks) != 1 || tn.Picks[0].Title != "1408" {
+		t.Fatalf("from the index: %d %s", code, body)
+	}
+}
+
+// A provider that does not answer at night is not "no cast": nothing is
+// recorded and the night stops.
+func TestPeopleIndexProviderDown(t *testing.T) {
+	e, p := tvSetup(t)
+	m := newFakeModel(t)
+	e.svc.SetPeoplePause(0)
+	cfg := map[string]any{"enabled": true, "url": m.URL + "/v1", "model": "llama3", "key": "sk-test"}
+	e.do(t, "PUT", "/api/v1/settings/assistant", cfg, true)
+	p.Close()
+	if n := e.svc.FillPeople(context.Background(), slog.Default(), func() bool { return true }); n != 0 {
+		t.Fatalf("%d pages recorded with the provider down", n)
+	}
+	// Off, the assistant does not read pages at night.
+	cfg["enabled"] = false
+	e.do(t, "PUT", "/api/v1/settings/assistant", cfg, true)
+	if n := e.svc.FillPeople(context.Background(), slog.Default(), func() bool { return true }); n != 0 {
+		t.Fatalf("%d pages read with the assistant off", n)
 	}
 }

@@ -817,6 +817,10 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       const tryButton = button(t("Prova"), tryIt, "assistant-try");
       parts.push(el("div", { className: "facts" }, el("span", {}, t("Stato") + " ", el("b", { className: "ok" }, t("acceso"))), el("span", {}, el("b", {}, what))),
         el("div", { className: "buttons" }, tryButton, button(t("Spegni"), () => save({ enabled: false, mode: a.mode, provider: a.provider, url: a.url, model: a.model }))), result);
+      if (a.people && a.people.total) {
+        parts.push(el("p", { className: "note" }, t("Cast e regia noti per {known} titoli su {total}: servono per richieste come «un film con…». VodMax completa l'elenco di notte, a poco a poco, finché l'assistente è acceso.",
+          { known: a.people.known.toLocaleString(locale), total: a.people.total.toLocaleString(locale) })));
+      }
     }
 
     // The three ways, as a choice.

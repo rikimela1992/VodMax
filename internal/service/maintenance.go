@@ -84,6 +84,19 @@ func (s *Service) StartMaintenance(ctx context.Context, log *slog.Logger) {
 		}
 	}()
 	go func() {
+		// The people index, at night (people.go).
+		for {
+			if inPeopleNight(time.Now()) {
+				s.FillPeople(ctx, log, func() bool { return inPeopleNight(time.Now()) })
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(10 * time.Minute):
+			}
+		}
+	}()
+	go func() {
 		t := time.NewTicker(maintenanceTick)
 		defer t.Stop()
 		for {

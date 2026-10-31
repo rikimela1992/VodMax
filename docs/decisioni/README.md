@@ -41,6 +41,7 @@ Una decisione approvata si cambia solo con una nuova scheda che la sostituisce.
 | [0033](0033-pubblicita-nelle-registrazioni.md) | Pubblicità nelle registrazioni (Comskip) | **Approvata** |
 | [0034](0034-assistente.md) | Assistente: regole a parole e "cosa guardo stasera" | **Approvata** |
 | [0035](0035-assistente-integrato.md) | Assistente integrato, servizi online e attivazione in evidenza | **Approvata** |
+| [0036](0036-indice-delle-persone.md) | Indice delle persone: "un film con…" senza fidarsi della memoria del modello | **Approvata** |
 
 ## Ordine consigliato per decidere
 

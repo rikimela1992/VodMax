@@ -39,3 +39,18 @@ func TestHasPerson(t *testing.T) {
 		}
 	}
 }
+
+func TestPeopleText(t *testing.T) {
+	got := peopleText("Renée Zellweger, Richard Gere, Catherine Zeta-Jones", "Rob Marshall")
+	if want := " renee zellweger , richard gere , catherine zeta jones , rob marshall "; got != want {
+		t.Fatalf("peopleText = %q, want %q", got, want)
+	}
+	if peopleText("", "") != "" {
+		t.Fatal("empty page")
+	}
+	for person, want := range map[string]string{"Catherine Zeta-Jones": "zeta jones", "catrin z jones": "z jones", "Nolan": "nolan"} {
+		if got := personKey(person); got != want {
+			t.Errorf("personKey(%q) = %q, want %q", person, got, want)
+		}
+	}
+}

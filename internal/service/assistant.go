@@ -58,6 +58,8 @@ type assistantState struct {
 	tonight map[string]tonightEntry // profile + wish
 	client  *http.Client            // tests
 	local   localState
+
+	peoplePause *time.Duration // tests
 }
 
 type tonightEntry struct {
@@ -472,8 +474,26 @@ func (s *Service) requestFor(ctx context.Context, a AssistantSettings, wish stri
 		req.precise = true
 	}
 	seen := map[int64]bool{}
+	add := func(it store.CatalogItem) {
+		seen[it.ID] = true
+		extra := it.DisplayTitle
+		if it.Year != nil {
+			extra += fmt.Sprintf(" (%d)", *it.Year)
+		}
+		req.found = append(req.found, candidate{Pick: Pick{Kind: it.Kind, Title: it.DisplayTitle, ItemID: it.ID, Image: it.Logo},
+			extra: extra + " (matches the request)", year: it.Year})
+	}
+	// Every title of the person that the index knows (decision 0036),
+	// then the ones the model remembers.
+	if req.person != "" {
+		for _, it := range s.titlesWith(ctx, req.person, 12) {
+			if year == 0 || it.Year == nil || (*it.Year >= year-1 && *it.Year <= year+1) {
+				add(it)
+			}
+		}
+	}
 	for i, t := range raw.Titles {
-		if i >= 12 || len(req.found) >= 10 {
+		if i >= 12 || len(req.found) >= 15 {
 			break
 		}
 		if f := fold(t.Title); f != "" {
@@ -489,13 +509,7 @@ func (s *Service) requestFor(ctx context.Context, a AssistantSettings, wish stri
 				if seen[it.ID] || (want > 0 && it.Year != nil && (*it.Year < want-1 || *it.Year > want+1)) {
 					continue
 				}
-				seen[it.ID] = true
-				extra := it.DisplayTitle
-				if it.Year != nil {
-					extra += fmt.Sprintf(" (%d)", *it.Year)
-				}
-				req.found = append(req.found, candidate{Pick: Pick{Kind: it.Kind, Title: it.DisplayTitle, ItemID: it.ID, Image: it.Logo},
-					extra: extra + " (matches the request)", year: it.Year})
+				add(it)
 				break // the best match of each title is enough
 			}
 		}

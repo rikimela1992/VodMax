@@ -15,7 +15,11 @@ func (a *api) assistantView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"enabled": s.Enabled, "mode": s.Mode, "provider": s.Provider, "url": s.URL, "model": s.Model, "has_key": key,
-		"providers": service.AssistantProviders(), "local": a.svc.LocalAssistant(r.Context())})
+		"providers": service.AssistantProviders(), "local": a.svc.LocalAssistant(r.Context()), "people": peopleView(a.svc.PeopleCoverage(r.Context()))})
+}
+
+func peopleView(known, total int) map[string]int {
+	return map[string]int{"known": known, "total": total}
 }
 
 func (a *api) installLocalAssistant(w http.ResponseWriter, r *http.Request) {

@@ -148,9 +148,20 @@ func (s *Service) Details(ctx context.Context, itemID int64) (ItemDetails, error
 	if m.Kind != "movie" && m.Kind != "series" {
 		return ItemDetails{}, invalid("schede solo per film e serie")
 	}
-	p := s.providerDetails(ctx, m)
+	d, _ := s.itemDetails(ctx, m)
+	if d.Cast != "" || d.Director != "" {
+		s.st.PutItemPeople(context.WithoutCancel(ctx), m.ID, peopleText(d.Cast, d.Director))
+	}
+	return d, nil
+}
+
+// itemDetails builds the detail page of a film or series, from the
+// provider (or the collection's files) and TMDB; known is false when the
+// provider did not answer.
+func (s *Service) itemDetails(ctx context.Context, m store.MetaItem) (d ItemDetails, known bool) {
+	p, known := s.providerDetailsChecked(ctx, m)
 	t := s.tmdbTitle(ctx, m, p.TMDB)
-	d := ItemDetails{Sources: []string{}, Title: t.Title, OriginalTitle: first(p.OriginalTitle, t.OriginalTitle),
+	d = ItemDetails{Sources: []string{}, Title: t.Title, OriginalTitle: first(p.OriginalTitle, t.OriginalTitle),
 		Plot: first(p.Plot, t.Overview), Cast: first(p.Cast, strings.Join(t.Cast, ", ")), Director: first(p.Director, t.Director),
 		Genre: first(p.Genre, strings.Join(t.Genres, ", ")), Released: first(p.Released, t.Released), Country: p.Country,
 		Rating: p.Rating, Duration: p.DurationSecs, Trailer: first(p.Trailer, t.Trailer)}
@@ -161,7 +172,7 @@ func (s *Service) Details(ctx context.Context, itemID int64) (ItemDetails, error
 		d.Duration = t.Runtime * 60
 	}
 	if (len(p.Backdrops) > 0 && (imageURL(p.Backdrops[0]) || strings.HasPrefix(p.Backdrops[0], library.ImageScheme))) || t.Backdrop != "" {
-		d.Backdrop = "/img/meta/" + strconv.FormatInt(itemID, 10) + "/backdrop?s=" + s.metaSignature(itemID, "backdrop")
+		d.Backdrop = "/img/meta/" + strconv.FormatInt(m.ID, 10) + "/backdrop?s=" + s.metaSignature(m.ID, "backdrop")
 	}
 	if p.Plot != "" || p.Cast != "" || p.Genre != "" || len(p.Backdrops) > 0 {
 		d.Sources = append(d.Sources, "provider")
@@ -170,7 +181,7 @@ func (s *Service) Details(ctx context.Context, itemID int64) (ItemDetails, error
 		d.Sources = append(d.Sources, "tmdb")
 	}
 	_, d.Local, _ = s.local(ctx, m.SubscriptionID)
-	return d, nil
+	return d, known
 }
 
 func first(v ...string) string {
@@ -185,26 +196,33 @@ func first(v ...string) string {
 // providerDetails: cached for metaFresh (metaRetry when empty); errors
 // leave the page with what is known.
 func (s *Service) providerDetails(ctx context.Context, m store.MetaItem) xtream.Details {
+	d, _ := s.providerDetailsChecked(ctx, m)
+	return d
+}
+
+// providerDetailsChecked also says whether the page is known: false when
+// the provider was asked and did not answer.
+func (s *Service) providerDetailsChecked(ctx context.Context, m store.MetaItem) (xtream.Details, bool) {
 	key := "p:" + strconv.FormatInt(m.ID, 10)
 	var d xtream.Details
 	if data, at, ok, _ := s.st.Meta(ctx, key); ok {
 		json.Unmarshal([]byte(data), &d)
 		if age := time.Since(at); age < metaFresh && (data != "{}" || age < metaRetry) {
-			return d
+			return d, true
 		}
 	}
 	sub, err := s.st.Subscription(ctx, m.SubscriptionID)
 	if err == nil && sub.Kind == "local" {
-		return s.localDetails(ctx, m) // read from the folder each time: cheap, always current
+		return s.localDetails(ctx, m), true // read from the folder each time: cheap, always current
 	}
 	if err != nil || sub.Kind != "xtream" {
-		return d
+		return d, err == nil
 	}
 	ctx, cancel := context.WithTimeout(ctx, 12*time.Second)
 	defer cancel()
 	client, err := s.xtreamClient(ctx, m.SubscriptionID, 12*time.Second)
 	if err != nil {
-		return d
+		return d, false
 	}
 	var fresh xtream.Details
 	if m.Kind == "movie" {
@@ -215,11 +233,11 @@ func (s *Service) providerDetails(ctx context.Context, m store.MetaItem) xtream.
 		fresh = info.Details
 	}
 	if err != nil {
-		return d // the provider did not answer: try again next time
+		return d, false // the provider did not answer: try again next time
 	}
 	raw, _ := json.Marshal(fresh)
 	s.st.PutMeta(context.WithoutCancel(ctx), key, string(raw))
-	return fresh
+	return fresh, true
 }
 
 func (s *Service) tmdbTitle(ctx context.Context, m store.MetaItem, fallbackID string) tmdb.Title {

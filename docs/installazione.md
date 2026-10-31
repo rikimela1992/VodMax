@@ -156,6 +156,10 @@ una versione nuova.
      lista vanno al servizio.
    - **Server tuo**: qualsiasi API compatibile OpenAI (Ollama, LM Studio…).
 
+   Per richieste come "un film con…" VodMax tiene cast e regia dei tuoi film
+   e serie: dalle schede che apri e, finché l'assistente è acceso, da una
+   scheda ogni 3 secondi tra l'1 e le 7 (tramite la VPN dell'abbonamento).
+
 ## 3. Dispositivi
 
 Ogni dispositivo si **abbina** una volta: mostra un codice, che approvi in

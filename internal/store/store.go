@@ -381,6 +381,13 @@ var migrations = []string{
 		SELECT id, name, kind, vpn_id, settings, secret, created_at, synced_at, sync_status, sync_error, account, rules FROM subscription;
 	DROP TABLE subscription;
 	ALTER TABLE subscription_new RENAME TO subscription;`,
+	// 19: the people of films and series (cast and director) from their
+	// detail pages, for "a film with…". Rebuilt by itself, not backed up.
+	`CREATE TABLE item_people (
+		item_id    INTEGER PRIMARY KEY REFERENCES item(id) ON DELETE CASCADE,
+		people     TEXT NOT NULL,      -- folded names between " , "; '' when the page had none
+		checked_at INTEGER NOT NULL
+	)`,
 }
 
 // noForeignKeys lists migrations (1-based) that rebuild a parent table:
