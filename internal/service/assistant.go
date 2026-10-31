@@ -18,9 +18,11 @@ import (
 	"github.com/silirim/vodmax/internal/store"
 )
 
-// The assistant: a language model chosen by the admin (Ollama, LM Studio,
-// llama.cpp at home, or a service on the internet), reached through the
-// OpenAI-compatible chat API. It turns a sentence into a recording rule
+// The assistant: a language model chosen by the admin, in one of three
+// ways: built in (VodMax downloads and runs it, assistant_local.go), a
+// service on the internet with an API key (assistant_online.go), or the
+// admin's own server (Ollama, LM Studio...) through the OpenAI-compatible
+// chat API. It turns a sentence into a recording rule
 // and picks something to watch tonight. Off by default. The model only
 // proposes: a rule is filled in for the person to check, and tonight's
 // picks can only be programmes and titles VodMax gave it, by code.
@@ -33,22 +35,27 @@ const (
 )
 
 var (
-	ErrAssistantOff = errors.New("l'assistente non è configurato: Impostazioni → Sistema → Assistente")
+	ErrAssistantOff = errors.New("l'assistente non è configurato: Impostazioni → Assistente")
 	ErrAssistant    = errors.New("l'assistente ha dato una risposta che VodMax non sa usare: riprova o cambia modello")
 )
 
-// AssistantSettings: URL is the base of the API (for example
-// http://ollama:11434/v1); the key, when needed, is kept apart, sealed.
+// AssistantSettings: Mode is "local" (built in: Model is one of
+// localModels), "online" (Provider, Model) or "server" (URL, the base of
+// the API, for example http://ollama:11434/v1, and Model; also the empty
+// mode of older versions). The key, when needed, is kept apart, sealed.
 type AssistantSettings struct {
-	Enabled bool   `json:"enabled"`
-	URL     string `json:"url"`
-	Model   string `json:"model"`
+	Enabled  bool   `json:"enabled"`
+	Mode     string `json:"mode,omitempty"`
+	Provider string `json:"provider,omitempty"`
+	URL      string `json:"url"`
+	Model    string `json:"model"`
 }
 
 type assistantState struct {
 	mu      sync.Mutex
 	tonight map[string]tonightEntry // profile + wish
 	client  *http.Client            // tests
+	local   localState
 }
 
 type tonightEntry struct {
@@ -68,31 +75,70 @@ func (s *Service) AssistantSettings(ctx context.Context) (AssistantSettings, boo
 // AssistantInput changes the settings; Key nil keeps the current one, ""
 // removes it.
 type AssistantInput struct {
-	Enabled bool    `json:"enabled"`
-	URL     string  `json:"url"`
-	Model   string  `json:"model"`
-	Key     *string `json:"key"`
+	Enabled  bool    `json:"enabled"`
+	Mode     string  `json:"mode"`
+	Provider string  `json:"provider"`
+	URL      string  `json:"url"`
+	Model    string  `json:"model"`
+	Key      *string `json:"key"`
 }
 
 func (s *Service) SetAssistant(ctx context.Context, in AssistantInput) error {
-	a := AssistantSettings{Enabled: in.Enabled, URL: strings.TrimRight(strings.TrimSpace(in.URL), "/"), Model: strings.TrimSpace(in.Model)}
-	if a.URL != "" {
-		u, err := url.Parse(a.URL)
-		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-			return invalid("indirizzo dell'assistente non valido (atteso http:// o https://)")
-		}
-		a.URL = strings.TrimSuffix(a.URL, "/chat/completions")
-	}
-	if a.Enabled && (a.URL == "" || a.Model == "") {
-		return invalid("per accendere l'assistente servono indirizzo e modello")
-	}
+	a := AssistantSettings{Enabled: in.Enabled, Mode: in.Mode, Model: strings.TrimSpace(in.Model)}
 	if len(a.Model) > 100 {
 		return invalid("nome del modello troppo lungo")
+	}
+	switch a.Mode {
+	case "local":
+		if a.Model == "" && !a.Enabled {
+			break
+		}
+		if _, ok := localModel(a.Model); !ok {
+			return invalid("modello sconosciuto")
+		}
+		if a.Enabled && !s.localInstalled(ctx, a.Model) {
+			return invalid("il modello non è ancora installato: premi Attiva")
+		}
+	case "online":
+		p, ok := assistantProvider(in.Provider)
+		if !ok {
+			return invalid("servizio sconosciuto")
+		}
+		a.Provider = p.ID
+		if a.Model == "" {
+			a.Model = p.Model
+		}
+	case "", "server":
+		a.Mode = "server"
+		a.URL = strings.TrimRight(strings.TrimSpace(in.URL), "/")
+		if a.URL != "" {
+			u, err := url.Parse(a.URL)
+			if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+				return invalid("indirizzo dell'assistente non valido (atteso http:// o https://)")
+			}
+			a.URL = strings.TrimSuffix(a.URL, "/chat/completions")
+		}
+		if a.Enabled && a.URL == "" {
+			return invalid("per accendere l'assistente servono indirizzo e modello")
+		}
+	default:
+		return invalid("modo dell'assistente sconosciuto")
+	}
+	if a.Enabled && a.Model == "" {
+		return invalid("per accendere l'assistente serve un modello")
 	}
 	if in.Key != nil {
 		if err := s.setSecretSetting(ctx, assistantSecretKey, strings.TrimSpace(*in.Key)); err != nil {
 			return err
 		}
+	}
+	if a.Enabled && a.Mode == "online" {
+		if key, err := s.secretSetting(ctx, assistantSecretKey); err != nil || key == "" {
+			return invalid("per un servizio online serve la chiave API")
+		}
+	}
+	if a.Mode != "local" {
+		s.stopLocal()
 	}
 	s.asst.mu.Lock()
 	s.asst.tonight = nil
@@ -118,22 +164,42 @@ type chatMessage struct {
 // the model is asked for a JSON object (servers that do not know the
 // option are asked again without it).
 func (s *Service) chat(ctx context.Context, a AssistantSettings, messages []chatMessage, asJSON bool) (string, error) {
-	key, err := s.secretSetting(ctx, assistantSecretKey)
-	if err != nil {
-		return "", err
+	base, model, key := a.URL, a.Model, ""
+	switch a.Mode {
+	case "local":
+		b, m, release, err := s.localEndpoint(ctx, a.Model)
+		if err != nil {
+			return "", err
+		}
+		defer release()
+		base, model = b, m
+	default:
+		var err error
+		if key, err = s.secretSetting(ctx, assistantSecretKey); err != nil {
+			return "", err
+		}
+		if a.Mode == "online" {
+			p, ok := assistantProvider(a.Provider)
+			if !ok {
+				return "", ErrAssistantOff
+			}
+			if p.native {
+				return s.claudeChat(ctx, key, a.Model, messages)
+			}
+			base = p.Base
+		}
 	}
-	client := s.asst.client
-	if client == nil {
-		client = &http.Client{Timeout: assistantTimeout}
-	}
-	// The answers are short: a bound stops a model that rambles.
-	body := map[string]any{"model": a.Model, "messages": messages, "temperature": 0.2, "stream": false, "max_tokens": 700}
+	client := s.assistantHTTP()
+	// The answers are short: a bound stops a model that rambles. Servers
+	// that refuse an option are asked again without it (newer OpenAI
+	// models take neither temperature nor max_tokens).
+	body := map[string]any{"model": model, "messages": messages, "temperature": 0.2, "stream": false, "max_tokens": 700}
 	if asJSON {
 		body["response_format"] = map[string]string{"type": "json_object"}
 	}
 	for attempt := 0; ; attempt++ {
 		raw, _ := json.Marshal(body)
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, a.URL+"/chat/completions", bytes.NewReader(raw))
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/chat/completions", bytes.NewReader(raw))
 		if err != nil {
 			return "", err
 		}
@@ -147,8 +213,14 @@ func (s *Service) chat(ctx context.Context, a AssistantSettings, messages []chat
 		}
 		data, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 		resp.Body.Close()
-		if resp.StatusCode == http.StatusBadRequest && asJSON && attempt == 0 {
-			delete(body, "response_format")
+		if resp.StatusCode == http.StatusBadRequest && attempt < 2 {
+			if _, ok := body["response_format"]; ok && attempt == 0 {
+				delete(body, "response_format")
+			} else {
+				delete(body, "temperature")
+				delete(body, "max_tokens")
+				body["max_completion_tokens"] = 4000
+			}
 			continue
 		}
 		if resp.StatusCode != http.StatusOK {
@@ -210,7 +282,7 @@ func (s *Service) TestAssistant(ctx context.Context) (string, time.Duration, err
 	if err != nil {
 		return "", 0, err
 	}
-	if a.URL == "" || a.Model == "" {
+	if a.Model == "" || (a.Mode == "server" || a.Mode == "") && a.URL == "" {
 		return "", 0, ErrAssistantOff
 	}
 	start := time.Now()

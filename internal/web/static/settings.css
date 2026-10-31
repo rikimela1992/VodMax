@@ -176,3 +176,34 @@ body.view-system #server-problems { display: none; }
 #problems-slot #server-problems { position: static; display: block; max-width: none; margin: 0 0 1rem; font-size: 0.9rem; }
 .sso-account { display: grid; grid-template-columns: 1fr minmax(8rem, 12rem) auto; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
 @media (max-width: 600px) { .sso-account { grid-template-columns: 1fr auto; } .sso-account input { grid-column: 1 / -1; } }
+
+/* The assistant: the card that offers it, the three ways, the models. */
+.promo {
+  display: grid; grid-template-columns: auto 1fr; gap: 0.6rem 0.85rem; align-items: center;
+  margin-bottom: 1.3rem; padding: 1rem; border-radius: 16px;
+  background: linear-gradient(135deg, rgba(0, 245, 160, 0.16), rgba(0, 184, 245, 0.16)), var(--surface);
+  border: 1px solid var(--accent-soft);
+}
+.promo-icon { display: grid; place-items: center; width: 2.4rem; height: 2.4rem; color: var(--bg); background: var(--accent-grad); border-radius: 12px; }
+.promo-icon .icon { width: 1.3rem; height: 1.3rem; }
+.promo-text { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+.promo-text span { font-size: 0.86rem; color: var(--soft); }
+.promo .buttons { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.ways { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 0.6rem; }
+.way {
+  display: flex; flex-direction: column; gap: 0.3rem; padding: 0.85rem 0.95rem; text-align: left;
+  font: inherit; color: var(--text); background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer;
+}
+.way span { font-size: 0.84rem; color: var(--soft); }
+.way.chosen { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.way:focus { outline: 2px solid var(--focus); outline-offset: 2px; }
+.box.model h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; }
+.box.model.dim { opacity: 0.6; }
+.tag { padding: 0.1em 0.55em; font-size: 0.72rem; font-weight: 600; color: var(--soft); background: var(--raised); border-radius: 999px; }
+.tag.good { color: var(--bg); background: var(--accent); }
+.tag.bad { color: var(--bad); }
+.progress { height: 0.5rem; margin: 0.4rem 0 0.6rem; overflow: hidden; background: var(--raised); border-radius: 999px; }
+.progress > div { height: 100%; background: var(--accent-grad); border-radius: inherit; transition: width 0.4s var(--ease); }
+.progress.busy > div { animation: busy 1.2s ease-in-out infinite alternate; }
+@keyframes busy { from { opacity: 0.35; } to { opacity: 1; } }
+.cmd-row input { flex: 1; min-width: 0; }

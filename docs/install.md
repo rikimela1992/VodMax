@@ -135,6 +135,24 @@ is out.
    profiles, PINs.
 8. **Settings → System → Artwork and details (TMDB)** (optional): a free
    TMDB key adds posters, plots and cast where the playlist has none.
+9. **Settings → Assistant** (optional): writes recording rules from a
+   sentence and suggests what to watch tonight. Off, VodMax shows none of
+   it. Three ways:
+   - **Built in**: VodMax offers the models that fit the server's memory
+     and, when you press *Turn on*, downloads the llama.cpp engine
+     (~35 MB) and the model (0.9–8.4 GB) into `/var/lib/vodmax/assistant`,
+     checking their fingerprints. It runs on the server, listening only on
+     the server itself, and stops after 10 minutes without requests.
+     *Remove* deletes everything. Linux x86-64 or ARM64; a graphics card
+     is used through Vulkan when `libvulkan1` and its drivers are
+     installed. With **Docker** the model runs in the optional `assistant`
+     service of the compose file: `docker compose --profile assistant up -d`.
+   - **Online service**: Claude, OpenAI, Mistral, Gemini or OpenRouter with
+     an **API key** (a Claude Pro/Max or ChatGPT Plus subscription can't be
+     used by another app). For this use it costs a few cents a month; the
+     evening guide, the channel names and your list's titles go to the
+     service.
+   - **Your server**: any OpenAI-compatible API (Ollama, LM Studio...).
 
 ## 3. Devices
 

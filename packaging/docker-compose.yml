@@ -13,6 +13,8 @@ services:
       - "8095:8095"
     environment:
       - TZ=Europe/Rome
+      # The built-in assistant runs in the "assistant" service below.
+      - VODMAX_ASSISTANT_OLLAMA=http://assistant:11434
     volumes:
       # Database, recordings, downloads, backups (owned by uid 1000).
       - ./vodmax-data:/var/lib/vodmax
@@ -30,3 +32,17 @@ services:
     #     reservations:
     #       devices:
     #         - capabilities: [gpu, video]
+
+  # The built-in assistant (Settings → Assistant), optional. It starts only
+  # with  docker compose --profile assistant up -d  and downloads a model
+  # (1–9 GB, in ./vodmax-assistant) only when you press "Turn on" in VodMax.
+  # No port is published: only VodMax talks to it.
+  assistant:
+    image: ollama/ollama:0.40.13
+    container_name: vodmax-assistant
+    profiles: [assistant]
+    restart: unless-stopped
+    environment:
+      - OLLAMA_CONTEXT_LENGTH=8192
+    volumes:
+      - ./vodmax-assistant:/root/.ollama

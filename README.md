@@ -57,7 +57,7 @@ decoder with the remote.
 | 📡 **Sources** | Xtream Codes, M3U playlists and Stalker portals (MAC) |
 | 🧹 **Catalog selection** | Keep only the countries, years and categories you want, with a live preview |
 | 👪 **Profiles** | Per-person progress and favourites, kids profiles, devices paired with a short code or signed in with your home account (OpenID Connect: Authelia, Authentik, Keycloak…) |
-| ✨ **Assistant** | Optional, with your own model (Ollama at home or any OpenAI-compatible API): write a recording rule as a sentence, ask what to watch tonight |
+| ✨ **Assistant** | Optional: built in (VodMax downloads and runs the model at home), Claude and other online services with an API key, or your own server. Write a recording rule as a sentence, ask what to watch tonight |
 | 🔌 **Other apps** | Plex, Jellyfin and Emby see VodMax as an HDHomeRun tuner; M3U playlist and XMLTV guide for TiviMate, Kodi, VLC |
 | 🔒 **Built-in VPN** | WireGuard in user space inside the server and the app: without the VPN, playlists are never contacted |
 | 💾 **Backups** | Encrypted backups and automatic copies, health warnings for VPN, playlists, guide and disk |

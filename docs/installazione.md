@@ -136,6 +136,24 @@ una versione nuova.
 8. **Impostazioni → Sistema → Copertine e schede (TMDB)** (facoltativo): con
    una chiave TMDB gratuita arrivano locandine, trame e cast dove la
    playlist non li ha.
+9. **Impostazioni → Assistente** (facoltativo): crea le regole di
+   registrazione da una frase e propone cosa guardare stasera. Spento,
+   VodMax non ne mostra nulla. Tre modi:
+   - **Integrato**: VodMax propone i modelli che stanno nella memoria del
+     server e, quando premi *Attiva*, scarica il motore llama.cpp (~35 MB)
+     e il modello (0,9–8,4 GB) in `/var/lib/vodmax/assistant`, controllando
+     le impronte. Gira sul server, in ascolto solo sul server stesso, e si
+     spegne dopo 10 minuti senza richieste. *Rimuovi* cancella tutto.
+     Linux x86-64 o ARM64; la scheda video si usa tramite Vulkan se ci sono
+     `libvulkan1` e i suoi driver. Con **Docker** il modello gira nel
+     servizio facoltativo `assistant` del compose:
+     `docker compose --profile assistant up -d`.
+   - **Servizio online**: Claude, OpenAI, Mistral, Gemini o OpenRouter con
+     una **chiave API** (l'abbonamento Claude Pro/Max o ChatGPT Plus non si
+     può usare da un'altra app). Per questo uso costa pochi centesimi al
+     mese; la guida della serata, i nomi dei canali e i titoli della tua
+     lista vanno al servizio.
+   - **Server tuo**: qualsiasi API compatibile OpenAI (Ollama, LM Studio…).
 
 ## 3. Dispositivi
 

@@ -25,23 +25,24 @@ deve richiedere un altro container o dei comandi.
 ### Tre modi
 
 1. **Integrato** (consigliato). VodMax guarda RAM e scheda video e propone
-   solo i modelli che ci stanno:
-
-   | Scelta | Peso indicativo | RAM libera | Note |
-   |---|---|---|---|
-   | Leggero | ~1–2 GB | 3 GB | anche su mini PC |
-   | Bilanciato | ~3–5 GB | 6 GB | consigliato su CPU |
-   | Qualità | ~9 GB | 12 GB o GPU | solo se c'è spazio |
-
+   solo i modelli che ci stanno (con la RAM richiesta mentre risponde).
    "Attiva" scarica motore e modello con una barra di avanzamento, poi fa la
-   prova da solo. La lista precisa dei modelli si fissa scrivendo il codice,
-   preferendo licenze libere (per esempio Apache 2.0) e risposte buone in
-   italiano; ogni file ha la sua impronta SHA-256 scritta in VodMax.
+   prova da solo. Ogni file ha la sua impronta SHA-256 scritta in VodMax.
+   Modelli scelti (tutti Apache 2.0, GGUF Q4_K_M da Hugging Face, provati
+   sulla guida demo):
+
+   | Scelta | Modello | File | Prova |
+   |---|---|---|---|
+   | Leggero | Qwen 2.5 1.5B Instruct | 0,9 GB | regole buone, consigli della sera confusi: detto nella scheda |
+   | Bilanciato | Qwen 3 4B Instruct 2507 | 2,3 GB | regole e consigli corretti, in italiano: il consigliato |
+   | Qualità | Qwen 2.5 14B Instruct | 8,4 GB | il migliore; consigliato solo con scheda video |
+
 2. **Servizio online**: fornitore da un elenco e chiave API (cifrata, mai
    più mostrata). **Claude (Anthropic)** con la sua API nativa, modello
-   predefinito Claude Haiku 5.5; OpenAI, Mistral, Gemini e OpenRouter già
-   impostati. Una riga spiega che serve una **chiave API, non
-   l'abbonamento** (Claude Pro/Max, ChatGPT Plus non si possono usare da
+   predefinito Claude Haiku 5.5 con sforzo basso (SDK ufficiale Anthropic
+   per Go); OpenAI, Mistral, Gemini e OpenRouter già impostati. "Elenco
+   modelli" chiede al servizio i modelli disponibili con la chiave. Una riga
+   spiega che serve una **chiave API, non l'abbonamento** (Claude Pro/Max, ChatGPT Plus non si possono usare da
    un'app esterna), con il link per crearla, e che guida e titoli escono
    da casa.
 3. **Server tuo**: l'indirizzo libero di oggi (Ollama, LM Studio, qualsiasi
@@ -69,9 +70,12 @@ deve richiedere un altro container o dei comandi.
   modelli: si scaricano solo premendo "Attiva".
 - L'immagine Docker è Alpine (musl) e i pacchetti di llama.cpp sono per
   glibc: in Docker e Unraid l'integrato usa un servizio facoltativo nel
-  `docker-compose` (Ollama, profilo `assistant`), che VodMax trova da solo e
-  a cui chiede di scaricare il modello, con la stessa barra e gli stessi
-  pulsanti. Chi non lo attiva non scarica niente.
+  `docker-compose` (Ollama, profilo `assistant`), che VodMax trova con
+  `VODMAX_ASSISTANT_OLLAMA` e a cui chiede di scaricare gli stessi file GGUF,
+  con la stessa barra e gli stessi pulsanti. Chi non lo attiva non scarica
+  niente. Su Unraid la stessa variabile punta a un container Ollama.
+- Il programma VodMax cresce di circa 5 MB (da 18 a 23 MB) per l'SDK di
+  Claude; nessun'altra dipendenza.
 
 ## Non ancora
 

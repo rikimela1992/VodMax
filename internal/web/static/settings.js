@@ -65,6 +65,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       ["language", "info", t("Lingua"), t("Lingua dell'interfaccia su questo dispositivo")],
     ]],
     ["Server", [
+      ["assistant", "sparkles", t("Assistente"), t("Regole a parole, consigli per la sera")],
       ["system", "settings", t("Sistema"), t("Stato, aggiornamenti, diretta, backup")],
     ]],
   ];
@@ -89,9 +90,29 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
         b.onclick = () => open(view);
         return b;
       }))));
-    $("sections").replaceChildren(...groups);
+    $("sections").replaceChildren(el("div", { id: "promo" }), ...groups);
+    assistantPromo();
     $("pane-back").replaceChildren(icon("arrow-left"));
     $("pane-back").onclick = back;
+  }
+
+  // The assistant is optional but worth knowing: until it is on, a card at
+  // the top of the list says what it does ("Non ora" makes it a plain item).
+  async function assistantPromo() {
+    const box = $("promo");
+    const on = await api("GET", "/api/v1/assistant").then((r) => r.enabled, () => null);
+    const item = document.querySelector('.item[data-view="assistant"] .item-sub');
+    if (item) item.textContent = on ? t("Acceso") : t("Regole a parole, consigli per la sera");
+    if (on !== false || store.get("assistantPromo", "") === "later") { box.replaceChildren(); return; }
+    const icon = window.VodMaxIcons.icon;
+    const go = el("button", { className: "small primary focusable", type: "button", onclick: () => open("assistant") }, t("Attiva l'assistente"));
+    const later = el("button", { className: "small focusable", type: "button", onclick: () => { store.set("assistantPromo", "later"); box.replaceChildren(); } }, t("Non ora"));
+    box.replaceChildren(el("section", { className: "promo" },
+      el("span", { className: "promo-icon" }, icon("sparkles")),
+      el("div", { className: "promo-text" },
+        el("b", {}, t("Un assistente per la tua TV")),
+        el("span", {}, t("Crea le regole di registrazione da una frase e ti consiglia cosa guardare stasera. Facoltativo: può funzionare tutto in casa, senza internet."))),
+      el("div", { className: "buttons" }, go, later)));
   }
 
   function open(view) {
@@ -143,7 +164,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     const main = $("content");
     main.replaceChildren(el("p", { className: "note" }, t("Caricamento…")));
     try {
-      await ({ subscriptions: renderSubscriptions, libraries: renderLibraries, vpn: renderVPN, rules: renderRules, categories: renderCategories, system: renderSystem, profiles: renderProfiles, devices: renderDevices, guide: renderGuideSources, language: renderLanguage })[state.view](main);
+      await ({ subscriptions: renderSubscriptions, libraries: renderLibraries, vpn: renderVPN, rules: renderRules, categories: renderCategories, system: renderSystem, assistant: renderAssistant, profiles: renderProfiles, devices: renderDevices, guide: renderGuideSources, language: renderLanguage })[state.view](main);
       cards(main);
     } catch (e) {
       main.replaceChildren(el("p", { className: "note bad" }, e.message));
@@ -617,7 +638,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       parts.push(el("h2", {}, "App"), el("p", { className: "note" }, t("VodMax per Android {version}, collegata a {server}.", { version: window.VodMax.native.version(), server: location.origin })),
         appButtons, appStatus);
     }
-    parts.push(...await downloadSection(), ...await liveSection(), ...await transcodeSection(), ...await assistantSection(), ...await outputSection(), ...await recordingLimits(), ...(await metadataSection()).filter(Boolean), ...await backupSection());
+    parts.push(...await downloadSection(), ...await liveSection(), ...await transcodeSection(), ...await outputSection(), ...await recordingLimits(), ...(await metadataSection()).filter(Boolean), ...await backupSection());
     main.replaceChildren(...parts);
   }
 
@@ -756,18 +777,17 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
         "Con Docker la scheda va passata al container (--device /dev/dri, o il runtime NVIDIA).")), form];
   }
 
-  // ---- The assistant (a language model) ----
-  async function assistantSection() {
-    const a = await api("GET", "/api/v1/settings/assistant").catch(() => null);
-    if (!a) return [];
-    const url = input({ value: a.url, placeholder: "http://ollama:11434/v1", spellcheck: false });
-    const model = input({ value: a.model, placeholder: t("es. llama3.1:8b"), spellcheck: false, autocomplete: "off" });
-    const key = input({ type: "password", autocomplete: "new-password", spellcheck: false,
-      placeholder: a.has_key ? t("configurata: lascia vuoto per non cambiarla") : t("solo se il servizio la chiede") });
-    const enabled = input({ type: "checkbox", checked: a.enabled });
+  // ---- The assistant: built in, an online service or the admin's server ----
+  const gbytes = (n) => (n / 1073741824).toLocaleString(locale, { maximumFractionDigits: 1 }) + " GB";
+  let assistantPoll;
+
+  async function renderAssistant(main) {
+    clearTimeout(assistantPoll);
+    const a = await api("GET", "/api/v1/settings/assistant");
+    const local = a.local;
+    const mode = state.assistantMode || (a.mode === "online" || a.mode === "local" ? a.mode : a.url ? "server" : "local");
     const result = el("p", { className: "note" });
-    const test = button(t("Prova"), async () => {
-      test.disabled = true;
+    const tryIt = async () => {
       result.className = "note";
       result.textContent = t("Prova in corso…");
       try {
@@ -775,24 +795,179 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
         result.className = "ok";
         result.textContent = "✓ " + t("Risponde in {s} s: «{answer}»", { s: r.seconds.toLocaleString(locale, { maximumFractionDigits: 1 }), answer: r.answer.slice(0, 160) });
       } catch (e) { result.className = "note bad"; result.textContent = e.message; }
-      test.disabled = false;
-    });
-    const save = el("button", { className: "small primary focusable", type: "submit" }, t("Salva"));
-    const form = el("form", { className: "form" }, ...field(t("Indirizzo (API compatibile OpenAI)"), url), ...field(t("Modello"), model),
-      ...field(t("Chiave"), key), el("label", {}, ""), el("label", { className: "check" }, enabled, t("Accendi l'assistente per tutti i profili")),
-      el("div", { className: "buttons full" }, save, test), el("div", { className: "full" }, result));
-    form.onsubmit = async (e) => {
-      e.preventDefault();
-      const body = { enabled: enabled.checked, url: url.value, model: model.value };
-      if (key.value) body.key = key.value;
-      try { await api("PUT", "/api/v1/settings/assistant", body); flash(t("Assistente salvato")); key.value = ""; }
-      catch (err) { flash(err.message); }
     };
-    return [el("h2", {}, t("Assistente")),
-      el("p", { className: "note" }, t("Un modello linguistico scrive le regole di registrazione a partire da una frase e propone cosa guardare stasera. " +
-        "Va bene qualsiasi server con l'API compatibile OpenAI: Ollama, LM Studio o llama.cpp in casa, oppure un servizio su internet. " +
-        "Gli si mandano la guida TV di stasera, i nomi dei canali e i titoli che hai iniziato o messo in lista; mai credenziali né indirizzi del provider. " +
-        "Con un modello in casa non esce nulla dalla tua rete. L'assistente propone soltanto: le regole le controlli e le salvi tu.")), form];
+    const save = async (body, test = true) => {
+      try {
+        await api("PUT", "/api/v1/settings/assistant", body);
+        flash(body.enabled ? t("Assistente acceso") : t("Assistente spento"));
+        state.assistantMode = null;
+        await render();
+        assistantPromo();
+        if (test && body.enabled) document.querySelector("#content .assistant-try")?.click();
+      } catch (e) { flash(e.message); }
+    };
+
+    const parts = [el("h2", {}, t("Assistente")),
+      el("p", { className: "note" }, t("Un modello linguistico crea le regole di registrazione da una frase e propone cosa guardare stasera. " +
+        "È facoltativo: spento, VodMax non mostra nessuna delle sue funzioni. Propone soltanto: le regole le controlli e le salvi tu."))];
+    if (a.enabled) {
+      const what = a.mode === "local" ? t("integrato") + " · " + ((local.models.find((m) => m.id === a.model) || {}).name || a.model)
+        : a.mode === "online" ? ((a.providers.find((p) => p.id === a.provider) || {}).name || a.provider) + " · " + a.model
+        : a.url + " · " + a.model;
+      const tryButton = button(t("Prova"), tryIt, "assistant-try");
+      parts.push(el("div", { className: "facts" }, el("span", {}, t("Stato") + " ", el("b", { className: "ok" }, t("acceso"))), el("span", {}, el("b", {}, what))),
+        el("div", { className: "buttons" }, tryButton, button(t("Spegni"), () => save({ enabled: false, mode: a.mode, provider: a.provider, url: a.url, model: a.model }))), result);
+    }
+
+    // The three ways, as a choice.
+    const ways = [["local", t("Integrato"), t("VodMax scarica e fa girare il modello qui. Niente esce di casa.")],
+      ["online", t("Servizio online"), t("Claude, OpenAI, Mistral, Gemini… con una chiave API.")],
+      ["server", t("Server tuo"), t("Ollama, LM Studio o un altro server compatibile OpenAI.")]];
+    parts.push(el("h2", {}, a.enabled ? t("Cambia modo") : t("Scegli come")),
+      el("div", { className: "ways" }, ...ways.map(([id, title, sub]) => {
+        const b = el("button", { className: "way focusable" + (id === mode ? " chosen" : ""), type: "button", onclick: () => { state.assistantMode = id; render(); } },
+          el("b", {}, title), el("span", {}, sub));
+        b.setAttribute("aria-pressed", id === mode);
+        return b;
+      })));
+    if (mode === "local") parts.push(...localPanel(a, local, save));
+    if (mode === "online") parts.push(...onlinePanel(a, save, result));
+    if (mode === "server") parts.push(...serverPanel(a, save, result));
+    if (!a.enabled && mode !== "local") parts.push(result);
+    main.replaceChildren(...parts.filter(Boolean));
+    assistantPromo();
+    if (local.job && local.job.phase !== "error") assistantPoll = setTimeout(() => { if (state.view === "assistant") render(); }, 1000);
+  }
+
+  function localPanel(a, local, save) {
+    const hw = local.hardware;
+    const parts = [el("h2", {}, t("Assistente integrato"))];
+    if (hw.unavailable) return [...parts, el("p", { className: "note bad" }, hw.unavailable)];
+    parts.push(el("p", { className: "note" }, hw.backend === "ollama"
+      ? t("Il modello gira nel servizio \"assistant\" accanto a VodMax.")
+      : t("Questo server: {ram} di RAM ({free} liberi), {disk} liberi su disco, {gpu}.", {
+        ram: gbytes(hw.ram), free: gbytes(hw.ram_free), disk: gbytes(hw.disk_free), gpu: hw.gpu || t("nessuna scheda video") })),
+    hw.gpu_note ? el("p", { className: "note" }, hw.gpu_note) : null);
+    const job = local.job;
+    if (job) {
+      const phase = { engine: t("Scarico il motore…"), model: t("Scarico il modello…"), start: t("Avvio…"), test: t("Provo l'assistente…") }[job.phase];
+      if (job.phase === "error") {
+        parts.push(el("p", { className: "note bad" }, t("Installazione non riuscita: {error}", { error: job.error })),
+          el("div", { className: "buttons" }, button(t("Riprova"), () => installLocal(job.model), "primary"), button(t("Chiudi"), cancelLocal)));
+      } else {
+        const pct = job.total ? Math.min(100, Math.round(job.done * 100 / job.total)) : 0;
+        const bar = el("div", { className: "progress" }, el("div", {}));
+        bar.firstChild.style.width = (job.total ? pct : 100) + "%";
+        if (!job.total) bar.classList.add("busy");
+        parts.push(el("p", {}, el("b", {}, phase), job.total ? " " + gbytes(job.done) + " / " + gbytes(job.total) + " (" + pct + "%)" : ""), bar,
+          el("p", { className: "note" }, t("Puoi lasciare la pagina: il download continua. Se lo annulli, la prossima volta riparte da dove era arrivato.")),
+          el("div", { className: "buttons" }, button(t("Annulla"), cancelLocal)));
+        return parts;
+      }
+    }
+    for (const m of local.models) {
+      const using = a.enabled && a.mode === "local" && a.model === m.id;
+      const tags = [m.recommended ? el("span", { className: "tag good" }, t("consigliato")) : null,
+        m.installed ? el("span", { className: "tag" }, t("scaricato")) : null,
+        !m.fits ? el("span", { className: "tag bad" }, t("RAM insufficiente")) : null];
+      const act = using ? el("span", { className: "ok" }, "✓ " + t("in uso"))
+        : m.installed ? button(t("Usa questo"), () => save({ enabled: true, mode: "local", model: m.id }), "primary")
+        : button(t("Attiva"), () => installLocal(m.id), m.recommended ? "primary" : "");
+      if (!m.fits && !m.installed) act.disabled = true;
+      parts.push(el("section", { className: "box model" + (m.fits ? "" : " dim") },
+        el("h3", {}, m.name, ...tags),
+        el("p", { className: "note" }, m.note),
+        el("div", { className: "facts" },
+          el("span", {}, t("Da scaricare") + " ", el("b", {}, gbytes(m.size))),
+          el("span", {}, t("RAM mentre risponde") + " ", el("b", {}, gbytes(m.ram)))),
+        el("div", { className: "buttons" }, act)));
+    }
+    if (local.engine_installed || local.models.some((m) => m.installed)) {
+      parts.push(el("p", { className: "note" }, t("Il modello resta in memoria solo mentre lo usi e si spegne dopo 10 minuti senza richieste.")),
+        el("div", { className: "buttons" }, button(t("Rimuovi l'assistente integrato"), async () => {
+          if (!confirm(t("Cancellare motore e modelli scaricati? Lo spazio torna libero."))) return;
+          try { await api("DELETE", "/api/v1/settings/assistant/local"); flash(t("Assistente integrato rimosso")); render(); assistantPromo(); }
+          catch (e) { flash(e.message); }
+        }, "danger")));
+    }
+    return parts;
+  }
+
+  async function installLocal(id) {
+    try { await api("POST", "/api/v1/settings/assistant/local", { model: id }); } catch (e) { flash(e.message); }
+    render();
+  }
+
+  async function cancelLocal() {
+    try { await api("POST", "/api/v1/settings/assistant/local/cancel"); } catch (e) { flash(e.message); }
+    render();
+  }
+
+  // A model field with the list the service offers.
+  function modelPicker(value, load) {
+    const list = el("datalist", { id: "assistant-models" });
+    const model = input({ value, spellcheck: false, autocomplete: "off" });
+    model.setAttribute("list", "assistant-models");
+    const loadButton = button(t("Elenco modelli"), async () => {
+      loadButton.disabled = true;
+      try {
+        const ids = (await load()).models || [];
+        list.replaceChildren(...ids.map((id) => el("option", { value: id })));
+        if (!model.value) model.value = ids.find((id) => /haiku|mini|flash|small/.test(id)) || ids[0] || "";
+        flash(t("{n} modelli disponibili", { n: ids.length }));
+      } catch (e) { flash(e.message); }
+      loadButton.disabled = false;
+    });
+    return { model, row: el("div", { className: "cmd-row" }, model, loadButton, list) };
+  }
+
+  function onlinePanel(a, save, result) {
+    const provider = el("select", { className: "focusable" }, ...a.providers.map((p) => el("option", { value: p.id, selected: p.id === (a.provider || "anthropic") }, p.name)));
+    const keyLink = el("a", { target: "_blank", rel: "noopener" }, t("Crea una chiave API"));
+    const keepKey = a.mode === "online" && a.has_key;
+    const key = input({ type: "password", autocomplete: "new-password", spellcheck: false,
+      placeholder: keepKey ? t("configurata: lascia vuoto per non cambiarla") : t("la chiave API del servizio") });
+    const picked = () => a.providers.find((p) => p.id === provider.value);
+    const { model, row } = modelPicker(a.mode === "online" ? a.model : "", () =>
+      api("POST", "/api/v1/settings/assistant/models", { mode: "online", provider: provider.value, key: key.value }));
+    const sync = () => { const p = picked(); keyLink.href = p.key_url; if (p.model && (!model.value || a.provider !== p.id)) model.value = p.model; };
+    provider.onchange = () => { model.value = ""; sync(); };
+    sync();
+    const form = el("form", { className: "form" }, ...field(t("Servizio"), provider), ...field(t("Chiave API"), key),
+      el("label", {}, ""), el("p", { className: "note" }, keyLink),
+      ...field(t("Modello"), row),
+      el("div", { className: "buttons full" }, el("button", { className: "small primary focusable", type: "submit" }, t("Salva e prova"))));
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      const body = { enabled: true, mode: "online", provider: provider.value, model: model.value };
+      if (key.value) body.key = key.value;
+      save(body);
+    };
+    return [el("h2", {}, t("Servizio online")),
+      el("p", { className: "note" }, t("Serve una chiave API, che si paga a consumo: l'abbonamento (Claude Pro o Max, ChatGPT Plus) non si può usare da un'app esterna. " +
+        "Per questo uso la spesa è di pochi centesimi al mese. La guida TV della serata, i nomi dei canali e i titoli della tua lista vanno al servizio; mai credenziali né indirizzi del provider.")),
+      form];
+  }
+
+  function serverPanel(a, save, result) {
+    const url = input({ value: a.mode === "server" || !a.mode ? a.url : "", placeholder: "http://ollama:11434/v1", spellcheck: false });
+    const key = input({ type: "password", autocomplete: "new-password", spellcheck: false,
+      placeholder: a.has_key && a.mode !== "online" ? t("configurata: lascia vuoto per non cambiarla") : t("solo se il servizio la chiede") });
+    const { model, row } = modelPicker(a.mode === "server" || !a.mode ? a.model : "", () =>
+      api("POST", "/api/v1/settings/assistant/models", { mode: "server", url: url.value, key: key.value }));
+    model.placeholder = t("es. llama3.1:8b");
+    const form = el("form", { className: "form" }, ...field(t("Indirizzo (API compatibile OpenAI)"), url), ...field(t("Chiave"), key),
+      ...field(t("Modello"), row),
+      el("div", { className: "buttons full" }, el("button", { className: "small primary focusable", type: "submit" }, t("Salva e prova"))));
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      const body = { enabled: true, mode: "server", url: url.value, model: model.value };
+      if (key.value) body.key = key.value;
+      save(body);
+    };
+    return [el("h2", {}, t("Server tuo")),
+      el("p", { className: "note" }, t("Va bene qualsiasi server con l'API compatibile OpenAI: Ollama, LM Studio, llama.cpp. Con un server in casa non esce nulla dalla tua rete.")),
+      form];
   }
 
   // ---- Output to other apps (HDHomeRun, M3U, XMLTV) ----

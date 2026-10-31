@@ -14,7 +14,55 @@ func (a *api) assistantView(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"enabled": s.Enabled, "url": s.URL, "model": s.Model, "has_key": key})
+	writeJSON(w, http.StatusOK, map[string]any{"enabled": s.Enabled, "mode": s.Mode, "provider": s.Provider, "url": s.URL, "model": s.Model, "has_key": key,
+		"providers": service.AssistantProviders(), "local": a.svc.LocalAssistant(r.Context())})
+}
+
+func (a *api) installLocalAssistant(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Model string `json:"model"`
+	}
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if err := a.svc.InstallLocalAssistant(r.Context(), in.Model); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	a.assistantView(w, r)
+}
+
+func (a *api) cancelLocalAssistant(w http.ResponseWriter, r *http.Request) {
+	a.svc.CancelLocalInstall()
+	a.assistantView(w, r)
+}
+
+func (a *api) removeLocalAssistant(w http.ResponseWriter, r *http.Request) {
+	if err := a.svc.RemoveLocalAssistant(r.Context()); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	a.assistantView(w, r)
+}
+
+func (a *api) assistantModels(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Mode     string `json:"mode"`
+		Provider string `json:"provider"`
+		URL      string `json:"url"`
+		Key      string `json:"key"`
+	}
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	ids, err := a.svc.AssistantModels(r.Context(), in.Mode, in.Provider, in.URL, in.Key)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"models": ids})
 }
 
 func (a *api) putAssistant(w http.ResponseWriter, r *http.Request) {

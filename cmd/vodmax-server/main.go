@@ -111,6 +111,10 @@ func run(data, listen, recordings, downloads, ffmpeg, ffprobe string, device boo
 		}
 	}
 	svc.SetBackupDir(filepath.Join(data, "backups"))
+	if !device {
+		svc.SetAssistantDir(filepath.Join(data, "assistant"), os.Getenv("VODMAX_ASSISTANT_OLLAMA"), log)
+	}
+	defer svc.StopAssistant()
 	if err := svc.SetCacheDir(filepath.Join(data, "cache")); err != nil {
 		return err
 	}

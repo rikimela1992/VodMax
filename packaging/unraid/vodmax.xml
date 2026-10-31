@@ -20,5 +20,6 @@
   <Config Name="PUID" Target="PUID" Default="99" Description="User that owns the data (Unraid: 99, nobody)" Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
   <Config Name="PGID" Target="PGID" Default="100" Description="Group that owns the data (Unraid: 100, users)" Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
   <Config Name="Graphics card (Intel/AMD)" Target="/dev/dri" Default="" Mode="" Description="Optional: /dev/dri, for video conversion with the graphics card (Settings, System)" Type="Device" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Assistant (Ollama)" Target="VODMAX_ASSISTANT_OLLAMA" Default="" Description="Optional: address of an Ollama container (for example http://192.168.1.10:11434) that runs the built-in assistant (Settings, Assistant). Without it, use an online service or your own server." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="TZ" Target="TZ" Default="Europe/Rome" Description="Time zone, for the guide and the recordings" Type="Variable" Display="always" Required="false" Mask="false">Europe/Rome</Config>
 </Container>

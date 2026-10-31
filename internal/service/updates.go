@@ -349,3 +349,9 @@ func newerVersion(a, b string) bool {
 	}
 	return false
 }
+
+func (s *Service) version() string {
+	s.upd.mu.Lock()
+	defer s.upd.mu.Unlock()
+	return s.upd.version
+}
