@@ -627,5 +627,11 @@
   "Portale Stalker": "Stalker portal",
   "Indirizzo del portale": "Portal address",
   "Indirizzo MAC": "MAC address",
-  "Per ora si leggono i canali in diretta; la guida si aggiunge da Guida TV → Fonti XMLTV.": "For now live channels are read; add the guide from TV guide → XMLTV sources."
+  "Per ora si leggono i canali in diretta; la guida si aggiunge da Guida TV → Fonti XMLTV.": "For now live channels are read; add the guide from TV guide → XMLTV sources.",
+  "Salta pubblicità": "Skip ad",
+  "Pubblicità: analisi attiva": "Ads: detection on",
+  "Pubblicità: analisi spenta": "Ads: detection off",
+  "Trova la pubblicità nelle registrazioni finite (con Comskip) e offri «Salta pubblicità»": "Find the ads in finished recordings (with Comskip) and offer “Skip ad”",
+  "Comskip trovato. Le impostazioni si cambiano con un file comskip.ini nella cartella delle registrazioni.": "Comskip found. Its settings can be changed with a comskip.ini file in the recordings folder.",
+  "Comskip non è installato su questa macchina: installalo (comskip nel PATH) per usare questa funzione.": "Comskip isn't installed on this machine: install it (comskip in the PATH) to use this feature."
 }

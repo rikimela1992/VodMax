@@ -38,6 +38,7 @@ Una decisione approvata si cambia solo con una nuova scheda che la sostituisce.
 | [0030](0030-conversione-con-scheda-grafica.md) | Conversione video con la scheda grafica | **Approvata** |
 | [0031](0031-multiview.md) | Multiview: più canali insieme | **Approvata** |
 | [0032](0032-portali-stalker.md) | Portali Stalker (MAC) e diretta M3U dal server | **Approvata** |
+| [0033](0033-pubblicita-nelle-registrazioni.md) | Pubblicità nelle registrazioni (Comskip) | **Approvata** |
 
 ## Ordine consigliato per decidere
 

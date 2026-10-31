@@ -132,6 +132,8 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	route("PUT /api/v1/recordings/{id}/protected", levelMember, a.protectRecording)
 	route("GET /api/v1/recordings/space", levelViewer, a.recordingSpace)
 	route("PUT /api/v1/settings/recordings", levelAdmin, a.putRecordingSettings)
+	route("GET /api/v1/settings/commercials", levelAdmin, a.getCommercials)
+	route("PUT /api/v1/settings/commercials", levelAdmin, a.putCommercials)
 	route("GET /api/v1/recording-rules", levelMember, a.recordingRules)
 	route("POST /api/v1/recording-rules", levelMember, a.addRecordingRule)
 	route("POST /api/v1/recording-rules/preview", levelMember, a.previewRecordingRule)
@@ -1102,12 +1104,15 @@ func (a *api) recordingTicket(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, r, err)
 		return
 	}
-	t, err := a.svc.RecordingTicket(r.Context(), id)
+	t, breaks, err := a.svc.RecordingTicket(r.Context(), id)
 	if err != nil {
 		a.fail(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"url": "/stream/recording/" + t})
+	if breaks == nil {
+		breaks = []service.Commercial{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"url": "/stream/recording/" + t, "commercials": breaks})
 }
 
 func (a *api) recordingStream(w http.ResponseWriter, r *http.Request) {
@@ -1978,4 +1983,26 @@ func (a *api) browseCategories(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, list)
+}
+
+func (a *api) getCommercials(w http.ResponseWriter, r *http.Request) {
+	c, found, err := a.svc.CommercialSettings(r.Context())
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"enabled": c.Enabled, "comskip": found})
+}
+
+func (a *api) putCommercials(w http.ResponseWriter, r *http.Request) {
+	var in service.CommercialSettings
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if err := a.svc.SetCommercials(r.Context(), in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	a.getCommercials(w, r)
 }

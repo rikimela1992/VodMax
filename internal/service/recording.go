@@ -43,6 +43,7 @@ type recorderState struct {
 	running map[int64]*activeRec
 	log     *slog.Logger
 	tickets map[string]recTicket
+	comskip string
 }
 
 type recTicket struct {
@@ -171,6 +172,9 @@ func (s *Service) startRecording(parent context.Context, r store.Recording) {
 		s.st.UpdateRecording(context.Background(), final)
 		if s.rec.log != nil {
 			s.rec.log.Info("registrazione terminata", "id", r.ID, "stato", final.Status, "byte", final.Bytes)
+		}
+		if final.Status == "completed" {
+			s.findCommercials(final.File)
 		}
 	}()
 }
@@ -384,6 +388,7 @@ func (s *Service) DeleteRecording(ctx context.Context, id int64) error {
 		if err := os.Remove(r.File); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
+		os.Remove(edlPath(r.File))
 	}
 	if r.RuleID != 0 && r.Stop > time.Now().Unix() {
 		// Its rule must not schedule it again.
@@ -451,13 +456,19 @@ func (r *follower) Close() error { return r.f.Close() }
 
 // RecordingTicket authorises playback of a recording for 8 hours (range
 // requests reuse it).
-func (s *Service) RecordingTicket(ctx context.Context, id int64) (string, error) {
+// RecordingTicket authorises watching a recording; the advertising breaks
+// found in it come along.
+func (s *Service) RecordingTicket(ctx context.Context, id int64) (string, []Commercial, error) {
 	r, err := s.st.Recording(ctx, id)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	if err := s.allowGroup(ctx, r.GroupKey); err != nil {
-		return "", err
+		return "", nil, err
+	}
+	var breaks []Commercial
+	if r.Status == "completed" && r.File != "" {
+		breaks = commercials(r.File)
 	}
 	t := randomToken()
 	s.rec.mu.Lock()
@@ -472,7 +483,7 @@ func (s *Service) RecordingTicket(ctx context.Context, id int64) (string, error)
 		}
 	}
 	s.rec.tickets[t] = recTicket{id: id, expires: now.Add(8 * time.Hour)}
-	return t, nil
+	return t, breaks, nil
 }
 
 // OpenRecording returns the recording file (finished: seekable) or, if it

@@ -1174,6 +1174,20 @@
     if (pos >= p.nextAt && p.nextAt < d) playNext(false);
   }
   video.addEventListener("timeupdate", updateEpisodeExtras);
+
+  // Advertising breaks found by Comskip: a button while inside one.
+  function adBreak() {
+    const p = state.play;
+    if (!p || !p.breaks || !p.breaks.length) return null;
+    const pos = position();
+    return p.breaks.find((b) => pos >= b.start - 0.5 && pos < b.end - 2) || null;
+  }
+  video.addEventListener("timeupdate", () => { if (adBreak()) reveal($("skip-ad")); else conceal($("skip-ad")); });
+  $("skip-ad").onclick = () => {
+    const b = adBreak();
+    if (b) seekTo(b.end);
+    conceal($("skip-ad"));
+  };
   $("skip-intro").onclick = skipIntro;
   $("next-now").onclick = () => playNext(true);
   $("next-cancel").onclick = () => { if (state.play) state.play.nextCancelled = true; conceal($("next-card")); };
@@ -1236,14 +1250,14 @@
   }
 
   async function playRecording(r) {
-    let url;
-    try { url = (await api("POST", "/api/v1/recordings/" + r.id + "/ticket")).url; } catch (e) { flash(e.message); return; }
+    let url, breaks;
+    try { ({ url, commercials: breaks } = await api("POST", "/api/v1/recordings/" + r.id + "/ticket")); } catch (e) { flash(e.message); return; }
     if (window.VodMax.native) {
       playNative({ media: "recording", id: r.id, title: r.title + " · " + r.channel, sess: { mode: "direct", url }, startAt: 0, live: r.status === "recording" });
       return;
     }
     stopPlayback(false);
-    state.play = { recording: r, title: r.title, sess: { mode: "direct", url }, offset: 0, duration: r.stop - r.start };
+    state.play = { recording: r, title: r.title, sess: { mode: "direct", url }, offset: 0, duration: r.stop - r.start, breaks: breaks || [] };
     $("player-audio").hidden = $("player-subs").hidden = true;
     $("player-title").textContent = r.title + " · " + r.channel;
     $("player").hidden = false;

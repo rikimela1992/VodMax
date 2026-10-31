@@ -772,11 +772,23 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       try { await api("PUT", "/api/v1/settings/recordings", { max_gb: Number(max.value) || 0, keep_days: Number(days.value) || 0 }); flash(t("Limiti salvati e applicati")); render(); }
       catch (err) { flash(err.message); }
     };
+    const cs = await api("GET", "/api/v1/settings/commercials").catch(() => null);
+    let ads = null;
+    if (cs) {
+      const box = input({ type: "checkbox", checked: cs.enabled, disabled: !cs.comskip && !cs.enabled });
+      box.onchange = async () => {
+        try { await api("PUT", "/api/v1/settings/commercials", { enabled: box.checked }); flash(box.checked ? t("Pubblicità: analisi attiva") : t("Pubblicità: analisi spenta")); }
+        catch (e) { flash(e.message); box.checked = !box.checked; }
+      };
+      ads = [el("label", { className: "check" }, box, t("Trova la pubblicità nelle registrazioni finite (con Comskip) e offri «Salta pubblicità»")),
+        el("p", { className: "note" }, cs.comskip ? t("Comskip trovato. Le impostazioni si cambiano con un file comskip.ini nella cartella delle registrazioni.")
+          : t("Comskip non è installato su questa macchina: installalo (comskip nel PATH) per usare questa funzione."))];
+    }
     return [el("h2", {}, t("Spazio delle registrazioni")),
       el("p", { className: "note" }, (sp.free_bytes >= 0
         ? t("{count} registrazioni, {used}; liberi sul disco {free} su {total}.", { count: sp.count, used: gb(sp.used_bytes), free: gb(sp.free_bytes), total: gb(sp.total_bytes) })
         : t("{count} registrazioni, {used}.", { count: sp.count, used: gb(sp.used_bytes) })) +
-        " " + t("Oltre i limiti si cancellano le più vecchie; quelle protette (🔒) mai. Sotto 1 GB liberi le registrazioni non partono.")), form];
+        " " + t("Oltre i limiti si cancellano le più vecchie; quelle protette (🔒) mai. Sotto 1 GB liberi le registrazioni non partono.")), form, ...(ads || [])];
   }
 
   // ---- Covers and details (TMDB) ----
