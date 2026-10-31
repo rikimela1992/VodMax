@@ -1,6 +1,8 @@
 # Sviluppo
 
-Struttura del codice, avvio del server dai sorgenti e API HTTP.
+Struttura del codice, avvio del server dai sorgenti e API HTTP. Regole,
+verifiche e procedura di rilascio sono in [AGENTS.md](../AGENTS.md);
+principi, scenari e direzione in [direzione.md](direzione.md).
 
 ## Struttura del codice
 
@@ -10,14 +12,17 @@ Struttura del codice, avvio del server dai sorgenti e API HTTP.
 | `internal/provider` | L'unico client HTTP ammesso verso i provider: si collega solo tramite il tunnel, ignora i proxy di sistema, toglie le credenziali dagli errori. |
 | `internal/playlist/m3u` | Lettura di playlist M3U estese (`tvg-*`, `group-title`, catch-up, `#EXTVLCOPT`). |
 | `internal/playlist/xtream` | Client Xtream Codes: account, diretta, film, serie, episodi, URL di riproduzione e catch-up. |
+| `internal/playlist/stalker` | Client dei portali Stalker/Ministra (MAC): handshake, profilo, generi, canali, link di riproduzione. |
+| `internal/tmdb` | Schede da TMDB con la chiave dell'utente: titoli italiani, trame, cast, immagini. |
 | `internal/secret` | Cifratura AES-256-GCM delle credenziali con chiave locale (`secret.key`, 0600). |
 | `internal/store` | SQLite: lettori e scrittore separati (WAL), id stabili, import "tutto o niente" con protezione dai cali anomali, ricerca FTS5 senza accenti, paginazione a cursore. |
 | `internal/catalog` | Conversione delle playlist in catalogo; titoli puliti (anno separato, tag di qualità tolti), separatori scartati. |
-| `internal/service`, `internal/api` | Logica e API HTTP `/api/v1` (VPN, abbonamenti, sincronizzazione, catalogo, categorie), protetta da token. |
+| `internal/service`, `internal/api` | Logica e API HTTP `/api/v1`, protetta da token: VPN, abbonamenti, catalogo, TV e guida, film e serie, registrazioni e regole, profili e dispositivi, accesso con account di casa, download, backup, aggiornamenti, uscita verso altre app, conversione con la scheda grafica, Comskip e l'assistente (`assistant*.go`: modi integrato, online e server; `people.go`: indice delle persone). |
 | `internal/library` | Raccolte locali: titoli e anni dai nomi dei file, episodi (`S01E03`, `1x03`, `Stagione N`), `.nfo` e immagini accanto ai video. |
 | `internal/lineup` | Riconoscimento dei canali nazionali e numerazione LCN ufficiale. |
 | `internal/epg` | Lettura in streaming delle guide XMLTV. |
-| `internal/web` | Interfaccia da telecomando: menu (`/`: Home, Film, Serie, Registrazioni), TV (`/tv.html`), Impostazioni (`/settings.html`: abbonamenti, VPN, selezione del catalogo con anteprima, categorie); HTML/JS senza framework, mpegts.js 1.8.2 incluso. Un link `/#token=…` salva il token di accesso. |
+| `internal/web` | Interfaccia da telecomando: menu (`/`: Home, Film, Serie, Registrazioni), TV (`/tv.html`), guida (`/guide.html`), multiview (`/multiview.html`), Impostazioni (`/settings.html`); HTML/JS senza framework, mpegts.js 1.8.2 incluso, testi tradotti da `static/i18n/`. Un link `/#token=…` salva il token di accesso. |
+| `clients/android`, `clients/webos` | App Android (WebView sull'interfaccia del server, lettore Media3, server interno per l'uso da solo) e avvio per TV LG webOS. |
 | `cmd/vodmax-server` | Il server. |
 | `cmd/vodmax-probe` | Strumento di prova: `.conf`, tunnel, login Xtream. |
 
@@ -31,6 +36,8 @@ go build ./cmd/vodmax-server
 Al primo avvio crea in `-data` il database, la chiave di cifratura
 (`secret.key`) e il token di amministrazione (`admin.token`). Ogni chiamata
 API, tranne `/api/v1/health`, richiede `Authorization: Bearer <token>`.
+La tabella elenca le chiamate principali; l'elenco completo, con il livello
+di accesso di ognuna, è in `internal/api/api.go`.
 
 | Metodo e percorso | Scopo |
 |---|---|
@@ -62,6 +69,10 @@ API, tranne `/api/v1/health`, richiede `Authorization: Bearer <token>`.
 | `GET` · `POST /api/v1/recordings` | Registrazioni; `{channel_id}` registra il programma in onda, oppure `start`/`stop` esatti |
 | `DELETE /api/v1/recordings/{id}` · `POST …/{id}/ticket` | Annulla o elimina; permesso di visione |
 | `GET /img/logo/{id}?s=firma` | Logo del canale scaricato tramite VPN e in cache (indirizzo firmato, fornito dall'elenco dei canali) |
+| `GET` · `PUT /api/v1/settings/assistant` | Assistente: modo (`local`, `online`, `server`), modello, chiave; stato dell'integrato e dell'indice delle persone |
+| `POST /api/v1/settings/assistant/local` `{model}` · `…/local/cancel` · `DELETE …/local` | Installa, annulla o rimuove l'assistente integrato |
+| `POST /api/v1/settings/assistant/models` · `…/test` | Modelli offerti da un servizio; prova dell'assistente |
+| `POST /api/v1/assistant/rule` `{text}` · `POST /api/v1/assistant/tonight` `{wish}` | Una regola da una frase (non salvata); proposte per stasera |
 
 ## Test
 

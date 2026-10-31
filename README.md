@@ -147,7 +147,9 @@ Build from source: [docs/sviluppo.md](docs/sviluppo.md) and
 
 - [Design decisions](docs/decisioni/README.md) (Italian): one page per choice,
   with options and reasons.
-- [Development, code structure and HTTP API](docs/sviluppo.md) (Italian).
+- [Direction: principles, scenarios and roadmap](docs/direzione.md) (Italian).
+- [Development, code structure and HTTP API](docs/sviluppo.md) (Italian), and
+  [AGENTS.md](AGENTS.md): rules, checks and releases for contributors.
 
 ## Content
 

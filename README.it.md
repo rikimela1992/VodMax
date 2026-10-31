@@ -141,7 +141,9 @@ Dai sorgenti: [docs/sviluppo.md](docs/sviluppo.md) e `scripts/release.sh`.
 
 - [Decisioni di progetto](docs/decisioni/README.md): una scheda per ogni
   scelta, con opzioni e motivi.
-- [Sviluppo, struttura del codice e API HTTP](docs/sviluppo.md).
+- [Direzione: principi, scenari e roadmap](docs/direzione.md).
+- [Sviluppo, struttura del codice e API HTTP](docs/sviluppo.md), e
+  [AGENTS.md](AGENTS.md): regole, verifiche e rilasci per chi contribuisce.
 
 ## Contenuti
 
