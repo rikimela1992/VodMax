@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/silirim/vodmax/internal/playlist/xtream"
 	"github.com/silirim/vodmax/internal/store"
 )
 
@@ -218,11 +217,11 @@ func (s *Service) recordOnce(ctx context.Context, a *activeRec, it store.Playbac
 		return err
 	}
 	defer release()
-	client, err := s.xtreamClient(streamCtx, it.SubscriptionID, 0)
+	link, err := s.liveURL(streamCtx, it)
 	if err != nil {
 		return err
 	}
-	resp, err := s.upstream(streamCtx, it.SubscriptionID, client.StreamURL(xtream.KindLive, it.SourceID, "ts"), "")
+	resp, err := s.upstream(streamCtx, it.SubscriptionID, link, "")
 	if err != nil {
 		return err
 	}

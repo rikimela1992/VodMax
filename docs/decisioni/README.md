@@ -37,6 +37,7 @@ Una decisione approvata si cambia solo con una nuova scheda che la sostituisce.
 | [0029](0029-accesso-con-account.md) | Accesso con account di casa (OpenID Connect) | **Approvata** |
 | [0030](0030-conversione-con-scheda-grafica.md) | Conversione video con la scheda grafica | **Approvata** |
 | [0031](0031-multiview.md) | Multiview: più canali insieme | **Approvata** |
+| [0032](0032-portali-stalker.md) | Portali Stalker (MAC) e diretta M3U dal server | **Approvata** |
 
 ## Ordine consigliato per decidere
 

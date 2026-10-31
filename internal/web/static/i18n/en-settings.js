@@ -9,7 +9,7 @@ VodMaxI18n.add("en", {
   "Caricamento…": "Loading…",
   "Contenuti": "Content",
   "Abbonamenti": "Subscriptions",
-  "Playlist Xtream e M3U": "Xtream and M3U playlists",
+  "Playlist Xtream, M3U e Stalker": "Xtream, M3U and Stalker playlists",
   "Raccolte": "Collections",
   "Cartelle di film e serie": "Movie and series folders",
   "Come si raggiunge il provider": "How the provider is reached",
@@ -61,7 +61,7 @@ VodMaxI18n.add("en", {
   "no": "no",
 
   // Subscriptions
-  "Playlist dei provider (Xtream Codes o M3U). Ogni abbonamento passa dalla sua VPN: senza VPN il provider non viene mai contattato.": "Provider playlists (Xtream Codes or M3U). Each subscription goes through its own VPN: without a VPN the provider is never contacted.",
+  "Playlist dei provider (Xtream Codes, M3U o portali Stalker). Ogni abbonamento passa dalla sua VPN: senza VPN il provider non viene mai contattato.": "Provider playlists (Xtream Codes, M3U or Stalker portals). Each subscription goes through its VPN: without a VPN the provider is never contacted.",
   "Aggiungi un abbonamento": "Add a subscription",
   "Prima aggiungi una connessione VPN (scheda VPN).": "Add a VPN connection first (VPN tab).",
   "Playlist M3U": "M3U playlist",
@@ -366,4 +366,9 @@ VodMaxI18n.add("en", {
   "Salvato: vale dal prossimo video": "Saved: applies from the next video",
   "Conversione video": "Video conversion",
   "Quasi sempre il video passa così com'è. Si converte solo quando il browser non sa leggerlo (per esempio HEVC o MPEG-2): con la scheda grafica è molto più veloce e lascia libero il processore. Se la scheda non parte, VodMax usa il processore da solo. Con Docker la scheda va passata al container (--device /dev/dri, o il runtime NVIDIA).": "Video almost always passes through as it is. It's converted only when the browser can't read it (for example HEVC or MPEG-2): with the graphics card it's much faster and leaves the processor free. If the card doesn't start, VodMax uses the processor on its own. With Docker the card must be passed to the container (--device /dev/dri, or the NVIDIA runtime).",
+  "Portale Stalker (MAC)": "Stalker portal (MAC)",
+  "Portale Stalker": "Stalker portal",
+  "Indirizzo del portale": "Portal address",
+  "Indirizzo MAC": "MAC address",
+  "Per ora si leggono i canali in diretta; la guida si aggiunge da Guida TV → Fonti XMLTV.": "For now live channels are read; add the guide from TV guide → XMLTV sources.",
 });

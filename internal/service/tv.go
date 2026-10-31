@@ -318,12 +318,12 @@ func (s *Service) openLiveItem(ctx context.Context, it store.PlaybackItem, viewe
 	if err != nil {
 		return nil, err
 	}
-	client, err := s.xtreamClient(ctx, it.SubscriptionID, 0)
+	link, err := s.liveURL(streamCtx, it)
 	if err != nil {
 		release()
 		return nil, err
 	}
-	resp, err := s.upstream(streamCtx, it.SubscriptionID, client.StreamURL(xtream.KindLive, it.SourceID, "ts"), "")
+	resp, err := s.upstream(streamCtx, it.SubscriptionID, link, "")
 	if err != nil {
 		release()
 		return nil, err

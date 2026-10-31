@@ -361,11 +361,31 @@ var migrations = []string{
 	// 17: a picture of each episode; the episodes are loaded again to get it.
 	`ALTER TABLE episode ADD COLUMN image TEXT NOT NULL DEFAULT '';
 	DELETE FROM series_fetch`,
+	// 18: Stalker portals: the kind is allowed by rebuilding the table, as
+	// in migration 12.
+	`CREATE TABLE subscription_new (
+		id          INTEGER PRIMARY KEY,
+		name        TEXT NOT NULL UNIQUE,
+		kind        TEXT NOT NULL CHECK (kind IN ('xtream', 'm3u', 'local', 'stalker')),
+		vpn_id      INTEGER REFERENCES vpn(id),   -- NULL for local collections
+		settings    TEXT NOT NULL,
+		secret      BLOB NOT NULL,
+		created_at  INTEGER NOT NULL,
+		synced_at   INTEGER,
+		sync_status TEXT NOT NULL DEFAULT 'never',
+		sync_error  TEXT NOT NULL DEFAULT '',
+		account     TEXT NOT NULL DEFAULT '{}',
+		rules       TEXT NOT NULL DEFAULT '{}'
+	);
+	INSERT INTO subscription_new (id, name, kind, vpn_id, settings, secret, created_at, synced_at, sync_status, sync_error, account, rules)
+		SELECT id, name, kind, vpn_id, settings, secret, created_at, synced_at, sync_status, sync_error, account, rules FROM subscription;
+	DROP TABLE subscription;
+	ALTER TABLE subscription_new RENAME TO subscription;`,
 }
 
 // noForeignKeys lists migrations (1-based) that rebuild a parent table:
 // with foreign keys on, dropping the old table would delete its children.
-var noForeignKeys = map[int]bool{12: true}
+var noForeignKeys = map[int]bool{12: true, 18: true}
 
 func (s *Store) migrate(ctx context.Context) error {
 	if _, err := s.w.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)`); err != nil {

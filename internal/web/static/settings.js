@@ -33,7 +33,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
   // The sections, in groups like a system settings app.
   const SECTIONS = [
     [t("Contenuti"), [
-      ["subscriptions", "layers", t("Abbonamenti"), t("Playlist Xtream e M3U")],
+      ["subscriptions", "layers", t("Abbonamenti"), t("Playlist Xtream, M3U e Stalker")],
       ["libraries", "folder", t("Raccolte"), t("Cartelle di film e serie")],
       ["vpn", "lock", "VPN", t("Come si raggiunge il provider")],
       ["rules", "check", t("Selezione"), t("Paesi, anni, cosa entra nel catalogo")],
@@ -141,7 +141,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     const subs = all.filter((s) => s.kind !== "local");
     const vpnName = fromEntries(vpns.map((v) => [v.id, v.name]));
     const parts = [el("h2", {}, t("Abbonamenti")),
-      el("p", { className: "note" }, t("Playlist dei provider (Xtream Codes o M3U). Ogni abbonamento passa dalla sua VPN: senza VPN il provider non viene mai contattato."))];
+      el("p", { className: "note" }, t("Playlist dei provider (Xtream Codes, M3U o portali Stalker). Ogni abbonamento passa dalla sua VPN: senza VPN il provider non viene mai contattato."))];
     for (const s of subs) parts.push(subscriptionBox(s, vpns, vpnName));
     parts.push(el("h2", {}, t("Aggiungi un abbonamento")));
     parts.push(vpns.length ? subscriptionForm(vpns) : el("p", { className: "note" }, t("Prima aggiungi una connessione VPN (scheda VPN).")));
@@ -152,7 +152,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     const settings = s.settings || {};
     const a = s.account || {};
     const facts = el("div", { className: "facts" },
-      el("span", {}, t("Tipo") + " ", el("b", {}, s.kind === "xtream" ? "Xtream Codes" : t("Playlist M3U"))),
+      el("span", {}, t("Tipo") + " ", el("b", {}, { xtream: "Xtream Codes", stalker: t("Portale Stalker") }[s.kind] || t("Playlist M3U"))),
       settings.server ? el("span", {}, "Server ", el("b", {}, settings.server)) : null,
       settings.username ? el("span", {}, t("Utente") + " ", el("b", {}, settings.username)) : null,
       settings.host ? el("span", {}, "Host ", el("b", {}, settings.host)) : null,
@@ -295,7 +295,8 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
 
   // Add (existing undefined) or edit a subscription.
   function subscriptionForm(vpns, existing) {
-    const kind = el("select", { className: "focusable" }, el("option", { value: "xtream" }, "Xtream Codes"), el("option", { value: "m3u" }, t("Playlist M3U")));
+    const kind = el("select", { className: "focusable" }, el("option", { value: "xtream" }, "Xtream Codes"), el("option", { value: "m3u" }, t("Playlist M3U")),
+      el("option", { value: "stalker" }, t("Portale Stalker (MAC)")));
     const name = input({ value: existing ? existing.name : "", placeholder: t("es. Provider casa") });
     const vpn = el("select", { className: "focusable" }, ...vpns.map((v) => el("option", { value: v.id }, v.name)));
     const set = (existing && existing.settings) || {};
@@ -303,13 +304,18 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     const user = input({ value: set.username || "", autocomplete: "off" });
     const pass = input({ type: "password", autocomplete: "new-password", placeholder: existing ? t("lascia vuoto per non cambiarla") : "" });
     const url = input({ placeholder: existing ? t("lascia vuoto per non cambiarlo") : "http://…/get.php?…" });
+    const portal = input({ value: set.server || "", placeholder: "http://portale:porta/c/" });
+    const mac = input({ autocomplete: "off", spellcheck: false, placeholder: existing ? t("lascia vuoto per non cambiarlo") : "00:1A:79:XX:XX:XX" });
     if (existing) { kind.value = existing.kind; kind.disabled = true; vpn.value = existing.vpn_id; }
     const xtreamRows = [...field("Server", server), ...field(t("Utente"), user), ...field("Password", pass)];
     const m3uRows = [...field(t("Indirizzo della playlist"), url)];
-    const form = el("form", { className: "form" }, ...field(t("Tipo"), kind), ...field(t("Nome"), name), ...field("VPN", vpn), ...xtreamRows, ...m3uRows);
+    const stalkerRows = [...field(t("Indirizzo del portale"), portal), ...field(t("Indirizzo MAC"), mac),
+      el("p", { className: "note full" }, t("Per ora si leggono i canali in diretta; la guida si aggiunge da Guida TV → Fonti XMLTV."))];
+    const form = el("form", { className: "form" }, ...field(t("Tipo"), kind), ...field(t("Nome"), name), ...field("VPN", vpn), ...xtreamRows, ...m3uRows, ...stalkerRows);
     const toggle = () => {
       for (const e of xtreamRows) e.hidden = kind.value !== "xtream";
       for (const e of m3uRows) e.hidden = kind.value !== "m3u";
+      for (const e of stalkerRows) e.hidden = kind.value !== "stalker";
     };
     kind.onchange = toggle;
     toggle();
@@ -322,12 +328,14 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
         if (existing) {
           const patch = { name: name.value, vpn_id: Number(vpn.value) };
           if (existing.kind === "xtream") Object.assign(patch, { server: server.value, username: user.value, password: pass.value });
+          else if (existing.kind === "stalker") Object.assign(patch, { server: portal.value, mac: mac.value });
           else patch.url = url.value;
           await api("PATCH", "/api/v1/subscriptions/" + existing.id, patch);
           flash(t("Abbonamento aggiornato"));
         } else {
           const body = { name: name.value, kind: kind.value, vpn_id: Number(vpn.value) };
           if (kind.value === "xtream") Object.assign(body, { server: server.value, username: user.value, password: pass.value });
+          else if (kind.value === "stalker") Object.assign(body, { server: portal.value, mac: mac.value });
           else body.url = url.value;
           await api("POST", "/api/v1/subscriptions", body);
           flash(t("Abbonamento aggiunto: premi “Sincronizza ora” per scaricare il catalogo"));

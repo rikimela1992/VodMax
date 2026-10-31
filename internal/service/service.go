@@ -17,6 +17,7 @@ import (
 
 	"github.com/silirim/vodmax/internal/catalog"
 	"github.com/silirim/vodmax/internal/playlist/m3u"
+	"github.com/silirim/vodmax/internal/playlist/stalker"
 	"github.com/silirim/vodmax/internal/playlist/xtream"
 	"github.com/silirim/vodmax/internal/provider"
 	"github.com/silirim/vodmax/internal/secret"
@@ -60,6 +61,8 @@ type Service struct {
 	upd    updateState
 	dl     downloadState
 	sso    ssoState
+
+	stalkerTokens sync.Map // subscription id → portal session
 }
 
 func New(st *store.Store, box *secret.Box, start StartTunnel) *Service {
@@ -266,6 +269,7 @@ type SubscriptionInput struct {
 	Username string `json:"username,omitempty"`
 	Password string `json:"password,omitempty"`
 	URL      string `json:"url,omitempty"`
+	MAC      string `json:"mac,omitempty"`
 	// Local collection: the folder and what it holds (movie or series).
 	Path    string `json:"path,omitempty"`
 	Content string `json:"content,omitempty"`
@@ -279,6 +283,7 @@ type xtreamSettings struct {
 type subscriptionSecret struct {
 	Password string `json:"password,omitempty"`
 	URL      string `json:"url,omitempty"`
+	MAC      string `json:"mac,omitempty"` // Stalker portal
 }
 
 func subOwner(id int64) string { return fmt.Sprintf("subscription:%d", id) }
@@ -316,8 +321,18 @@ func (s *Service) AddSubscription(ctx context.Context, in SubscriptionInput) (in
 		}
 		settings = map[string]string{"host": u.Hostname()}
 		sec.URL = u.String()
+	case "stalker":
+		mac, err := stalker.NormalizeMAC(in.MAC)
+		if err == nil {
+			_, err = stalker.New(in.Server, mac, nil)
+		}
+		if err != nil {
+			return 0, invalid("%v", err)
+		}
+		settings = xtreamSettings{Server: strings.TrimSpace(in.Server)}
+		sec.MAC = mac
 	default:
-		return 0, invalid("tipo di abbonamento non valido: usa xtream o m3u")
+		return 0, invalid("tipo di abbonamento non valido: usa xtream, m3u o stalker")
 	}
 	rawSettings, _ := json.Marshal(settings)
 	rawSecret, _ := json.Marshal(sec)
@@ -334,6 +349,7 @@ type SubscriptionPatch struct {
 	Username *string `json:"username"`
 	Password *string `json:"password"`
 	URL      *string `json:"url"`
+	MAC      *string `json:"mac"`
 	Path     *string `json:"path"`
 	Content  *string `json:"content"`
 }
@@ -405,6 +421,24 @@ func (s *Service) UpdateSubscription(ctx context.Context, id int64, p Subscripti
 			sec.URL = u.String()
 			settings, _ = json.Marshal(map[string]string{"host": u.Hostname()})
 		}
+	case "stalker":
+		var set xtreamSettings
+		json.Unmarshal(sub.Settings, &set)
+		if p.Server != nil {
+			set.Server = strings.TrimSpace(*p.Server)
+		}
+		if p.MAC != nil && *p.MAC != "" {
+			mac, err := stalker.NormalizeMAC(*p.MAC)
+			if err != nil {
+				return invalid("%v", err)
+			}
+			sec.MAC = mac
+		}
+		if _, err := stalker.New(set.Server, sec.MAC, nil); err != nil {
+			return invalid("%v", err)
+		}
+		settings, _ = json.Marshal(set)
+		s.stalkerTokens.Delete(id)
 	}
 	rawSecret, _ := json.Marshal(sec)
 	secret = s.box.Seal(rawSecret, subOwner(id))
@@ -621,6 +655,14 @@ func (s *Service) fetch(ctx context.Context, id int64) (*catalog.Snapshot, error
 			return nil, err
 		}
 		return catalog.FromM3U(p, s.box.Seal, id), nil
+	case "stalker":
+		client, err := s.stalkerClient(ctx, sub, sec, httpClient)
+		if err != nil {
+			return nil, err
+		}
+		snap, err := catalog.FromStalker(ctx, client, s.box.Seal, id)
+		s.stalkerTokens.Store(id, client.Token())
+		return snap, err
 	}
 	return nil, fmt.Errorf("tipo di abbonamento sconosciuto %q", sub.Kind)
 }
