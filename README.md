@@ -47,15 +47,18 @@ decoder with the remote.
 
 | | |
 |---|---|
-| 📺 **Live TV** | Remote-friendly zapping (numbers, P+/P−, favourites only), channel list, now/next, official channel numbering, sport and radio sections |
+| 📺 **Live TV** | Remote-friendly zapping (numbers, P+/P−, favourites only), channel list, now/next, official channel numbering, sport and radio sections, **multiview** (2 or 4 channels at once) |
 | 🗓️ **TV guide** | Programme grid from XMLTV (playlist guide and external sources), record or replay from the guide |
 | ⏸️ **Timeshift & catch-up** | Pause and rewind live TV, start the programme from the beginning, replay from the playlist's archive |
-| ⏺️ **Recordings (DVR)** | Record what is on, from the guide or by rule ("every match", "the news"), with disk and connection checks |
-| 🎬 **Movies & series** | Posters, plots and cast, continue watching, next episode, audio and subtitle languages, MKV/AVI/HEVC converted on the fly |
+| ⏺️ **Recordings (DVR)** | Record what is on, from the guide or by rule ("every match", "the news", live only), with disk and connection checks; "skip ad" with Comskip |
+| 🎬 **Movies & series** | Posters, plots and cast, continue watching, my list, next episode, skip intro, audio and subtitle languages, MKV/AVI/HEVC converted on the fly (also with the graphics card: VAAPI, Quick Sync, NVENC) |
 | ⬇️ **Downloads** | Copy movies, episodes, seasons or whole series to the server's disk, to watch them without the playlist; one at a time, only on a free connection (whoever watches comes first), optionally at night |
 | 📁 **Local collections** | Folders of movies or series named like Jellyfin/Kodi/Plex libraries, `.nfo` files and artwork next to the videos |
+| 📡 **Sources** | Xtream Codes, M3U playlists and Stalker portals (MAC) |
 | 🧹 **Catalog selection** | Keep only the countries, years and categories you want, with a live preview |
-| 👪 **Profiles** | Per-person progress and favourites, kids profiles, devices paired with a short code |
+| 👪 **Profiles** | Per-person progress and favourites, kids profiles, devices paired with a short code or signed in with your home account (OpenID Connect: Authelia, Authentik, Keycloak…) |
+| ✨ **Assistant** | Optional, with your own model (Ollama at home or any OpenAI-compatible API): write a recording rule as a sentence, ask what to watch tonight |
+| 🔌 **Other apps** | Plex, Jellyfin and Emby see VodMax as an HDHomeRun tuner; M3U playlist and XMLTV guide for TiviMate, Kodi, VLC |
 | 🔒 **Built-in VPN** | WireGuard in user space inside the server and the app: without the VPN, playlists are never contacted |
 | 💾 **Backups** | Encrypted backups and automatic copies, health warnings for VPN, playlists, guide and disk |
 | 🖼️ **Metadata** | From the playlist, from `.nfo` files, or from TMDB with your own key |
@@ -161,7 +164,9 @@ This product uses the TMDB API but is not endorsed or certified by
 
 Issues and pull requests are welcome: read [CONTRIBUTING.md](CONTRIBUTING.md)
 (contributions are accepted under a contributor license agreement) and
-[SECURITY.md](SECURITY.md) for vulnerabilities.
+[SECURITY.md](SECURITY.md) for vulnerabilities. VodMax speaks Italian and
+English; new languages are plain JSON files, ready for Weblate (see
+[Translations](CONTRIBUTING.md#translations)).
 
 ## License
 

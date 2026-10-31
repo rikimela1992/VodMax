@@ -598,7 +598,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       parts.push(el("h2", {}, "App"), el("p", { className: "note" }, t("VodMax per Android {version}, collegata a {server}.", { version: window.VodMax.native.version(), server: location.origin })),
         appButtons, appStatus);
     }
-    parts.push(...await downloadSection(), ...await liveSection(), ...await transcodeSection(), ...await outputSection(), ...await recordingLimits(), ...(await metadataSection()).filter(Boolean), ...await backupSection());
+    parts.push(...await downloadSection(), ...await liveSection(), ...await transcodeSection(), ...await assistantSection(), ...await outputSection(), ...await recordingLimits(), ...(await metadataSection()).filter(Boolean), ...await backupSection());
     main.replaceChildren(...parts);
   }
 
@@ -725,6 +725,45 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       el("p", { className: "note" }, t("Quasi sempre il video passa così com'è. Si converte solo quando il browser non sa leggerlo (per esempio HEVC o MPEG-2): " +
         "con la scheda grafica è molto più veloce e lascia libero il processore. Se la scheda non parte, VodMax usa il processore da solo. " +
         "Con Docker la scheda va passata al container (--device /dev/dri, o il runtime NVIDIA).")), form];
+  }
+
+  // ---- The assistant (a language model) ----
+  async function assistantSection() {
+    const a = await api("GET", "/api/v1/settings/assistant").catch(() => null);
+    if (!a) return [];
+    const url = input({ value: a.url, placeholder: "http://ollama:11434/v1", spellcheck: false });
+    const model = input({ value: a.model, placeholder: t("es. llama3.1:8b"), spellcheck: false, autocomplete: "off" });
+    const key = input({ type: "password", autocomplete: "new-password", spellcheck: false,
+      placeholder: a.has_key ? t("configurata: lascia vuoto per non cambiarla") : t("solo se il servizio la chiede") });
+    const enabled = input({ type: "checkbox", checked: a.enabled });
+    const result = el("p", { className: "note" });
+    const test = button(t("Prova"), async () => {
+      test.disabled = true;
+      result.className = "note";
+      result.textContent = t("Prova in corso…");
+      try {
+        const r = await api("POST", "/api/v1/settings/assistant/test");
+        result.className = "ok";
+        result.textContent = "✓ " + t("Risponde in {s} s: «{answer}»", { s: r.seconds.toLocaleString(locale, { maximumFractionDigits: 1 }), answer: r.answer.slice(0, 160) });
+      } catch (e) { result.className = "note bad"; result.textContent = e.message; }
+      test.disabled = false;
+    });
+    const save = el("button", { className: "small primary focusable", type: "submit" }, t("Salva"));
+    const form = el("form", { className: "form" }, ...field(t("Indirizzo (API compatibile OpenAI)"), url), ...field(t("Modello"), model),
+      ...field(t("Chiave"), key), el("label", {}, ""), el("label", { className: "check" }, enabled, t("Accendi l'assistente per tutti i profili")),
+      el("div", { className: "buttons full" }, save, test), el("div", { className: "full" }, result));
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const body = { enabled: enabled.checked, url: url.value, model: model.value };
+      if (key.value) body.key = key.value;
+      try { await api("PUT", "/api/v1/settings/assistant", body); flash(t("Assistente salvato")); key.value = ""; }
+      catch (err) { flash(err.message); }
+    };
+    return [el("h2", {}, t("Assistente")),
+      el("p", { className: "note" }, t("Un modello linguistico scrive le regole di registrazione a partire da una frase e propone cosa guardare stasera. " +
+        "Va bene qualsiasi server con l'API compatibile OpenAI: Ollama, LM Studio o llama.cpp in casa, oppure un servizio su internet. " +
+        "Gli si mandano la guida TV di stasera, i nomi dei canali e i titoli che hai iniziato o messo in lista; mai credenziali né indirizzi del provider. " +
+        "Con un modello in casa non esce nulla dalla tua rete. L'assistente propone soltanto: le regole le controlli e le salvi tu.")), form];
   }
 
   // ---- Output to other apps (HDHomeRun, M3U, XMLTV) ----

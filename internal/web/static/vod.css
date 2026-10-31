@@ -395,3 +395,13 @@ video::cue { font-size: 1.6rem; background: rgba(0, 0, 0, 0.65); }
   .player:has(.player-bar:not(.idle)) .player-extra { bottom: calc(9.5rem + env(safe-area-inset-bottom)); }
   .next-card { width: 100%; }
 }
+
+/* The assistant: "tonight" on Home and the sentence in the rule form. */
+.tonight { margin-bottom: 0.5rem; }
+.tonight-form { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; margin: 0.4rem 0 0.8rem; }
+.tonight-form input { flex: 1 1 18rem; max-width: 34rem; padding: 0.55em 0.8em; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; }
+.tonight-form input:focus { outline: none; border-color: var(--focus); }
+.tonight-intro { color: var(--text); margin: 0 0 0.6rem; }
+.card .why { display: block; margin-top: 0.25rem; color: var(--soft); font-size: 0.8em; line-height: 1.3; white-space: normal; }
+.rule-ask { display: grid; gap: 0.5rem; padding-bottom: 0.9rem; border-bottom: 1px solid var(--line); }
+.rule-ask button { justify-self: start; }

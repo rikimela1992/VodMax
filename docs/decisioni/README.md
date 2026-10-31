@@ -39,6 +39,7 @@ Una decisione approvata si cambia solo con una nuova scheda che la sostituisce.
 | [0031](0031-multiview.md) | Multiview: più canali insieme | **Approvata** |
 | [0032](0032-portali-stalker.md) | Portali Stalker (MAC) e diretta M3U dal server | **Approvata** |
 | [0033](0033-pubblicita-nelle-registrazioni.md) | Pubblicità nelle registrazioni (Comskip) | **Approvata** |
+| [0034](0034-assistente.md) | Assistente: regole a parole e "cosa guardo stasera" | **Approvata** |
 
 ## Ordine consigliato per decidere
 

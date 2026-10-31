@@ -150,7 +150,9 @@
       api("GET", "/api/v1/trending").catch(() => []),
     ]);
     const hero = el("section", { className: "hero" });
-    const parts = [hero, el("h2", { className: "section" }, t("Continua a guardare"))];
+    const parts = [hero];
+    if (await assistant()) parts.push(tonightBox());
+    parts.push(el("h2", { className: "section" }, t("Continua a guardare")));
     parts.push(cont.length ? el("div", { className: "row" }, ...cont.map(continueCard))
       : el("p", { className: "empty" }, t("Qui compaiono i film e gli episodi iniziati e la prossima puntata delle serie che stai seguendo.")));
     if (mine.length) parts.push(el("h2", { className: "section" }, t("La mia lista")), el("div", { className: "row" }, ...mine.slice(0, 24).map(itemCard)));
@@ -220,6 +222,55 @@
       p ? el("div", { className: "bar" }, el("div", { style: "width:" + pct + "%" })) : null,
       el("span", { className: "label" }, c.number + " · " + c.name), el("span", { className: "sub" }, p ? p.title : t("Nessuna informazione")));
     card.onclick = () => { location.href = "/tv.html?channel=" + c.id; };
+    return card;
+  }
+
+  // ---- The assistant (when the admin set one up) ----
+  let assistantOn = null;
+  const assistant = () => assistantOn || (assistantOn = api("GET", "/api/v1/assistant").then((r) => r.enabled, () => false));
+
+  // "What shall I watch tonight?": the model picks among tonight's
+  // programmes and the library; a card per pick, with the reason.
+  function tonightBox() {
+    const wish = el("input", { className: "focusable", type: "text", maxLength: 200, placeholder: t("Hai voglia di… (facoltativo)") });
+    wish.setAttribute("aria-label", t("Hai voglia di…"));
+    const ask = el("button", { className: "small primary focusable", type: "submit" }, t("Cosa guardo stasera?"));
+    const result = el("div", { className: "tonight-result" });
+    const form = el("form", { className: "tonight-form" }, wish, ask);
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      ask.disabled = true;
+      result.replaceChildren(el("p", { className: "empty" }, t("L'assistente sta scegliendo…")));
+      try {
+        const r = await api("POST", "/api/v1/assistant/tonight", { wish: wish.value });
+        result.replaceChildren(r.intro ? el("p", { className: "tonight-intro" }, r.intro) : "", el("div", { className: "row" }, ...r.picks.map(pickCard)));
+        focusFirst(result.querySelector(".row"));
+      } catch (err) { result.replaceChildren(el("p", { className: "empty" }, err.message)); }
+      ask.disabled = false;
+    };
+    return el("section", { className: "tonight" }, el("h2", { className: "section" }, t("Stasera")), form, result);
+  }
+
+  function pickCard(p) {
+    const why = el("span", { className: "why" }, p.why);
+    if (p.kind !== "tv") {
+      const card = itemCard({ id: p.item_id, kind: p.kind, display_title: p.title, logo: p.image });
+      card.append(why);
+      return card;
+    }
+    const now = Date.now() / 1000, onAir = p.start <= now && now < p.stop;
+    const art = el("div", { className: "poster channel-art" }, p.image ? el("img", { src: p.image, alt: "", loading: "lazy" }) : el("span", {}, p.channel));
+    const card = el("button", { className: "card wide focusable pick" }, art,
+      el("span", { className: "label" }, p.title),
+      el("span", { className: "sub" }, (onAir ? t("In onda ora") : hhmm(p.start)) + " · " + p.channel), why);
+    card.onclick = async () => {
+      if (onAir) { location.href = "/tv.html?channel=" + p.channel_id; return; }
+      if (!confirm(t("Registrare “{title}” alle {time} su {channel}?", { title: p.title, time: hhmm(p.start), channel: p.channel }))) return;
+      try {
+        await api("POST", "/api/v1/recordings", { channel_id: p.channel_id, start: p.start, stop: p.stop, title: p.title, from_guide: true });
+        flash(t("Registrazione programmata"));
+      } catch (e) { flash(e.message); }
+    };
     return card;
   }
 
@@ -552,6 +603,35 @@
       el("p", { className: "empty" }, t("Anteprima di cosa registrerebbe:")), result, save);
     form.addEventListener("input", refresh);
     form.addEventListener("change", refresh);
+    if (!existing) assistant().then((on) => {
+      if (!on) return;
+      const text = el("input", { className: "focusable", type: "text", maxLength: 500, placeholder: t("es. registra le gare di Formula 1 in diretta, non le qualifiche") });
+      const go = el("button", { className: "small focusable", type: "button" }, t("Compila con l'assistente"));
+      const said = el("p", { className: "empty" });
+      go.onclick = async () => {
+        if (!text.value.trim()) return;
+        go.disabled = true;
+        said.textContent = t("L'assistente sta scrivendo la regola…");
+        try {
+          const p = await api("POST", "/api/v1/assistant/rule", { text: text.value });
+          const r = p.rule;
+          name.value = r.name;
+          all.value = (r.all || []).join(", ");
+          any.value = (r.any || []).join(", ");
+          none.value = (r.none || []).join(", ");
+          section.value = r.section || "";
+          await channelsCache.catch(() => {});
+          channel.value = String(r.channel_id || 0);
+          liveOnly.checked = !!r.live_only;
+          keep.value = r.keep || "";
+          said.textContent = (p.explanation ? p.explanation + " " : "") + t("Controlla l'anteprima e salva.");
+          refresh();
+        } catch (e) { said.textContent = e.message; }
+        go.disabled = false;
+      };
+      text.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go.click(); } });
+      form.prepend(el("div", { className: "rule-ask" }, f(t("Descrivi la regola"), text), go, said));
+    });
     form.onsubmit = async (e) => {
       e.preventDefault();
       try {

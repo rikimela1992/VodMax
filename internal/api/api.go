@@ -115,6 +115,12 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	route("GET /api/v1/settings/transcode", levelAdmin, a.getTranscode)
 	route("PUT /api/v1/settings/transcode", levelAdmin, a.putTranscode)
 	route("POST /api/v1/settings/transcode/test", levelAdmin, a.testTranscode)
+	route("GET /api/v1/settings/assistant", levelAdmin, a.assistantView)
+	route("PUT /api/v1/settings/assistant", levelAdmin, a.putAssistant)
+	route("POST /api/v1/settings/assistant/test", levelAdmin, a.testAssistant)
+	route("GET /api/v1/assistant", levelViewer, a.assistantOn)
+	route("POST /api/v1/assistant/rule", levelMember, a.assistantRule)
+	route("POST /api/v1/assistant/tonight", levelViewer, a.assistantTonight)
 	route("GET /api/v1/settings/sso", levelAdmin, a.ssoView)
 	route("PUT /api/v1/settings/sso", levelAdmin, a.putSSO)
 	route("GET /api/v1/mylist", levelViewer, a.myList)
@@ -277,6 +283,10 @@ func (a *api) fail(w http.ResponseWriter, r *http.Request, err error) {
 		status = http.StatusTooManyRequests
 	case errors.Is(err, service.ErrPairing):
 		status = http.StatusNotFound
+	case errors.Is(err, service.ErrAssistantOff):
+		status = http.StatusConflict
+	case errors.Is(err, service.ErrAssistant):
+		status = http.StatusBadGateway
 	case errors.Is(err, service.ErrNoImage), errors.Is(err, service.ErrNotReady):
 		status = http.StatusNotFound
 	case errors.As(err, new(*service.UpstreamError)):

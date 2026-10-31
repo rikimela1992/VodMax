@@ -61,6 +61,7 @@ type Service struct {
 	upd    updateState
 	dl     downloadState
 	sso    ssoState
+	asst   assistantState
 
 	stalkerTokens sync.Map // subscription id → portal session
 }
