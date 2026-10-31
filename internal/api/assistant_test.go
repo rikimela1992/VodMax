@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -160,5 +161,57 @@ func TestAssistant(t *testing.T) {
 	e.do(t, "POST", "/api/v1/assistant/tonight", map[string]string{"wish": "qualcosa di leggero"}, true)
 	if len(m.requests) != n {
 		t.Fatal("not cached")
+	}
+
+	// A request for something specific: the model names titles, VodMax
+	// looks for them in the catalog and offers only the ones it has.
+	_, body = e.do(t, "GET", "/api/v1/catalog/movie?limit=50", nil, true)
+	var all struct {
+		Items []struct {
+			ID           int64
+			DisplayTitle string `json:"display_title"`
+		}
+	}
+	json.Unmarshal(body, &all)
+	var asked struct {
+		ID           int64
+		DisplayTitle string `json:"display_title"`
+	}
+	for _, it := range all.Items {
+		if it.ID != films.Items[0].ID && it.DisplayTitle != "" {
+			asked = it
+			break
+		}
+	}
+	if asked.ID == 0 {
+		t.Fatalf("no second film: %s", body)
+	}
+	m.answer = func(system, user string) string {
+		if strings.Contains(system, "home catalog") {
+			return `{"titles":[{"title":` + strconv.Quote(asked.DisplayTitle) + `},{"title":"Un film che non c'è"}]}`
+		}
+		for _, line := range strings.Split(user, "\n") {
+			if strings.Contains(line, "(matches the request)") {
+				return `{"intro":"Eccolo.","picks":[{"code":"` + strings.TrimSpace(strings.SplitN(line, "|", 2)[0]) + `","why":"L'hai chiesto tu."}]}`
+			}
+		}
+		return `{"intro":"Non c'è.","picks":[]}`
+	}
+	code, body = e.do(t, "POST", "/api/v1/assistant/tonight", map[string]string{"wish": "quel film con quell'attore"}, true)
+	tn.Picks = nil
+	if code != 200 || json.Unmarshal(body, &tn) != nil || len(tn.Picks) != 1 || tn.Picks[0].Title != asked.DisplayTitle {
+		t.Fatalf("asked for a title: %d %s", code, body)
+	}
+	// Nothing fits: a sentence, not an error.
+	m.answer = func(system, user string) string {
+		if strings.Contains(system, "home catalog") {
+			return `{"titles":[]}`
+		}
+		return `{"intro":"Stasera niente del genere.","picks":[]}`
+	}
+	code, body = e.do(t, "POST", "/api/v1/assistant/tonight", map[string]string{"wish": "un documentario sui pinguini"}, true)
+	tn.Picks, tn.Intro = nil, ""
+	if code != 200 || json.Unmarshal(body, &tn) != nil || len(tn.Picks) != 0 || tn.Intro != "Stasera niente del genere." || !strings.Contains(string(body), `"picks":[]`) {
+		t.Fatalf("nothing fits: %d %s", code, body)
 	}
 }

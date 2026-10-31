@@ -420,8 +420,57 @@ type Tonight struct {
 	Picks []Pick `json:"picks"`
 }
 
-const tonightPrompt = `You help a person choose what to watch tonight. Below are the programmes on their TV channels (codes T…) and titles from their own library (codes L…): what they started, their list and what is trending. Choose up to 5 that fit them best, mixing TV and library when it makes sense; prefer what they seem to like. %s
-Answer in %s with only a JSON object: {"intro": "one short sentence", "picks": [{"code": "T12", "why": "one short sentence"}]}. Use only codes from the lists.`
+const tonightPrompt = `You help a person choose what to watch tonight. Below are the programmes on their TV channels (codes T…) and titles from their own library (codes L…): what they started, their list, what is trending%s. Choose up to 5 that fit them best, mixing TV and library when it makes sense; prefer what they asked for, then what they seem to like. %s
+Answer in %s with only a JSON object: {"intro": "one short sentence", "picks": [{"code": "T12", "why": "one short sentence"}]}. Use only codes from the lists. When they ask for something specific (a title, an actor, a director, a year), pick only what matches it; if nothing does, give no picks and say so in the intro.`
+
+// titlesPrompt turns a request ("a Brad Pitt film from 2004") into titles
+// to look for in the catalog: the catalog knows titles and years, the
+// model knows who played in what.
+const titlesPrompt = `You help find films and series in a home catalog. List up to 8 titles that match the request below: films or series you know, and any title the request names. Give the original title and, when different, the Italian title as another entry; add the year when you are sure. Answer with only a JSON object: {"titles": [{"title": "Troy", "year": 2004}]}. If the request is only a mood or a genre, answer {"titles": []}.`
+
+// requestedTitles looks in the catalog for the titles the model names for
+// the person's request; only titles the person really has come back.
+func (s *Service) requestedTitles(ctx context.Context, a AssistantSettings, wish string) []candidate {
+	answer, err := s.chat(ctx, a, []chatMessage{{Role: "system", Content: titlesPrompt}, {Role: "user", Content: wish}}, true)
+	if err != nil {
+		return nil
+	}
+	var raw struct {
+		Titles []struct {
+			Title string `json:"title"`
+			Year  int    `json:"year"`
+		} `json:"titles"`
+	}
+	if jsonObject(answer, &raw) != nil {
+		return nil
+	}
+	var out []candidate
+	seen := map[int64]bool{}
+	for i, t := range raw.Titles {
+		if i >= 10 || len(out) >= 10 {
+			break
+		}
+		for _, kind := range []string{"movie", "series"} {
+			page, err := s.Catalog(ctx, store.Query{Kind: kind, Text: truncate(t.Title, 80), Limit: 5})
+			if err != nil {
+				continue
+			}
+			for _, it := range page.Items {
+				if seen[it.ID] || (t.Year > 0 && it.Year != nil && (*it.Year < t.Year-1 || *it.Year > t.Year+1)) {
+					continue
+				}
+				seen[it.ID] = true
+				extra := it.DisplayTitle
+				if it.Year != nil {
+					extra += fmt.Sprintf(" (%d)", *it.Year)
+				}
+				out = append(out, candidate{Pick: Pick{Kind: it.Kind, Title: it.DisplayTitle, ItemID: it.ID, Image: it.Logo}, extra: extra + " (matches the request)"})
+				break // the best match of each title is enough
+			}
+		}
+	}
+	return out
+}
 
 // AssistantTonight asks the model for tonight's picks among the viewer's
 // programmes and titles; wish is what the person feels like, if anything.
@@ -449,6 +498,24 @@ func (s *Service) AssistantTonight(ctx context.Context, wish string) (Tonight, e
 		return out, err
 	}
 	lib := s.tonightLibrary(ctx)
+	matching := ""
+	if wish != "" {
+		// What they asked for comes first, without repeating a title.
+		asked := s.requestedTitles(ctx, a, wish)
+		have := map[int64]bool{}
+		for _, c := range asked {
+			have[c.ItemID] = true
+		}
+		if len(asked) > 0 {
+			matching = " and titles that match their request"
+		}
+		for _, c := range lib {
+			if !have[c.ItemID] {
+				asked = append(asked, c)
+			}
+		}
+		lib = asked
+	}
 	if len(tv) == 0 && len(lib) == 0 {
 		return out, invalid("niente da proporre: né guida TV per stasera né titoli nella libreria")
 	}
@@ -473,7 +540,7 @@ func (s *Service) AssistantTonight(ctx context.Context, wish string) (Tonight, e
 		note += " This is a children's profile: only suggest what suits children."
 	}
 	answer, err := s.chat(ctx, a, []chatMessage{
-		{Role: "system", Content: fmt.Sprintf(tonightPrompt, note, languageName(ctx))},
+		{Role: "system", Content: fmt.Sprintf(tonightPrompt, matching, note, languageName(ctx))},
 		// Small models forget the language asked at the top of a long list.
 		{Role: "user", Content: list.String() + "\nAnswer in " + languageName(ctx) + "."},
 	}, true)
@@ -518,7 +585,12 @@ func (s *Service) AssistantTonight(ctx context.Context, wish string) (Tonight, e
 		out.Picks = append(out.Picks, p)
 	}
 	if len(out.Picks) == 0 {
-		return out, ErrAssistant
+		// Nothing fits: the model says so, it is not a failure.
+		out.Picks = []Pick{}
+		if out.Intro == "" {
+			out.Intro = T(ctx, "Niente di adatto tra i programmi di stasera e i tuoi titoli: prova con altre parole.")
+		}
+		return out, nil
 	}
 	s.asst.mu.Lock()
 	if s.asst.tonight == nil {

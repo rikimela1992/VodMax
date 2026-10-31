@@ -234,16 +234,20 @@
   function tonightBox() {
     const wish = el("input", { className: "focusable", type: "text", maxLength: 200, placeholder: t("Hai voglia di… (facoltativo)") });
     wish.setAttribute("aria-label", t("Hai voglia di…"));
+    // Android keyboards show ✓ ("done") otherwise, which closes the keyboard
+    // without sending the form.
+    wish.setAttribute("enterkeyhint", "go");
     const ask = el("button", { className: "small primary focusable", type: "submit" }, t("Cosa guardo stasera?"));
     const result = el("div", { className: "tonight-result" });
     const form = el("form", { className: "tonight-form" }, wish, ask);
     form.onsubmit = async (e) => {
       e.preventDefault();
+      wish.blur(); // closes the phone keyboard over the answer
       ask.disabled = true;
       result.replaceChildren(el("p", { className: "empty" }, t("L'assistente sta scegliendo… (con un modello sul processore anche un minuto)")));
       try {
         const r = await api("POST", "/api/v1/assistant/tonight", { wish: wish.value });
-        result.replaceChildren(r.intro ? el("p", { className: "tonight-intro" }, r.intro) : "", el("div", { className: "row" }, ...r.picks.map(pickCard)));
+        result.replaceChildren(r.intro ? el("p", { className: "tonight-intro" }, r.intro) : "", (r.picks || []).length ? el("div", { className: "row" }, ...r.picks.map(pickCard)) : "");
         focusFirst(result.querySelector(".row"));
       } catch (err) { result.replaceChildren(el("p", { className: "empty" }, err.message)); }
       ask.disabled = false;
@@ -645,6 +649,7 @@
         } catch (e) { said.textContent = e.message; }
         go.disabled = false;
       };
+      text.setAttribute("enterkeyhint", "go");
       text.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go.click(); } });
       form.prepend(el("div", { className: "rule-ask" }, f(t("Descrivi la regola"), text), go, said));
     });
