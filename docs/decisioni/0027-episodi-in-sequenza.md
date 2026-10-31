@@ -26,3 +26,16 @@ intro o outro")
 - Stesso comportamento nel player del browser/TV LG e in quello nativo
   dell'app Android (Media3), che restituisce all'interfaccia cosa ha
   imparato e se passare al successivo.
+
+## Correzione nell'app Android (31 ottobre 2026)
+
+Segnalazione: sul telefono, nelle serie, toccando lo schermo comparivano
+solo la barra del tempo e "Prossimo episodio", senza ±10/30 s e pausa. Il
+pulsante "Prossimo episodio" era un elemento nostro sovrapposto ai comandi
+di Media3 e aggiornato ogni mezzo secondo, mentre Media3, nascondendo i
+comandi, passa per uno stato con la sola barra. Ora "Prossimo episodio" è il
+pulsante ⏭ dei comandi stessi (un `ForwardingPlayer` dichiara il comando "vai
+al successivo") e i comandi compaiono e spariscono tutti insieme. Restano
+sovrapposti solo "Salta intro" e il riquadro dei titoli di coda, che
+compaiono quando servono. Verificata la compilazione; la prova sul telefono
+resta da fare.

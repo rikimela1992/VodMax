@@ -25,6 +25,7 @@ import android.widget.TextView;
 
 import androidx.annotation.OptIn;
 import androidx.media3.common.C;
+import androidx.media3.common.ForwardingPlayer;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.PlaybackException;
@@ -66,7 +67,7 @@ public class PlayerActivity extends Activity {
     private boolean goNext, nextCancelled, skipping;
     private long nextAt;                                // ms, 0: not counting
     private long chainStart = -1, chainEnd;
-    private Button skipIntro, nextButton;
+    private Button skipIntro;
     private LinearLayout nextCard;
     private TextView nextCount;
     private final Handler ticker = new Handler(Looper.getMainLooper());
@@ -110,10 +111,40 @@ public class PlayerActivity extends Activity {
             .setSeekForwardIncrementMs(30000)
             .build();
         view = new PlayerView(this);
-        view.setPlayer(player);
+        // The next episode is the controller's own ⏭ button: an overlay of
+        // ours over the controls fought with them (only the time bar left).
+        view.setPlayer(nextTitle == null ? player : new ForwardingPlayer(player) {
+            @Override
+            public boolean isCommandAvailable(int command) {
+                return command == COMMAND_SEEK_TO_NEXT || super.isCommandAvailable(command);
+            }
+
+            @Override
+            public Player.Commands getAvailableCommands() {
+                return super.getAvailableCommands().buildUpon().add(COMMAND_SEEK_TO_NEXT).build();
+            }
+
+            @Override
+            public boolean hasNextMediaItem() {
+                return true;
+            }
+
+            @Override
+            public void seekToNext() {
+                playNext(true);
+            }
+
+            @Override
+            public void seekToNextMediaItem() {
+                playNext(true);
+            }
+        });
         view.setShowSubtitleButton(true);
-        view.setShowNextButton(false);
+        view.setShowNextButton(nextTitle != null);
         view.setShowPreviousButton(false);
+        // All the controls come and go together: no intermediate state with
+        // the time bar alone.
+        view.setControllerAnimationEnabled(false);
         view.setKeepScreenOn(true);
         view.setControllerShowTimeoutMs(4000);
         DefaultTimeBar bar = view.findViewById(androidx.media3.ui.R.id.exo_progress);
@@ -227,10 +258,6 @@ public class PlayerActivity extends Activity {
         });
         box.addView(skipIntro);
 
-        nextButton = pill(R.string.next_episode, false);
-        nextButton.setVisibility(View.GONE);
-        nextButton.setOnClickListener(v -> playNext(true));
-        box.addView(nextButton);
 
         nextCard = new LinearLayout(this);
         nextCard.setOrientation(LinearLayout.VERTICAL);
@@ -300,7 +327,6 @@ public class PlayerActivity extends Activity {
         else hide(skipIntro);
         if (nextTitle == null || d == C.TIME_UNSET || d <= 0 || nextCancelled) {
             hide(nextCard);
-            hide(nextButton);
             return;
         }
         // With the credits known the card comes when they start and plays
@@ -309,11 +335,8 @@ public class PlayerActivity extends Activity {
         if (left > (credits > 0 ? credits : 15) * 1000L) {
             nextAt = 0;
             hide(nextCard);
-            if (view.isControllerFullyVisible()) nextButton.setVisibility(View.VISIBLE);
-            else hide(nextButton);
             return;
         }
-        hide(nextButton);
         if (nextAt == 0) nextAt = credits > 0 ? Math.min(d, pos + 10_000) : d;
         nextCount.setText(getString(R.string.next_in, (int) Math.max(0, Math.ceil((nextAt - pos) / 1000.0))));
         reveal(nextCard);
@@ -366,7 +389,7 @@ public class PlayerActivity extends Activity {
             return true;
         }
         View f = getCurrentFocus();
-        if (f instanceof Button && (f == skipIntro || f == nextButton || (nextCard != null && f.getParent() != null
+        if (f instanceof Button && (f == skipIntro || (nextCard != null && f.getParent() != null
                 && f.getParent().getParent() == nextCard))) {
             return super.dispatchKeyEvent(event);
         }
