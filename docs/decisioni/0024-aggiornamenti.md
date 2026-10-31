@@ -34,3 +34,14 @@ dopo tre giorni) e **Salta questa versione**. Finché c'è una versione nuova
 resta una voce «Aggiorna l'app»: icona con pallino accanto alla ricerca, e
 in «Altro» sul telefono.
 
+
+## Beta su richiesta (31 ottobre 2026)
+
+"Un utente può installarle, poi gli vengono proposte solo se ha abilitato la
+versione beta": l'opzione *Proponi anche le versioni beta* (Impostazioni →
+Sistema, spenta di default) decide cosa il server propone, anche alle app
+Android. Aver installato una beta non basta più: senza l'opzione si propone
+la prossima stabile. Quando la proposta è una beta, la pagina mostra il
+comando con la versione precisa (`sudo vodmax-update v…`). Lo script senza
+argomenti installa solo stabili e non torna mai a una versione più vecchia;
+`BETA=1` resta per chi lo usa a mano.

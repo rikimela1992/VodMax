@@ -4,8 +4,9 @@
 # running binary as vodmax-server.old, installs the new one and restarts
 # the service.
 #
-#   sudo vodmax-update            the newest release (betas only after a beta)
-#   sudo vodmax-update v0.3.1     a given release (also to go back)
+#   sudo vodmax-update            the newest stable release (never older
+#                                 than the installed one)
+#   sudo vodmax-update v0.3.1     a given release: a beta, or to go back
 #   sudo BETA=1 vodmax-update     the newest release, betas included
 #
 # Going back to the previous binary without downloading:
@@ -37,16 +38,28 @@ fi
 
 current=$("$BIN" -version 2>/dev/null | cut -d' ' -f2 || true)
 tag=${1:-}
+asked=$tag
 if [ -z "$tag" ]; then
-  # The newest stable release; with a beta installed (or BETA=1), the
-  # newest release of all, betas included. Drafts are not public.
+  # The newest stable release; with BETA=1 the newest of all, betas
+  # included. Drafts are not public. A beta installed does not bring
+  # other betas: they are chosen (BETA=1, or the tag).
   api="https://api.github.com/repos/$REPO/releases/latest"
-  case $current in *-beta* | *-rc*) api="https://api.github.com/repos/$REPO/releases?per_page=1" ;; esac
   [ -n "${BETA:-}" ] && api="https://api.github.com/repos/$REPO/releases?per_page=1"
   tag=$(get "$api" - | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n 1)
   [ -n "$tag" ] || { echo "Nessuna versione trovata su GitHub." >&2; exit 1; }
 fi
 case $tag in v*) ;; *) tag=v$tag ;; esac
+# Without a tag, never back: "0.6.0" is newer than "0.6.0-beta.2", which is
+# newer than "0.5.5".
+if [ -z "$asked" ] && [ -n "$current" ]; then
+  cur=${current#v}; new=${tag#v}
+  cur_core=${cur%%[-+]*}; new_core=${new%%[-+]*}
+  higher=$(printf '%s\n%s\n' "$cur_core" "$new_core" | sort -V | tail -n 1)
+  if [ "$cur_core" != "$new_core" ] && [ "$higher" = "$cur_core" ] && [ -z "${FORCE:-}" ]; then
+    echo "Hai già VodMax $current, più recente di $tag. Per installare una versione precisa: sudo vodmax-update <versione>."
+    exit 0
+  fi
+fi
 if [ "${current#v}" = "${tag#v}" ] && [ -z "${FORCE:-}" ]; then
   echo "VodMax $tag è già installato (FORCE=1 per reinstallarlo)."
   exit 0

@@ -40,21 +40,26 @@ type ReleaseAsset struct {
 
 // UpdateInfo is what the server knows about new versions.
 type UpdateInfo struct {
-	Enabled   bool          `json:"enabled"`
-	Current   string        `json:"current"`
-	Latest    string        `json:"latest,omitempty"`
-	Available bool          `json:"available"` // newer than this server
-	Notes     string        `json:"notes,omitempty"`
-	Page      string        `json:"page,omitempty"`
-	Published *time.Time    `json:"published_at,omitempty"`
-	APK       *ReleaseAsset `json:"apk,omitempty"`
-	Server    *ReleaseAsset `json:"server,omitempty"` // for this machine's architecture
-	CheckedAt *time.Time    `json:"checked_at,omitempty"`
-	Error     string        `json:"error,omitempty"`
+	Enabled    bool          `json:"enabled"`
+	Beta       bool          `json:"beta"`                 // betas are offered too
+	Prerelease bool          `json:"prerelease,omitempty"` // Latest is a beta
+	Current    string        `json:"current"`
+	Latest     string        `json:"latest,omitempty"`
+	Available  bool          `json:"available"` // newer than this server
+	Notes      string        `json:"notes,omitempty"`
+	Page       string        `json:"page,omitempty"`
+	Published  *time.Time    `json:"published_at,omitempty"`
+	APK        *ReleaseAsset `json:"apk,omitempty"`
+	Server     *ReleaseAsset `json:"server,omitempty"` // for this machine's architecture
+	CheckedAt  *time.Time    `json:"checked_at,omitempty"`
+	Error      string        `json:"error,omitempty"`
 }
 
+// Betas can be installed by anyone (from the release page or with
+// vodmax-update <tag>), but are offered only with Beta on.
 type updateSettings struct {
 	Enabled bool `json:"enabled"`
+	Beta    bool `json:"beta"`
 }
 
 type updateState struct {
@@ -85,10 +90,21 @@ func (s *Service) updateSettings(ctx context.Context) updateSettings {
 	return set
 }
 
-// SetUpdatesEnabled turns the daily check on or off.
-func (s *Service) SetUpdatesEnabled(ctx context.Context, on bool) (UpdateInfo, error) {
-	if err := s.st.SetSetting(ctx, updatesKey, updateSettings{Enabled: on}); err != nil {
+// SetUpdatesEnabled turns the daily check on or off; beta (when given)
+// chooses whether betas are offered, and asks GitHub again.
+func (s *Service) SetUpdatesEnabled(ctx context.Context, on bool, beta *bool) (UpdateInfo, error) {
+	set := s.updateSettings(ctx)
+	set.Enabled = on
+	changed := beta != nil && *beta != set.Beta
+	if beta != nil {
+		set.Beta = *beta
+	}
+	if err := s.st.SetSetting(ctx, updatesKey, set); err != nil {
 		return UpdateInfo{}, err
+	}
+	if changed && on {
+		info, _ := s.CheckUpdate(ctx)
+		return info, nil
 	}
 	return s.Update(ctx), nil
 }
@@ -100,7 +116,8 @@ func (s *Service) Update(ctx context.Context) UpdateInfo {
 	s.upd.mu.Lock()
 	info.Current = s.upd.version
 	s.upd.mu.Unlock()
-	info.Enabled = s.updateSettings(ctx).Enabled
+	set := s.updateSettings(ctx)
+	info.Enabled, info.Beta = set.Enabled, set.Beta
 	info.Available = info.Latest != "" && newerVersion(info.Latest, info.Current)
 	return info
 }
@@ -183,9 +200,9 @@ func (s *Service) fetchUpdate(ctx context.Context) (UpdateInfo, error) {
 	if err := s.getJSON(ctx, base+"/repos/"+updateRepo+"/releases?per_page=20", version, &releases); err != nil {
 		return UpdateInfo{}, err
 	}
-	// Betas only for whoever runs one: they choose them by installing one.
-	cur := parseVersion(version)
-	beta := cur != nil && cur[3] < 0
+	// Betas only for whoever asked for them. Someone on a beta without the
+	// option is offered the next stable version.
+	beta := s.updateSettings(ctx).Beta
 	var best *ghRelease
 	for i := range releases {
 		r := &releases[i]
@@ -199,7 +216,7 @@ func (s *Service) fetchUpdate(ctx context.Context) (UpdateInfo, error) {
 	if best == nil {
 		return UpdateInfo{}, errors.New("nessuna versione pubblicata")
 	}
-	info := UpdateInfo{Latest: best.Tag, Notes: best.Body, Page: best.Page}
+	info := UpdateInfo{Latest: best.Tag, Notes: best.Body, Page: best.Page, Prerelease: best.Prerelease}
 	if len(info.Notes) > maxNotes {
 		info.Notes = info.Notes[:maxNotes] + "…"
 	}

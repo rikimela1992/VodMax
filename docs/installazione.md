@@ -102,6 +102,11 @@ una versione nuova.
   precedente deve disinstallarla e installare la 0.4.0 una volta.
 - **LG webOS**: l'interfaccia arriva dal server, quindi è sempre aggiornata;
   l'app in sé cambia di rado (si reinstalla come sopra).
+- **Beta**: chiunque può installarne una (`sudo vodmax-update v0.6.0-beta.2`,
+  l'APK dalla pagina della release o il tag Docker), ma vengono proposte solo
+  con *Proponi anche le versioni beta* acceso in Impostazioni → Sistema. Il
+  semplice `sudo vodmax-update` installa solo versioni stabili e non torna
+  mai indietro.
 
 ## 2. Prima configurazione
 

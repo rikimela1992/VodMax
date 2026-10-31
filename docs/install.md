@@ -103,6 +103,10 @@ is out.
 - **LG webOS**: the interface comes from the server, so it is always
   current; the app itself rarely changes (reinstall it as above when it
   does).
+- **Betas**: anyone can install one (`sudo vodmax-update v0.6.0-beta.2`, the
+  APK from the release page, or the Docker tag), but they are offered only
+  with *Offer beta versions too* on in Settings → System. Plain
+  `sudo vodmax-update` installs stable versions only and never goes back.
 
 ## 2. First setup
 

@@ -67,10 +67,28 @@ func TestUpdateCheck(t *testing.T) {
 	if _, body := e.do(t, "GET", "/api/v1/update", nil, true); !strings.Contains(string(body), `"available":false`) {
 		t.Fatalf("up to date: %s", body)
 	}
-	// A beta is offered only to whoever runs a beta.
+	// Running a beta is not asking for betas: without the option the
+	// beta is not offered, and neither is the older stable version.
 	e.svc.SetVersion("v0.4.1-beta.1")
-	if _, body := e.do(t, "POST", "/api/v1/update/check", nil, true); !strings.Contains(string(body), `"latest":"v0.5.0-beta.1"`) {
-		t.Fatalf("beta for a beta: %s", body)
+	if _, body := e.do(t, "POST", "/api/v1/update/check", nil, true); !strings.Contains(string(body), `"latest":"v0.4.0"`) ||
+		!strings.Contains(string(body), `"available":false`) {
+		t.Fatalf("beta without the option: %s", body)
+	}
+	// With the option on, betas are offered (and checked at once).
+	code, body = e.do(t, "PUT", "/api/v1/settings/updates", map[string]bool{"enabled": true, "beta": true}, true)
+	if code != 200 || !strings.Contains(string(body), `"latest":"v0.5.0-beta.1"`) || !strings.Contains(string(body), `"beta":true`) ||
+		!strings.Contains(string(body), `"prerelease":true`) || !strings.Contains(string(body), `"available":true`) {
+		t.Fatalf("beta with the option: %d %s", code, body)
+	}
+	// Also for whoever runs a stable version.
+	e.svc.SetVersion("v0.4.0")
+	if _, body := e.do(t, "GET", "/api/v1/update", nil, true); !strings.Contains(string(body), `"available":true`) {
+		t.Fatalf("beta for a stable: %s", body)
+	}
+	// Off again: back to the stable version, the option is kept with the check.
+	e.do(t, "PUT", "/api/v1/settings/updates", map[string]bool{"enabled": true, "beta": false}, true)
+	if _, body := e.do(t, "GET", "/api/v1/update", nil, true); !strings.Contains(string(body), `"latest":"v0.4.0"`) {
+		t.Fatalf("beta off: %s", body)
 	}
 	// Turned off.
 	if code, body := e.do(t, "PUT", "/api/v1/settings/updates", map[string]bool{"enabled": false}, true); code != 200 || !strings.Contains(string(body), `"enabled":false`) {

@@ -657,5 +657,9 @@
   "Assistente salvato": "Assistente salvato",
   "Assistente": "Assistente",
   "Un modello linguistico scrive le regole di registrazione a partire da una frase e propone cosa guardare stasera. Va bene qualsiasi server con l'API compatibile OpenAI: Ollama, LM Studio o llama.cpp in casa, oppure un servizio su internet. Gli si mandano la guida TV di stasera, i nomi dei canali e i titoli che hai iniziato o messo in lista; mai credenziali né indirizzi del provider. Con un modello in casa non esce nulla dalla tua rete. L'assistente propone soltanto: le regole le controlli e le salvi tu.": "Un modello linguistico scrive le regole di registrazione a partire da una frase e propone cosa guardare stasera. Va bene qualsiasi server con l'API compatibile OpenAI: Ollama, LM Studio o llama.cpp in casa, oppure un servizio su internet. Gli si mandano la guida TV di stasera, i nomi dei canali e i titoli che hai iniziato o messo in lista; mai credenziali né indirizzi del provider. Con un modello in casa non esce nulla dalla tua rete. L'assistente propone soltanto: le regole le controlli e le salvi tu.",
-  "L'assistente sta scegliendo… (con un modello sul processore anche un minuto)": "L'assistente sta scegliendo… (con un modello sul processore anche un minuto)"
+  "L'assistente sta scegliendo… (con un modello sul processore anche un minuto)": "L'assistente sta scegliendo… (con un modello sul processore anche un minuto)",
+  "Con Docker: immagine {image}.": "Con Docker: immagine {image}.",
+  "Ti verranno proposte anche le beta": "Ti verranno proposte anche le beta",
+  "Ti verranno proposte solo le versioni stabili": "Ti verranno proposte solo le versioni stabili",
+  "Proponi anche le versioni beta (novità in prova, possono avere difetti); vale anche per le app Android": "Proponi anche le versioni beta (novità in prova, possono avere difetti); vale anche per le app Android"
 }

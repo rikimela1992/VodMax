@@ -613,7 +613,10 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     if (u.available) {
       const box = el("section", { className: "box" }, el("h3", {}, t("È disponibile VodMax {version}", { version: u.latest.replace(/^v/, "") })));
       if (u.notes) box.append(el("pre", { className: "notes" }, u.notes));
-      box.append(el("p", { className: "note" }, t("Per aggiornare il server, sulla macchina dove gira:")), el("pre", { className: "cmd" }, "sudo vodmax-update"),
+      // A beta is installed by name: plain vodmax-update keeps to stable versions.
+      box.append(el("p", { className: "note" }, t("Per aggiornare il server, sulla macchina dove gira:")),
+        el("pre", { className: "cmd" }, u.prerelease ? "sudo vodmax-update " + u.latest : "sudo vodmax-update"),
+        el("p", { className: "note" }, t("Con Docker: immagine {image}.", { image: "ghcr.io/silirim/vodmax:" + (u.prerelease ? u.latest.replace(/^v/, "") : "latest") })),
         el("p", { className: "note" }, t("Lo script scarica la versione per questa macchina, verifica il checksum, tiene la precedente e riavvia il servizio. Le app Android si aggiornano da sole, con una conferma.")));
       if (u.page) box.append(el("p", {}, el("a", { href: u.page, target: "_blank", rel: "noopener", className: "focusable" }, t("Note complete su GitHub"))));
       parts.push(box);
@@ -622,7 +625,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     }
     const auto = input({ type: "checkbox", checked: u.enabled });
     auto.onchange = async () => {
-      try { await api("PUT", "/api/v1/settings/updates", { enabled: auto.checked }); flash(auto.checked ? t("Controllo giornaliero attivo") : t("Controllo giornaliero disattivato")); }
+      try { await api("PUT", "/api/v1/settings/updates", { enabled: auto.checked, beta: u.beta }); flash(auto.checked ? t("Controllo giornaliero attivo") : t("Controllo giornaliero disattivato")); }
       catch (e) { flash(e.message); auto.checked = !auto.checked; }
     };
     const check = button(t("Controlla ora"), async () => {
@@ -630,7 +633,14 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       try { await api("POST", "/api/v1/update/check"); } catch (e) { flash(e.message); }
       render();
     });
+    const beta = input({ type: "checkbox", checked: u.beta });
+    beta.onchange = async () => {
+      beta.disabled = true;
+      try { await api("PUT", "/api/v1/settings/updates", { enabled: auto.checked, beta: beta.checked }); flash(beta.checked ? t("Ti verranno proposte anche le beta") : t("Ti verranno proposte solo le versioni stabili")); render(); }
+      catch (e) { flash(e.message); beta.checked = !beta.checked; beta.disabled = false; }
+    };
     parts.push(el("label", { className: "check" }, auto, t("Controlla ogni giorno se c'è una nuova versione (contatta solo GitHub, senza inviare dati)")),
+      el("label", { className: "check" }, beta, t("Proponi anche le versioni beta (novità in prova, possono avere difetti); vale anche per le app Android")),
       el("div", { className: "buttons" }, check));
     return parts;
   }

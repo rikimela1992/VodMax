@@ -1607,13 +1607,14 @@ func (a *api) checkUpdate(w http.ResponseWriter, r *http.Request) {
 
 func (a *api) putUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		Enabled bool `json:"enabled"`
+		Enabled bool  `json:"enabled"`
+		Beta    *bool `json:"beta"`
 	}
 	if err := decode(r, &in); err != nil {
 		a.fail(w, r, err)
 		return
 	}
-	info, err := a.svc.SetUpdatesEnabled(r.Context(), in.Enabled)
+	info, err := a.svc.SetUpdatesEnabled(r.Context(), in.Enabled, in.Beta)
 	if err != nil {
 		a.fail(w, r, err)
 		return
