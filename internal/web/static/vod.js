@@ -251,11 +251,27 @@
     return el("section", { className: "tonight" }, el("h2", { className: "section" }, t("Stasera")), form, result);
   }
 
+  // Every pick is a wide card, TV or library alike. A film or series shows
+  // its backdrop when it has one, otherwise the whole poster over a blurred
+  // copy of itself.
   function pickCard(p) {
     const why = el("span", { className: "why" }, p.why);
     if (p.kind !== "tv") {
-      const card = itemCard({ id: p.item_id, kind: p.kind, display_title: p.title, logo: p.image });
-      card.append(why);
+      const item = { id: p.item_id, kind: p.kind, display_title: p.title, logo: p.image };
+      const art = el("div", { className: "poster pick-art" });
+      if (p.image) {
+        art.style.setProperty("--art", "url(" + JSON.stringify(p.image) + ")");
+        art.append(el("img", { src: p.image, alt: "", loading: "lazy" }));
+      } else art.append(el("span", {}, p.title));
+      detailsOf(p.item_id).then((d) => {
+        if (!d.backdrop) return;
+        const img = new Image();
+        img.onload = () => { art.replaceChildren(); art.style.setProperty("--art", "url(" + JSON.stringify(d.backdrop) + ")"); art.classList.add("backdrop"); };
+        img.src = d.backdrop;
+      });
+      const card = el("button", { className: "card wide focusable pick" }, art, el("span", { className: "label" }, p.title),
+        el("span", { className: "sub" }, p.kind === "series" ? t("Serie") : t("Film")), why);
+      card.onclick = () => openDetail(item);
       return card;
     }
     const now = Date.now() / 1000, onAir = p.start <= now && now < p.stop;
