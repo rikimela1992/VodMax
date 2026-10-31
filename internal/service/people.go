@@ -96,7 +96,10 @@ func (s *Service) FillPeople(ctx context.Context, log *slog.Logger, night func()
 				log.Info("indice delle persone: il provider non risponde, riprovo la prossima notte", "abbonamento", m.SubscriptionID)
 				return done
 			}
-			s.st.PutItemPeople(ctx, m.ID, peopleText(d.Cast, d.Director))
+			if err := s.st.PutItemPeople(ctx, m.ID, peopleText(d.Cast, d.Director)); err != nil {
+				log.Warn("indice delle persone non aggiornato", "err", err)
+				return done // the same titles would come back at once
+			}
 			done++
 			if sub.Kind != "local" {
 				select {
