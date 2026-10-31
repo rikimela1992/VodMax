@@ -513,3 +513,34 @@ func (s *Store) ItemIDs(ctx context.Context, subID int64, kind string) (map[stri
 	}
 	return out, rows.Err()
 }
+
+// MyList is a profile's list of films and series ("My list"), the last
+// added first: one entry per title, its main version.
+func (s *Store) MyList(ctx context.Context, profileID int64, noAdult bool) ([]CatalogItem, error) {
+	rows, err := s.r.QueryContext(ctx, `SELECT `+itemColumns+` FROM favorite f
+		JOIN item i ON i.kind = f.kind AND i.group_key = f.group_key
+		WHERE f.profile_id = ? AND f.kind IN ('movie', 'series') AND i.available = 1 AND i.visible = 1 AND i.primary_variant = 1
+			AND (? = 0 OR i.adult = 0)
+		ORDER BY f.added_at DESC, f.rowid DESC`, profileID, noAdult)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []CatalogItem{}
+	for rows.Next() {
+		it, err := scanItem(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, it)
+	}
+	return out, rows.Err()
+}
+
+// InMyList tells whether the title of an item is in a profile's list.
+func (s *Store) InMyList(ctx context.Context, profileID, itemID int64) (bool, error) {
+	var n int
+	err := s.r.QueryRowContext(ctx, `SELECT count(*) FROM favorite f JOIN item i ON i.kind = f.kind AND i.group_key = f.group_key
+		WHERE f.profile_id = ? AND i.id = ?`, profileID, itemID).Scan(&n)
+	return n > 0, err
+}

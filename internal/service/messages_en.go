@@ -133,6 +133,7 @@ var messagesEN = map[string]string{
 	"nome della regola obbligatorio (max 60 caratteri)":               "rule name required (max 60 characters)",
 	"serve almeno una parola che il programma deve contenere":         "enter at least one word the programme must contain",
 	"troppe parole (max %d)":                                          "too many words (max %d)",
+	"solo film e serie vanno nella lista":                             "only films and series go in the list",
 	"sigla non valida":                                                "invalid opening",
 	"titoli di coda non validi":                                       "invalid end credits",
 	"niente da salvare":                                               "nothing to save",

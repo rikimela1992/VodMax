@@ -623,6 +623,34 @@ func (s *Service) fetch(ctx context.Context, id int64) (*catalog.Snapshot, error
 	return nil, fmt.Errorf("tipo di abbonamento sconosciuto %q", sub.Kind)
 }
 
+// MyList is the viewer's list of films and series.
+func (s *Service) MyList(ctx context.Context) ([]store.CatalogItem, error) {
+	v := viewerOf(ctx)
+	list, err := s.st.MyList(ctx, v.ProfileID, v.Kids)
+	s.catalogImages(ctx, list)
+	return list, err
+}
+
+// InMyList tells whether a film or series is in the viewer's list.
+func (s *Service) InMyList(ctx context.Context, itemID int64) (bool, error) {
+	return s.st.InMyList(ctx, viewerOf(ctx).ProfileID, itemID)
+}
+
+// SetMyList adds a film or series to the viewer's list, or removes it.
+func (s *Service) SetMyList(ctx context.Context, itemID int64, on bool) error {
+	it, err := s.st.PlaybackItem(ctx, itemID)
+	if err != nil {
+		return err
+	}
+	if it.Kind != "movie" && it.Kind != "series" {
+		return invalid("solo film e serie vanno nella lista")
+	}
+	if err := s.allowItem(ctx, itemID); err != nil {
+		return err
+	}
+	return s.st.SetFavorite(ctx, viewerOf(ctx).ProfileID, itemID, on)
+}
+
 // Catalog and Categories pass through to the store.
 func (s *Service) Catalog(ctx context.Context, q store.Query) (store.Page, error) {
 	if viewerOf(ctx).Kids {

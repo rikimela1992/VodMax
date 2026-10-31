@@ -14,7 +14,7 @@
   };
 
   const askedView = new URLSearchParams(location.search).get("view");
-  const state = { view: ["home", "movie", "series", "recordings", "downloads", "tv"].includes(askedView) ? askedView : store.get("vodView", "home"), query: "", detail: null, play: null };
+  const state = { view: ["home", "movie", "series", "mylist", "recordings", "downloads", "tv"].includes(askedView) ? askedView : store.get("vodView", "home"), query: "", detail: null, play: null };
   if (askedView) history.replaceState(null, "", "/");
   let statusTimer;
   function flash(text) {
@@ -62,7 +62,7 @@
   // ---- Views ----
   function setTabs() {
     for (const tab of document.querySelectorAll(".tab[data-view]")) tab.classList.toggle("active", tab.dataset.view === state.view);
-    window.VodMax.bottomNav(state.view === "recordings" || state.view === "downloads" ? "more" : state.view);
+    window.VodMax.bottomNav(["recordings", "downloads", "mylist"].includes(state.view) ? "more" : state.view);
   }
 
   async function render() {
@@ -77,6 +77,7 @@
       else if (state.view === "home") await renderHome(main);
       else if (state.view === "recordings") await renderRecordings(main);
       else if (state.view === "downloads") await renderDownloads(main);
+      else if (state.view === "mylist") await renderMyList(main);
       else await renderGrid(main, state.view);
     } catch (e) {
       main.replaceChildren(el("p", { className: "empty" }, e.message));
@@ -139,17 +140,19 @@
   async function renderHome(main) {
     main.replaceChildren(el("section", { className: "hero skeleton" }), el("h2", { className: "section" }, t("Continua a guardare")), skeletonRow(true),
       el("h2", { className: "section" }, t("Nuovi film")), skeletonRow(false));
-    const [cont, films, series, favorites, recordings] = await Promise.all([
+    const [cont, films, series, favorites, recordings, mine] = await Promise.all([
       api("GET", "/api/v1/continue"),
       api("GET", "/api/v1/catalog/movie?sort=recent&limit=24"),
       api("GET", "/api/v1/catalog/series?sort=recent&limit=24"),
       api("GET", "/api/v1/tv/channels?list=favorites").catch(() => []),
       api("GET", "/api/v1/recordings").catch(() => []),
+      api("GET", "/api/v1/mylist").catch(() => []),
     ]);
     const hero = el("section", { className: "hero" });
     const parts = [hero, el("h2", { className: "section" }, t("Continua a guardare"))];
     parts.push(cont.length ? el("div", { className: "row" }, ...cont.map(continueCard))
       : el("p", { className: "empty" }, t("Qui compaiono i film e gli episodi iniziati e la prossima puntata delle serie che stai seguendo.")));
+    if (mine.length) parts.push(el("h2", { className: "section" }, t("La mia lista")), el("div", { className: "row" }, ...mine.slice(0, 24).map(itemCard)));
     if (favorites.length) parts.push(el("h2", { className: "section" }, t("In onda sui tuoi canali")), el("div", { className: "row" }, ...favorites.slice(0, 20).map(channelCard)));
     parts.push(el("h2", { className: "section" }, t("Nuovi film")), el("div", { className: "row" }, ...films.items.map(itemCard)));
     parts.push(el("h2", { className: "section" }, t("Nuove serie")), el("div", { className: "row" }, ...series.items.map(itemCard)));
@@ -361,6 +364,30 @@
   }
 
   // ---- The downloads page; refreshed while one is running ----
+  // ---- My list: films and series kept for later, per profile ----
+  async function renderMyList(main) {
+    const list = await api("GET", "/api/v1/mylist");
+    main.replaceChildren(el("h2", { className: "page-title" }, t("La mia lista")),
+      list.length ? el("div", { className: "grid" }, ...list.map(itemCard))
+        : el("p", { className: "empty" }, t("La lista è vuota. Nella scheda di un film o di una serie premi “La mia lista” per ritrovarlo qui.")));
+  }
+
+  // The "My list" button of a detail page.
+  async function addListButton(item) {
+    const b = el("button", { className: "button focusable mylist" });
+    let on = false;
+    const draw = () => window.VodMax.label(b, on ? "bookmark-check" : "bookmark", on ? t("Nella mia lista") : t("La mia lista"));
+    draw();
+    b.onclick = async () => {
+      try { on = (await api("PUT", "/api/v1/mylist/" + item.id, { on: !on })).on; draw(); flash(on ? t("Aggiunto alla tua lista") : t("Tolto dalla tua lista")); }
+      catch (e) { flash(e.message); }
+    };
+    const actions = $("detail-actions");
+    const trailer = actions.querySelector(".trailer");
+    actions.insertBefore(b, trailer || null);
+    try { on = (await api("GET", "/api/v1/mylist/" + item.id)).on; draw(); } catch { /* the button still works */ }
+  }
+
   async function renderDownloads(main) {
     const dl = await downloadList(true);
     if (!dl) { main.replaceChildren(el("p", { className: "empty" }, t("I download non sono disponibili su questo dispositivo."))); return; }
@@ -644,6 +671,7 @@
       catch (e) { actions.replaceChildren(el("p", { className: "empty" }, e.message)); return; }
       actions.replaceChildren();
       renderSeasons(item, eps);
+      addListButton(item);
       return;
     }
     // Only the saved position: a playback session is created on "play",
@@ -667,6 +695,7 @@
       v.onclick = () => showVariants(item);
       actions.append(v);
     }
+    addListButton(item);
     // The trailer (added when the details arrive) always comes last.
     const trailer = actions.querySelector(".trailer");
     if (trailer) actions.append(trailer);

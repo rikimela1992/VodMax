@@ -109,6 +109,9 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	route("PUT /api/v1/settings/live", levelAdmin, a.putLiveSettings)
 	route("GET /api/v1/series/{id}/episodes", levelViewer, a.episodes)
 	route("PUT /api/v1/series/{id}/markers", levelViewer, a.seriesMarkers)
+	route("GET /api/v1/mylist", levelViewer, a.myList)
+	route("GET /api/v1/mylist/{id}", levelViewer, a.inMyList)
+	route("PUT /api/v1/mylist/{id}", levelViewer, a.setMyList)
 	route("PUT /api/v1/progress/{media}/{id}", levelViewer, a.putProgress)
 	route("GET /api/v1/progress/{media}/{id}", levelViewer, a.getProgress)
 	route("GET /api/v1/continue", levelViewer, a.continueWatching)
@@ -746,6 +749,49 @@ func (a *api) episodes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, list)
+}
+
+func (a *api) myList(w http.ResponseWriter, r *http.Request) {
+	list, err := a.svc.MyList(r.Context())
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+func (a *api) inMyList(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	on, err := a.svc.InMyList(r.Context(), id)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"on": on})
+}
+
+func (a *api) setMyList(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	var in struct {
+		On bool `json:"on"`
+	}
+	if err := decode(r, &in); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if err := a.svc.SetMyList(r.Context(), id, in.On); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"on": in.On})
 }
 
 func (a *api) seriesMarkers(w http.ResponseWriter, r *http.Request) {

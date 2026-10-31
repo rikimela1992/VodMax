@@ -323,3 +323,47 @@ func TestContinueFollowsSelection(t *testing.T) {
 		t.Fatalf("back with the category: %s", c)
 	}
 }
+
+func TestMyList(t *testing.T) {
+	e, _ := tvSetup(t)
+	film := findItem(t, e, "movie", "1408")
+	series := findItem(t, e, "series", "twin")
+	list := func() string {
+		_, body := e.do(t, "GET", "/api/v1/mylist", nil, true)
+		return string(body)
+	}
+	if l := list(); l != "[]\n" && l != "[]" {
+		t.Fatalf("empty list: %s", l)
+	}
+	for _, id := range []int64{film, series} {
+		if code, body := e.do(t, "PUT", "/api/v1/mylist/"+strconv.FormatInt(id, 10), map[string]bool{"on": true}, true); code != 200 {
+			t.Fatalf("add: %d %s", code, body)
+		}
+	}
+	// The last added first; one entry per title (1408 has two versions).
+	var items []struct {
+		ID    int64  `json:"id"`
+		Title string `json:"display_title"`
+	}
+	json.Unmarshal([]byte(list()), &items)
+	if len(items) != 2 || items[0].ID != series || items[1].ID != film {
+		t.Fatalf("list: %s", list())
+	}
+	if _, body := e.do(t, "GET", "/api/v1/mylist/"+strconv.FormatInt(film, 10), nil, true); !strings.Contains(string(body), `"on":true`) {
+		t.Fatalf("in list: %s", body)
+	}
+	// Channels have their favourites, not the list.
+	ch := channels(t, e, "?section=tv")[0]
+	if code, _ := e.do(t, "PUT", "/api/v1/mylist/"+strconv.FormatInt(ch.ID, 10), map[string]bool{"on": true}, true); code != 400 {
+		t.Fatal("channel accepted in the list")
+	}
+	// Each profile has its own list.
+	kid := addKids(t, e)
+	if code, body := e.call(t, "GET", "/api/v1/mylist", nil, kid.device, kid.profile); code != 200 || strings.Contains(string(body), "1408") {
+		t.Fatalf("kids list: %d %s", code, body)
+	}
+	e.do(t, "PUT", "/api/v1/mylist/"+strconv.FormatInt(film, 10), map[string]bool{"on": false}, true)
+	if l := list(); strings.Contains(l, "1408") || !strings.Contains(l, "Twin Peaks") {
+		t.Fatalf("after removing: %s", l)
+	}
+}

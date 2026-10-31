@@ -340,6 +340,7 @@ window.VodMax = (() => {
       };
       const sheet = el("div", { id: "more-sheet", className: "sheet", hidden: true },
         el("div", { className: "sheet-grip" }),
+        entry("bookmark", t("La mia lista"), go("mylist")),
         entry("video", t("Registrazioni"), go("recordings")),
         entry("download", t("Download"), go("downloads"), "downloads-only"),
         entry("calendar-days", t("Guida TV"), () => { location.href = "/guide.html"; }),

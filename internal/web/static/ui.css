@@ -467,4 +467,6 @@ body:has(#player:not([hidden])) #server-problems, body:has(#update-banner) #serv
 }
 @media (min-width: 801px) and (max-width: 1400px) {
   #tabs .tab { padding-left: 0.6em; padding-right: 0.6em; gap: 0.35em; }
+  /* The less used sections as icons, named when open (and as a tooltip). */
+  #tabs .tab.compact:not(.active) .tab-text { display: none; }
 }

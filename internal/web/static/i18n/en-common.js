@@ -56,6 +56,7 @@ VodMaxI18n.add("en", {
   "Cambia il PIN": "Change the PIN",
   "Imposta un PIN": "Set a PIN",
   "Il mio profilo": "My profile",
+  "La mia lista": "My list",
   "con PIN": "with PIN",
   "Nessuna nota per questa versione.": "No notes for this version.",
   "Tutte le novità su GitHub": "Everything new on GitHub",
