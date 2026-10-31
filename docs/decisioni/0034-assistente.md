@@ -15,7 +15,9 @@ Stato: **Approvata** (31 ottobre 2026: "Parti dalle prime due")
   il modulo con gli stessi controlli di una regola scritta a mano e mostra
   l'anteprima. **Non salva niente**: salva la persona.
 - **Cosa guardo stasera** (Home, se l'assistente è acceso): il modello
-  riceve i programmi da adesso a fine serata sui canali del profilo (al
+  riceve i programmi della serata sui canali del profilo (prima delle 18
+  dalle 20:00 alle 00:30, non quello che va in onda la mattina; dopo, da
+  adesso a fine serata) (al
   massimo 60, righe brevi: circa 2000 token con la libreria, letti in ~40 s da un modello piccolo su CPU; prima quelli in onda e di prima serata) e i titoli della
   libreria (iniziati, in lista, di tendenza), ognuno con un codice. Sceglie
   fino a 5 codici con un motivo: **un codice che VodMax non ha dato viene

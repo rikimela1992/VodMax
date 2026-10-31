@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -106,14 +107,32 @@ func TestAssistant(t *testing.T) {
 		t.Fatalf("unusable answer: %d", code)
 	}
 
-	// Tonight: only codes VodMax gave count.
+	// Tonight: only codes VodMax gave count. The test guide is around now,
+	// which before 18:00 is not "tonight": then the pick is the film in
+	// the list.
+	_, body = e.do(t, "GET", "/api/v1/catalog/movie?limit=1", nil, true)
+	var films struct{ Items []struct{ ID int64 } }
+	if json.Unmarshal(body, &films) != nil || len(films.Items) == 0 {
+		t.Fatalf("films: %s", body)
+	}
+	if code, body := e.do(t, "PUT", "/api/v1/mylist/"+jsonInt(films.Items[0].ID), map[string]bool{"on": true}, true); code >= 300 {
+		t.Fatalf("my list: %d %s", code, body)
+	}
 	m.noJSON = false
+	want := ""
 	m.answer = func(system, user string) string {
-		code := ""
+		code, lib := "", ""
 		for _, line := range strings.Split(user, "\n") {
+			c := strings.TrimSpace(strings.SplitN(line, "|", 2)[0])
 			if strings.Contains(line, "Film della sera") {
-				code = strings.TrimSpace(strings.SplitN(line, "|", 2)[0])
+				code = c
+			} else if regexp.MustCompile(`^L[0-9]+$`).MatchString(c) && lib == "" {
+				lib = c
 			}
+		}
+		want = "tv"
+		if code == "" {
+			code, want = lib, "movie"
 		}
 		return `{"intro":"Stasera un film.","picks":[{"code":"` + code + `","why":"Ti piacciono i film."},{"code":"T999","why":"inventato"},{"code":"X1","why":"?"}]}`
 	}
@@ -126,9 +145,11 @@ func TestAssistant(t *testing.T) {
 			Start                     int64
 		}
 	}
-	if code != 200 || json.Unmarshal(body, &tn) != nil || len(tn.Picks) != 1 || tn.Picks[0].Title != "Film della sera" ||
-		tn.Picks[0].Channel == "" || tn.Picks[0].ChannelID == 0 || tn.Picks[0].Start == 0 || tn.Intro == "" {
+	if code != 200 || json.Unmarshal(body, &tn) != nil || len(tn.Picks) != 1 || tn.Intro == "" || tn.Picks[0].Kind != want {
 		t.Fatalf("tonight: %d %s", code, body)
+	}
+	if p := tn.Picks[0]; want == "tv" && (p.Title != "Film della sera" || p.Channel == "" || p.ChannelID == 0 || p.Start == 0) {
+		t.Fatalf("tonight on TV: %s", body)
 	}
 	last := m.requests[len(m.requests)-1]
 	if msgs := last["messages"].([]any); !strings.Contains(msgs[0].(map[string]any)["content"].(string), "qualcosa di leggero") {

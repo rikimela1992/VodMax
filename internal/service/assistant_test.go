@@ -1,0 +1,23 @@
+package service
+
+import (
+	"testing"
+	"time"
+)
+
+func TestTonightWindow(t *testing.T) {
+	loc := time.FixedZone("CET", 3600)
+	at := func(d, h, m int) time.Time { return time.Date(2026, 10, d, h, m, 0, 0, loc) }
+	for _, c := range []struct{ now, from, to time.Time }{
+		{at(31, 9, 25), at(31, 20, 0), at(32, 0, 30)},   // morning: the evening ahead, not the curling on now
+		{at(31, 17, 59), at(31, 20, 0), at(32, 0, 30)},  // still before the evening
+		{at(31, 18, 0), at(31, 18, 0), at(32, 0, 30)},   // from now on
+		{at(31, 22, 45), at(31, 22, 45), at(32, 1, 45)}, // late: at least 3 hours
+		{at(31, 1, 10), at(31, 1, 10), at(31, 4, 10)},   // after midnight: the night going on
+	} {
+		from, to := tonightWindow(c.now)
+		if !from.Equal(c.from) || !to.Equal(c.to) {
+			t.Errorf("%s: %s – %s, want %s – %s", c.now.Format("15:04"), from.Format("02 15:04"), to.Format("02 15:04"), c.from.Format("02 15:04"), c.to.Format("02 15:04"))
+		}
+	}
+}

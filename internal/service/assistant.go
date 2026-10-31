@@ -462,18 +462,31 @@ type candidate struct {
 	extra string // what the model reads besides the title
 }
 
-// tonightProgrammes: from now to the end of the evening (at least 3
-// hours) on the viewer's channels; at most 60, those on air now and those
+// tonightWindow is "tonight" asked at now: before 18:00 the evening ahead
+// (20:00 to 00:30), not what is on in the morning; later, from now to
+// 00:30, at least 3 hours.
+func tonightWindow(now time.Time) (from, to time.Time) {
+	y, m, d := now.Date()
+	from, to = now, time.Date(y, m, d+1, 0, 30, 0, 0, now.Location())
+	if now.Hour() < 4 { // after midnight: tonight is still going on
+		to = time.Date(y, m, d, 0, 30, 0, 0, now.Location())
+	} else if now.Hour() < 18 {
+		from = time.Date(y, m, d, 20, 0, 0, 0, now.Location())
+	}
+	if to.Sub(from) < 3*time.Hour {
+		to = from.Add(3 * time.Hour)
+	}
+	return from, to
+}
+
+// tonightProgrammes: the programmes of tonightWindow on the viewer's
+// channels; at most 60, those on air now and those
 // of prime time first. With the library the list stays near 2000 tokens:
 // within what small local models read by default (Ollama cuts the rest
 // without a word), and about 40 seconds of reading on a processor.
 func (s *Service) tonightProgrammes(ctx context.Context, v Viewer) ([]candidate, error) {
 	now := time.Now()
-	from := now
-	to := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 30, 0, 0, now.Location())
-	if to.Sub(from) < 3*time.Hour {
-		to = from.Add(3 * time.Hour)
-	}
+	from, to := tonightWindow(now)
 	channels, err := s.st.TVChannels(ctx, v.ProfileID, v.Kids, "", false, now)
 	if err != nil {
 		return nil, err
