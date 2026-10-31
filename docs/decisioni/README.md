@@ -34,6 +34,7 @@ Una decisione approvata si cambia solo con una nuova scheda che la sostituisce.
 | [0026](0026-solo-dirette.md) | Regole di registrazione: solo dirette | **Approvata** (passo 1) |
 | [0027](0027-episodi-in-sequenza.md) | Prossimo episodio, salta intro e salta finale | **Approvata** |
 | [0028](0028-uscita-verso-altre-app.md) | Uscita verso altre app (HDHomeRun, M3U, XMLTV) | **Approvata** |
+| [0029](0029-accesso-con-account.md) | Accesso con account di casa (OpenID Connect) | **Approvata** |
 
 ## Ordine consigliato per decidere
 

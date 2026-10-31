@@ -977,7 +977,49 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       el("h2", {}, t("Dispositivi abbinati")),
       devices.length ? el("table", { className: "cats" }, el("tr", {}, el("th", {}, t("Nome")), el("th", {}, t("Ultimo uso")), el("th", {}, t("Profili")), el("th", {}, "")), ...rows)
         : el("p", { className: "note" }, t("Nessun dispositivo abbinato: per ora si entra con il token di amministrazione.")),
-      el("p", { className: "note" }, t("Profili: {names}", { names: Object.values(profileName).join(", ") })));
+      el("p", { className: "note" }, t("Profili: {names}", { names: Object.values(profileName).join(", ") })),
+      ...await ssoSection(profiles));
+  }
+
+  // ---- Sign-in with an account of the house (OpenID Connect) ----
+  async function ssoSection(profiles) {
+    const o = await api("GET", "/api/v1/settings/sso");
+    const issuer = input({ value: o.issuer, placeholder: "https://auth.example.org", spellcheck: false });
+    const client = input({ value: o.client_id, placeholder: "vodmax", spellcheck: false, autocomplete: "off" });
+    const secret = input({ type: "password", autocomplete: "new-password", spellcheck: false,
+      placeholder: o.has_secret ? t("configurato: lascia vuoto per non cambiarlo") : t("dal provider di accesso") });
+    const label = input({ value: o.label, placeholder: t("es. Authelia"), maxLength: 30 });
+    const enabled = input({ type: "checkbox", checked: o.enabled });
+    const rows = el("div", { className: "sso-accounts" });
+    const addRow = (a = { account: "", profile_id: profiles[0] && profiles[0].id }) => {
+      const account = input({ value: a.account, placeholder: t("e-mail o nome utente"), spellcheck: false, autocomplete: "off" });
+      const profile = el("select", { className: "focusable" }, ...profiles.map((p) => el("option", { value: p.id }, p.name)));
+      profile.value = a.profile_id;
+      const row = el("div", { className: "sso-account" }, account, profile, button(t("Togli"), () => row.remove(), "danger"));
+      row.read = () => ({ account: account.value.trim(), profile_id: Number(profile.value) });
+      rows.append(row);
+    };
+    for (const a of o.accounts) addRow(a);
+    if (!o.accounts.length) addRow();
+    const save = el("button", { className: "small primary focusable full", type: "submit" }, t("Salva"));
+    const form = el("form", { className: "form" }, ...field(t("Indirizzo del provider (issuer)"), issuer), ...field("Client ID", client),
+      ...field("Client secret", secret), ...field(t("Nome del pulsante"), label),
+      el("label", {}, t("Account")), el("div", {}, rows, el("div", { className: "buttons" }, button(t("Aggiungi un account"), () => addRow()))),
+      el("label", {}, ""), el("label", { className: "check" }, enabled, t("Mostra «Entra con…» sui dispositivi non abbinati")), save);
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const body = { enabled: enabled.checked, issuer: issuer.value, client_id: client.value, label: label.value,
+        accounts: [...rows.children].map((r) => r.read()).filter((a) => a.account) };
+      if (secret.value) body.client_secret = secret.value;
+      try { await api("PUT", "/api/v1/settings/sso", body); flash(t("Accesso con account salvato")); render(); }
+      catch (err) { flash(err.message); }
+    };
+    return [el("h2", {}, t("Accesso con account di casa")),
+      el("p", { className: "note" }, t("Se in casa usi Authelia, Authentik, Keycloak o un altro provider OpenID Connect, chi apre VodMax da un browser " +
+        "può entrare con il suo account invece del codice. Ogni account entra sempre e solo nel profilo che gli colleghi qui, senza PIN; " +
+        "il browser compare tra i dispositivi abbinati e si revoca come gli altri. Nel provider crea un client con questo indirizzo di ritorno:")),
+      el("pre", { className: "cmd" }, o.redirect_uri),
+      el("p", { className: "note" }, t("Scope: openid, email, profile. Il secret resta cifrato sul server e non viene mai mostrato.")), form];
   }
 
   // ---- Language (this device only; also open to non-admin profiles) ----

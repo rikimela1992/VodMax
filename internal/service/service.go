@@ -59,6 +59,7 @@ type Service struct {
 	cu     catchupState
 	upd    updateState
 	dl     downloadState
+	sso    ssoState
 }
 
 func New(st *store.Store, box *secret.Box, start StartTunnel) *Service {

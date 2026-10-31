@@ -144,7 +144,7 @@
 
 /* Release notes and the update command. */
 .settings pre.notes { max-height: 16rem; overflow: auto; white-space: pre-wrap; font: inherit; font-size: 0.95rem; color: var(--soft); margin: 0.6rem 0; }
-.settings pre.cmd { display: inline-block; margin: 0.2rem 0 0.6rem; padding: 0.5em 0.9em; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; font-family: ui-monospace, monospace; user-select: all; }
+.settings pre.cmd { display: inline-block; margin: 0.2rem 0 0.6rem; padding: 0.5em 0.9em; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; font-family: ui-monospace, monospace; user-select: all; max-width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* ---- Sections as cards ---- */
 .card {
@@ -170,3 +170,5 @@ body.view-system #server-problems { display: none; }
   .card { padding: 1.1rem 1.1rem 1.2rem; margin-bottom: 1.2rem; border-radius: 14px; }
 }
 #problems-slot #server-problems { position: static; display: block; max-width: none; margin: 0 0 1rem; font-size: 0.9rem; }
+.sso-account { display: grid; grid-template-columns: 1fr minmax(8rem, 12rem) auto; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
+@media (max-width: 600px) { .sso-account { grid-template-columns: 1fr auto; } .sso-account input { grid-column: 1 / -1; } }

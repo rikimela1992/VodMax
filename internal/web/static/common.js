@@ -33,6 +33,25 @@ window.VodMax = (() => {
   // Pasting a new link in the same tab only changes the hash: no reload.
   addEventListener("hashchange", () => { if (tokenFromLink()) location.reload(); });
 
+  // Back from the sign-in with an account of the house: "/#sso=…" is a
+  // one-time code for the tokens, "/#sso_error=…" the reason it failed.
+  let ssoError = "";
+  const ssoReady = (async () => {
+    const h = new URLSearchParams(location.hash.slice(1));
+    const code = h.get("sso");
+    ssoError = h.get("sso_error") || "";
+    if (!code && !ssoError) return;
+    history.replaceState(null, "", location.pathname + location.search);
+    if (!code) return;
+    try {
+      const res = await fetch("/api/v1/sso/claim", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || t("errore {status}", { status: res.status }));
+      store.set("token", data.token);
+      store.set("profile", data.profile);
+    } catch (e) { ssoError = e.message; }
+  })();
+
   function token() { return store.get("token", ""); }
   function profileToken() { return store.get("profile", ""); }
   const handled = (msg) => Object.assign(new Error(msg), { handled: true });
@@ -84,10 +103,15 @@ window.VodMax = (() => {
     }
     const code = el("p", { className: "pair-code" }, req.code);
     const admin = el("button", { type: "button", className: "link", onclick: () => { clearTimeout(pairingTimer); askToken(); } }, t("Ho il token di amministrazione"));
+    const sso = await fetch("/api/v1/sso").then((r) => r.json()).catch(() => ({}));
+    const ssoButton = sso.enabled ? el("button", { type: "button", className: "sso", onclick: () => { location.href = "/auth/sso/start"; } },
+      sso.label ? t("Entra con {name}", { name: sso.label }) : t("Entra con il tuo account")) : null;
     overlay("pairing", el("h1", {}, t("Abbina questo dispositivo")),
+      ssoError ? el("p", { className: "hint bad" }, ssoError) : null,
       el("p", {}, t("Su un dispositivo già abbinato, con un profilo amministratore, apri Impostazioni → Dispositivi → Abbina, e inserisci il codice:")),
-      code, el("p", { className: "hint" }, t("Il codice vale 10 minuti, poi ne compare uno nuovo.")), admin);
-    admin.focus();
+      code, el("p", { className: "hint" }, t("Il codice vale 10 minuti, poi ne compare uno nuovo.")),
+      ssoButton ? el("p", { className: "hint" }, t("Oppure entra con l'account di casa:")) : null, ssoButton, admin);
+    (ssoButton || admin).focus();
     const poll = async () => {
       try {
         const res = await fetch("/api/v1/pair/" + req.poll);
@@ -377,7 +401,8 @@ window.VodMax = (() => {
   const sheetOpen = () => { const s = document.getElementById("more-sheet"); return Boolean(s && !s.hidden); };
 
   // Runs start() once the device is paired, otherwise pairs it.
-  function withToken(start) {
+  async function withToken(start) {
+    await ssoReady;
     if (!token()) { showPairing(); return; }
     start();
     decorate();

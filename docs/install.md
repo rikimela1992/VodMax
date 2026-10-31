@@ -137,6 +137,14 @@ Open `http://<server>:8095`. It works on any recent browser, including the
 browser of Samsung, Philips and other smart TVs (without the colour buttons
 of the remote).
 
+If your home already has a sign-in provider (Authelia, Authentik, Keycloak or
+any OpenID Connect provider), browsers can enter with an account instead of a
+pairing code: Settings → Devices → *Sign-in with a home account*. Create a
+client in the provider with the redirect address shown there (scopes
+`openid email profile`), then link each account (e-mail or username) to a
+profile. Every account always enters only its own profile. The provider must
+be reachable over `https://`.
+
 ### Android phone, tablet, Android TV, Google TV
 
 1. Download `VodMax-<v>.apk` on the device (or copy it with a USB stick).

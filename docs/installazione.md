@@ -137,6 +137,14 @@ Apri `http://<server>:8095`. Funziona in ogni browser recente, anche in
 quello delle TV Samsung, Philips e delle altre smart TV (senza i tasti
 colorati del telecomando).
 
+Se in casa c'è già un provider di accesso (Authelia, Authentik, Keycloak o un
+qualsiasi provider OpenID Connect), dai browser si può entrare con un account
+invece del codice di abbinamento: Impostazioni → Dispositivi → *Accesso con
+account di casa*. Nel provider crea un client con l'indirizzo di ritorno
+mostrato lì (scope `openid email profile`), poi collega ogni account (e-mail
+o nome utente) a un profilo. Ogni account entra sempre e solo nel suo profilo.
+Il provider deve essere raggiungibile in `https://`.
+
 ### Telefono e tablet Android, Android TV, Google TV
 
 1. Scarica `VodMax-<v>.apk` sul dispositivo (o copialo con una chiavetta

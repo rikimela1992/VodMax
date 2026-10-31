@@ -112,6 +112,8 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	route("PUT /api/v1/series/{id}/markers", levelViewer, a.seriesMarkers)
 	route("GET /api/v1/settings/output", levelAdmin, a.getOutput)
 	route("PUT /api/v1/settings/output", levelAdmin, a.putOutput)
+	route("GET /api/v1/settings/sso", levelAdmin, a.ssoView)
+	route("PUT /api/v1/settings/sso", levelAdmin, a.putSSO)
 	route("GET /api/v1/mylist", levelViewer, a.myList)
 	route("GET /api/v1/trending", levelViewer, a.trending)
 	route("GET /api/v1/mylist/{id}", levelViewer, a.inMyList)
@@ -136,6 +138,11 @@ func Handler(svc *service.Service, token string, log *slog.Logger) http.Handler 
 	// Pairing a new device: no credentials yet.
 	mux.HandleFunc("POST /api/v1/pair", a.startPairing)
 	mux.HandleFunc("GET /api/v1/pair/{poll}", a.pairingResult)
+	// Sign-in with an account of the house: also before pairing.
+	mux.HandleFunc("GET /api/v1/sso", a.ssoButton)
+	mux.HandleFunc("POST /api/v1/sso/claim", a.ssoClaim)
+	mux.HandleFunc("GET /auth/sso/start", a.ssoStart)
+	mux.HandleFunc("GET /auth/sso/callback", a.ssoCallback)
 	// The stream is authorised by its single-use ticket: video players
 	// cannot send an Authorization header.
 	mux.HandleFunc("GET /stream/live/{ticket}", a.liveStream)
@@ -771,7 +778,13 @@ func baseURL(r *http.Request) string {
 	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
 		scheme = "https"
 	}
-	return scheme + "://" + r.Host
+	host := r.Host
+	// Behind a reverse proxy that changes the name (only used to build
+	// addresses shown to the user or registered with a provider).
+	if h := r.Header.Get("X-Forwarded-Host"); h != "" && !strings.ContainsAny(h, "/ ,") {
+		host = h
+	}
+	return scheme + "://" + host
 }
 
 func (a *api) outputView(r *http.Request, o service.OutputSettings) map[string]any {

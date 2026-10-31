@@ -456,6 +456,8 @@ body:has(#picker) #server-problems { display: none; }
 #admin-pin .link:focus { outline: 2px solid var(--focus); }
 .profile-kind .icon { width: 0.9em; height: 0.9em; vertical-align: -0.1em; margin-left: 0.3em; }
 /* The profile choice covers the page behind it. */
+.setup-panel .hint.bad { color: var(--bad); }
+.setup-panel button.sso { display: block; width: 100%; margin-top: 0.5rem; }
 #profiles.setup-panel { background: var(--surface); box-shadow: 0 0 0 100vmax rgba(11, 12, 16, 0.92); }
 body:has(#player:not([hidden])) #server-problems, body:has(#update-banner) #server-problems, body:has(#my-profile) #server-problems, body:has(.setup-panel) #server-problems { display: none; }
 #profile-chip { flex: none; }
