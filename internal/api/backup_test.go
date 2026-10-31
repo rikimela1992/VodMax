@@ -70,8 +70,14 @@ func TestBackupRestoreOnNewInstallation(t *testing.T) {
 	if _, body = n.do(t, "GET", "/api/v1/settings/schedule", nil, true); !strings.Contains(string(body), `"catalog_hour":2`) {
 		t.Fatalf("schedule: %s", body)
 	}
-	// The provider password works (re-encrypted with the new key).
-	if code, body := n.do(t, "POST", "/api/v1/subscriptions/1/sync", nil, true); code != 200 {
+	// The provider password works (re-encrypted with the new key). The
+	// restore starts a download of the catalogs by itself: wait for it.
+	code, body = n.do(t, "POST", "/api/v1/subscriptions/1/sync", nil, true)
+	for deadline := time.Now().Add(30 * time.Second); code == 409 && time.Now().Before(deadline); {
+		time.Sleep(200 * time.Millisecond)
+		code, body = n.do(t, "POST", "/api/v1/subscriptions/1/sync", nil, true)
+	}
+	if code != 200 {
 		t.Fatalf("sync after restore: %d %s", code, body)
 	}
 }
