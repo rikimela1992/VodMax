@@ -36,8 +36,9 @@ telecomando.
 - **La diretta prima di tutto**: numeri dei canali, P+/P−, preferiti, banner
   con "ora" e "a seguire", pausa e riavvolgimento, programmi già andati in
   onda e registrazioni.
-- **Tutto in un posto**: playlist (M3U, Xtream Codes) e cartelle di film e
-  serie nella stessa Home, ricerca e "Continua a guardare".
+- **Tutto in un posto**: playlist (M3U, Xtream Codes: le playlist IPTV che
+  hai diritto di usare) e cartelle di film e serie nella stessa Home, ricerca
+  e "Continua a guardare".
 - **Riservato**: il traffico verso le playlist passa solo da una VPN (quella
   WireGuard interna o una sul router); credenziali cifrate; nessuna
   telemetria.
@@ -146,7 +147,8 @@ Dai sorgenti: [docs/sviluppo.md](docs/sviluppo.md) e `scripts/release.sh`.
 
 VodMax **non fornisce contenuti**: è un player e un media center. Playlist,
 guide e cartelle le aggiunge chi lo usa, che ne è responsabile: usa solo
-sorgenti per cui hai i diritti.
+sorgenti per cui hai i diritti. Le issue e le discussioni che chiedono
+playlist, canali o provider vengono chiuse senza risposta.
 
 Questo prodotto usa le API di TMDB ma non è approvato né certificato da
 [TMDB](https://www.themoviedb.org).

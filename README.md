@@ -36,8 +36,9 @@ decoder with the remote.
   copies.
 - **Live TV first** — channel numbers, P+/P−, favourites, now/next banner,
   pause and rewind, catch-up and recordings.
-- **One place** — playlists (M3U, Xtream Codes) and local folders of movies
-  and series in the same home, search and "continue watching".
+- **One place** — playlists (M3U, Xtream Codes: the IPTV playlists you are
+  entitled to use) and local folders of movies and series in the same home,
+  search and "continue watching".
 - **Private by design** — playlist traffic goes only through a VPN (the
   built-in WireGuard tunnel or one you run on the router); credentials are
   encrypted; no telemetry.
@@ -150,6 +151,8 @@ Build from source: [docs/sviluppo.md](docs/sviluppo.md) and
 VodMax **does not provide any content**. It is a player and a media center:
 playlists, guides and folders are added by whoever uses it, who is
 responsible for them. Use only sources you have the rights to.
+Issues and discussions asking for playlists, channels or providers are
+closed without an answer.
 
 This product uses the TMDB API but is not endorsed or certified by
 [TMDB](https://www.themoviedb.org).

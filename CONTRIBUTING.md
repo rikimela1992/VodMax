@@ -2,7 +2,8 @@
 
 Thanks! Bug reports and ideas: open an
 [issue](https://github.com/silirim/VodMax/issues). For security
-vulnerabilities read [SECURITY.md](SECURITY.md).
+vulnerabilities read [SECURITY.md](SECURITY.md). VodMax provides no
+content: issues asking for playlists, channels or providers are closed.
 
 ## Before a pull request
 
@@ -40,7 +41,8 @@ be accepted.
 
 Grazie! Segnalazioni e proposte: apri una
 [issue](https://github.com/silirim/VodMax/issues). Per le vulnerabilità
-di sicurezza leggi [SECURITY.md](SECURITY.md).
+di sicurezza leggi [SECURITY.md](SECURITY.md). VodMax non fornisce
+contenuti: le issue che chiedono playlist, canali o provider vengono chiuse.
 
 ### Prima di una pull request
 
