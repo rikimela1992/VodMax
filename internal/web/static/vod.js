@@ -740,9 +740,11 @@
           e.progress && !e.progress.completed ? e.progress.position : 0);
         return el("li", {}, b);
       }));
-      // The episode to watch in view.
-      const cur = $("episodes").querySelector(".ep-card.next");
-      if (cur) $("episodes").scrollLeft = Math.max(0, cur.parentElement.offsetLeft - 16);
+      // The episode to watch in view, measured within the row (the first
+      // one leaves the row where it starts).
+      const row = $("episodes"), cur = row.querySelector(".ep-card.next");
+      row.scrollLeft = 0;
+      if (cur) row.scrollLeft = Math.max(0, cur.parentElement.getBoundingClientRect().left - row.getBoundingClientRect().left - 8);
     };
     $("seasons").replaceChildren(...seasons.map((s) => {
       const b = el("button", { className: "tab focusable" }, t("Stagione {n}", { n: s }));
