@@ -36,6 +36,7 @@ jobs:
             CGO_ENABLED=0 GOOS=linux GOARCH=$arch GOARM=$arm go build -trimpath \
               -ldflags="-s -w -X main.version=${{ steps.v.outputs.version }}" -o $dir/vodmax-server ./cmd/vodmax-server
           done
+          cp packaging/docker-entrypoint.sh build/
           ls -R build
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3

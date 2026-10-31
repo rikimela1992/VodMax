@@ -68,6 +68,13 @@ Monta le cartelle dei film in sola lettura (es. `/srv/media:/srv/media:ro`) e
 usa quei percorsi per le raccolte. Si aggiorna con
 `docker compose pull && docker compose up -d`.
 
+**Unraid, NAS**: avviato come root con `PUID`/`PGID` (`--user 0 -e PUID=99
+-e PGID=100`), il container dà la cartella dei dati a quell'utente e fa
+girare VodMax con quell'utente. Per Unraid c'è un template:
+[`packaging/unraid/vodmax.xml`](../packaging/unraid/vodmax.xml) (Docker →
+Aggiungi container → Template, oppure copialo in
+`/boot/config/plugins/dockerMan/templates-user/`).
+
 ### Aggiornare
 
 Il server controlla le release su GitHub una volta al giorno (contatta solo

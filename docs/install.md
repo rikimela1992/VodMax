@@ -69,6 +69,12 @@ Mount your movie folders read-only (e.g. `/srv/media:/srv/media:ro`) and use
 those paths for the collections. Update with
 `docker compose pull && docker compose up -d`.
 
+**Unraid, NAS**: started as root with `PUID`/`PGID` (`--user 0 -e PUID=99
+-e PGID=100`), the container gives the data folder to that user and runs
+VodMax as that user. For Unraid there is a template:
+[`packaging/unraid/vodmax.xml`](../packaging/unraid/vodmax.xml) (Docker →
+Add container → Template, or copy it to `/boot/config/plugins/dockerMan/templates-user/`).
+
 ### Updating
 
 The server checks the GitHub releases once a day (it contacts GitHub only

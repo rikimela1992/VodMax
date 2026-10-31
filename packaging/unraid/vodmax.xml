@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>VodMax</Name>
+  <Repository>ghcr.io/silirim/vodmax:latest</Repository>
+  <Registry>https://github.com/silirim/VodMax/pkgs/container/vodmax</Registry>
+  <Network>bridge</Network>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/silirim/VodMax/issues</Support>
+  <Project>https://vodmax.silirim.com</Project>
+  <Overview>Self-hosted media center for live TV, movies and series: M3U and Xtream Codes playlists you are entitled to use, EPG guide, pause and rewind, DVR recordings, movies and series from your folders, profiles. Apps for Android, Android TV, Fire TV and LG webOS. Can also act as an HDHomeRun tuner and M3U/XMLTV source for Plex, Jellyfin and Emby. VodMax provides no content. First login: the admin token is in appdata/vodmax/admin.token.</Overview>
+  <Category>MediaServer:Video MediaApp:Video</Category>
+  <WebUI>http://[IP]:[PORT:8095]/</WebUI>
+  <Icon>https://raw.githubusercontent.com/silirim/VodMax/main/docs/brand/vodmax-icon-256.png</Icon>
+  <ExtraParams>--user 0</ExtraParams>
+  <Description>Self-hosted media center for live TV, movies and series. VodMax provides no content.</Description>
+  <Config Name="Web UI port" Target="8095" Default="8095" Mode="tcp" Description="Web interface and apps" Type="Port" Display="always" Required="true" Mask="false">8095</Config>
+  <Config Name="Data" Target="/var/lib/vodmax" Default="/mnt/user/appdata/vodmax" Mode="rw" Description="Database, recordings, downloads, backups" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/vodmax</Config>
+  <Config Name="Media (read only)" Target="/srv/media" Default="/mnt/user/media" Mode="ro" Description="Your movie and series folders, for the collections (optional)" Type="Path" Display="always" Required="false" Mask="false">/mnt/user/media</Config>
+  <Config Name="PUID" Target="PUID" Default="99" Description="User that owns the data (Unraid: 99, nobody)" Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Description="Group that owns the data (Unraid: 100, users)" Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+  <Config Name="TZ" Target="TZ" Default="Europe/Rome" Description="Time zone, for the guide and the recordings" Type="Variable" Display="always" Required="false" Mask="false">Europe/Rome</Config>
+</Container>
