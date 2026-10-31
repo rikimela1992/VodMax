@@ -5,12 +5,15 @@ FROM alpine:3.20
 
 # ffmpeg: pause of live TV, recordings, MKV/AVI in the browser.
 # su-exec: see packaging/docker-entrypoint.sh (PUID/PGID).
+# On amd64 also the Intel VAAPI driver, for conversion with the graphics
+# card (passed with --device /dev/dri). AMD's (mesa) would add 165 MB.
+ARG TARGETARCH
+ARG TARGETVARIANT
 RUN apk add --no-cache ffmpeg ca-certificates tzdata su-exec \
+ && if [ "$TARGETARCH" = amd64 ]; then apk add --no-cache intel-media-driver; fi \
  && addgroup -S -g 1000 vodmax && adduser -S -u 1000 -G vodmax -h /var/lib/vodmax vodmax \
  && mkdir -p /var/lib/vodmax && chown vodmax:vodmax /var/lib/vodmax
 
-ARG TARGETARCH
-ARG TARGETVARIANT
 COPY build/linux_${TARGETARCH}${TARGETVARIANT}/vodmax-server /usr/local/bin/vodmax-server
 COPY build/docker-entrypoint.sh /usr/local/bin/vodmax-entrypoint
 

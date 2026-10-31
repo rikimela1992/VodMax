@@ -590,7 +590,7 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
       parts.push(el("h2", {}, "App"), el("p", { className: "note" }, t("VodMax per Android {version}, collegata a {server}.", { version: window.VodMax.native.version(), server: location.origin })),
         appButtons, appStatus);
     }
-    parts.push(...await downloadSection(), ...await liveSection(), ...await outputSection(), ...await recordingLimits(), ...(await metadataSection()).filter(Boolean), ...await backupSection());
+    parts.push(...await downloadSection(), ...await liveSection(), ...await transcodeSection(), ...await outputSection(), ...await recordingLimits(), ...(await metadataSection()).filter(Boolean), ...await backupSection());
     main.replaceChildren(...parts);
   }
 
@@ -675,6 +675,48 @@ const fromEntries = (pairs) => pairs.reduce((o, [k, v]) => { o[k] = v; return o;
     return [el("h2", {}, t("Diretta TV")),
       el("p", { className: "note" }, t("Con pausa e riavvolgimento il server tiene il canale che stai guardando su disco (circa 3 GB all'ora in HD; " +
         "si cancella cambiando canale): la diretta è 6–8 secondi indietro e il cambio canale richiede 2–4 secondi. Con ritardo minimo si torna al flusso diretto.")), form];
+  }
+
+  // ---- Video conversion (graphics card) ----
+  async function transcodeSection() {
+    const tc = await api("GET", "/api/v1/settings/transcode").catch(() => null);
+    if (!tc) return [];
+    const NAMES = { "": t("Processore"), vaapi: "Intel / AMD (VAAPI)", qsv: "Intel Quick Sync (QSV)", nvenc: "NVIDIA (NVENC)" };
+    const WHY = { no_ffmpeg: t("ffmpeg non trovato"), no_encoder: t("questo ffmpeg non lo supporta"), no_device: t("scheda non visibile qui") };
+    const accel = el("select", { className: "focusable" }, ...tc.options.map((o) =>
+      el("option", { value: o.accel }, NAMES[o.accel] + (o.found ? "" : " — " + WHY[o.reason]))));
+    accel.value = tc.accel;
+    const device = el("select", { className: "focusable" }, ...(tc.devices.length ? tc.devices : ["/dev/dri/renderD128"]).map((d) => el("option", { value: d }, d)));
+    if (tc.device) device.value = tc.device;
+    const deviceLabel = el("label", {}, t("Dispositivo"));
+    const result = el("p", { className: "note" });
+    const sync = () => { deviceLabel.hidden = device.hidden = !["vaapi", "qsv"].includes(accel.value); result.textContent = ""; result.className = "note"; };
+    accel.onchange = sync;
+    sync();
+    const body = () => ({ accel: accel.value, device: device.hidden ? "" : device.value });
+    const test = button(t("Prova"), async () => {
+      test.disabled = true;
+      result.className = "note";
+      result.textContent = t("Prova in corso…");
+      try {
+        const r = await api("POST", "/api/v1/settings/transcode/test", body());
+        result.className = "ok";
+        result.textContent = "✓ " + t("Funziona: 2 secondi di video Full HD convertiti in {s} s.", { s: r.seconds.toLocaleString(locale, { maximumFractionDigits: 1 }) });
+      } catch (e) { result.className = "note bad"; result.textContent = e.message; }
+      test.disabled = false;
+    });
+    const save = el("button", { className: "small primary focusable", type: "submit" }, t("Salva"));
+    const form = el("form", { className: "form" }, ...field(t("Converti con"), accel), deviceLabel, device,
+      el("div", { className: "buttons full" }, test, save), el("div", { className: "full" }, result));
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      try { await api("PUT", "/api/v1/settings/transcode", body()); flash(t("Salvato: vale dal prossimo video")); }
+      catch (err) { flash(err.message); }
+    };
+    return [el("h2", {}, t("Conversione video")),
+      el("p", { className: "note" }, t("Quasi sempre il video passa così com'è. Si converte solo quando il browser non sa leggerlo (per esempio HEVC o MPEG-2): " +
+        "con la scheda grafica è molto più veloce e lascia libero il processore. Se la scheda non parte, VodMax usa il processore da solo. " +
+        "Con Docker la scheda va passata al container (--device /dev/dri, o il runtime NVIDIA).")), form];
   }
 
   // ---- Output to other apps (HDHomeRun, M3U, XMLTV) ----

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -712,22 +713,18 @@ func (s *Service) OpenRemux(ctx context.Context, sessionID string, position floa
 	if len(p.Audio) > 0 {
 		audioCodec = p.Audio[audio].Codec
 	}
-	args = append(args, "-i", "http://"+addr+"/internal/"+sess.internal)
+	input := append(args, "-i", "http://"+addr+"/internal/"+sess.internal)
 	if skip > 0 {
-		args = append(args, "-ss", strconv.FormatFloat(skip, 'f', 1, 64))
+		input = append(input, "-ss", strconv.FormatFloat(skip, 'f', 1, 64))
 	}
-	args = append(args, "-map", "0:v:0", "-map", "0:a:"+strconv.Itoa(audio)+"?", "-sn", "-dn")
-	if sess.probe.VideoCodec == "h264" {
-		args = append(args, "-c:v", "copy")
-	} else {
-		args = append(args, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p")
-	}
+	var out []string
+	out = append(out, "-map", "0:v:0", "-map", "0:a:"+strconv.Itoa(audio)+"?", "-sn", "-dn")
 	if audioCodec == "aac" {
-		args = append(args, "-c:a", "copy")
+		out = append(out, "-c:a", "copy")
 	} else {
-		args = append(args, "-c:a", "aac", "-ac", "2", "-b:a", "192k")
+		out = append(out, "-c:a", "aac", "-ac", "2", "-b:a", "192k")
 	}
-	args = append(args, "-f", "mp4", "-movflags", "frag_keyframe+empty_moov+default_base_moof", "pipe:1")
+	out = append(out, "-f", "mp4", "-movflags", "frag_keyframe+empty_moov+default_base_moof", "pipe:1")
 	// Text subtitles go to a second output, read by the player as it grows.
 	subFile := ""
 	if sub >= 0 && sub < len(p.Subtitles) && p.Subtitles[sub].Supported {
@@ -736,33 +733,66 @@ func (s *Service) OpenRemux(ctx context.Context, sessionID string, position floa
 			release()
 			return nil, err
 		}
-		args = append(args, "-map", "0:s:"+strconv.Itoa(sub), "-c:s", "webvtt", "-flush_packets", "1", "-f", "webvtt", subFile)
+		out = append(out, "-map", "0:s:"+strconv.Itoa(sub), "-c:s", "webvtt", "-flush_packets", "1", "-f", "webvtt", subFile)
 	}
 	s.vod.mu.Lock()
 	sess.subFile = subFile
 	s.vod.mu.Unlock()
-	cmd := exec.CommandContext(streamCtx, s.ffmpegBin(), args...)
-	stdout, err := cmd.StdoutPipe()
+	// H.264 is copied; other video is converted, by the graphics card if
+	// chosen, else (or when the card does not start) by the processor.
+	var t TranscodeSettings
+	if p.VideoCodec != "h264" {
+		t, _ = s.TranscodeSettings(ctx)
+	}
+	body, err := s.remux(streamCtx, input, out, t, p.VideoCodec == "h264", subFile)
 	if err != nil {
 		release()
+		return nil, err
+	}
+	return &Stream{ReadCloser: &releasingBody{ReadCloser: body, release: release}, ContentType: "video/mp4",
+		Title: sess.title}, nil
+}
+
+// remux starts ffmpeg; if the graphics card does not start, it converts
+// with the processor.
+func (s *Service) remux(ctx context.Context, input, out []string, t TranscodeSettings, copyVideo bool, subFile string) (io.ReadCloser, error) {
+	body, err := s.startRemux(ctx, input, out, t, copyVideo)
+	if err != nil && t.Accel != "" && !copyVideo {
+		slog.Warn("conversione con la scheda grafica non riuscita: uso il processore", "accel", t.Accel, "err", err)
+		if subFile != "" {
+			os.Remove(subFile)
+		}
+		body, err = s.startRemux(ctx, input, out, TranscodeSettings{}, false)
+	}
+	return body, err
+}
+
+// startRemux runs ffmpeg and waits for the first bytes, so errors are
+// reported instead of an empty video.
+func (s *Service) startRemux(ctx context.Context, input, out []string, t TranscodeSettings, copyVideo bool) (io.ReadCloser, error) {
+	before, video := videoArgs(t)
+	if copyVideo {
+		before, video = nil, []string{"-c:v", "copy"}
+	}
+	// Device options are global: they can go first.
+	args := append(append(append(before, input...), video...), out...)
+	cmd := exec.CommandContext(ctx, s.ffmpegBin(), args...)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
 		return nil, err
 	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &limitedWriter{w: &stderr, n: 4096}
 	if err := cmd.Start(); err != nil {
-		release()
 		return nil, fmt.Errorf("ffmpeg non avviabile: %w", err)
 	}
 	body := &cmdBody{ReadCloser: stdout, cmd: cmd}
-	// Wait for the first bytes so errors are reported, not an empty video.
 	br := bufio.NewReaderSize(body, 64<<10)
 	if _, err := br.Peek(8); err != nil {
 		body.Close()
-		release()
 		return nil, fmt.Errorf("conversione non riuscita: %s", firstLine(stderr.String(), err))
 	}
-	return &Stream{ReadCloser: &releasingBody{ReadCloser: readCloser{br, body}, release: release}, ContentType: "video/mp4",
-		Title: sess.title}, nil
+	return readCloser{br, body}, nil
 }
 
 type cmdBody struct {

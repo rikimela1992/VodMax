@@ -75,6 +75,13 @@ girare VodMax con quell'utente. Per Unraid c'è un template:
 Aggiungi container → Template, oppure copialo in
 `/boot/config/plugins/dockerMan/templates-user/`).
 
+**Scheda grafica**: per convertire con la scheda grafica, invece che con il
+processore, i video che il browser non sa leggere (HEVC, MPEG-2), passala al
+container: Intel/AMD con `--device /dev/dri` e `--group-add <id del gruppo
+render>` (`getent group render`; l'immagine ha il driver VAAPI Intel su x86-64, AMD funziona con l'installazione nativa),
+NVIDIA con NVIDIA Container Toolkit (`--gpus all`, con un ffmpeg che abbia
+NVENC). Poi Impostazioni → Sistema → *Conversione video* → *Prova*.
+
 ### Aggiornare
 
 Il server controlla le release su GitHub una volta al giorno (contatta solo

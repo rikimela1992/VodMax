@@ -75,6 +75,13 @@ VodMax as that user. For Unraid there is a template:
 [`packaging/unraid/vodmax.xml`](../packaging/unraid/vodmax.xml) (Docker →
 Add container → Template, or copy it to `/boot/config/plugins/dockerMan/templates-user/`).
 
+**Graphics card**: to convert videos the browser can't read (HEVC, MPEG-2)
+with the graphics card instead of the processor, pass it to the container:
+Intel/AMD with `--device /dev/dri` and `--group-add <render group id>`
+(`getent group render`; the image has the Intel VAAPI driver on x86-64, AMD works with a native install), NVIDIA
+with the NVIDIA Container Toolkit (`--gpus all`, with an ffmpeg that has
+NVENC). Then Settings → System → *Video conversion* → *Test*.
+
 ### Updating
 
 The server checks the GitHub releases once a day (it contacts GitHub only

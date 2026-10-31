@@ -18,3 +18,15 @@ services:
       - ./vodmax-data:/var/lib/vodmax
       # Your movie and series folders, read-only, for the collections.
       - /srv/media:/srv/media:ro
+    # Graphics card for video conversion (Settings → System), optional.
+    # Intel/AMD: the device and the group that may use it (getent group render).
+    # devices:
+    #   - /dev/dri:/dev/dri
+    # group_add:
+    #   - "105"
+    # NVIDIA (with the NVIDIA Container Toolkit):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - capabilities: [gpu, video]

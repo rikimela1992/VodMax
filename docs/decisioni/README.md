@@ -35,6 +35,7 @@ Una decisione approvata si cambia solo con una nuova scheda che la sostituisce.
 | [0027](0027-episodi-in-sequenza.md) | Prossimo episodio, salta intro e salta finale | **Approvata** |
 | [0028](0028-uscita-verso-altre-app.md) | Uscita verso altre app (HDHomeRun, M3U, XMLTV) | **Approvata** |
 | [0029](0029-accesso-con-account.md) | Accesso con account di casa (OpenID Connect) | **Approvata** |
+| [0030](0030-conversione-con-scheda-grafica.md) | Conversione video con la scheda grafica | **Approvata** |
 
 ## Ordine consigliato per decidere
 
