@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"sync"
@@ -178,7 +179,11 @@ type ticket struct {
 type liveState struct {
 	mu      sync.Mutex
 	tickets map[string]ticket
+	failed  map[int64]time.Time // variants that did not open, tried last for a while
 }
+
+// failedFor is how long a variant that did not open goes to the back.
+const failedFor = 10 * time.Minute
 
 var viewerID = regexp.MustCompile(`^[A-Za-z0-9_-]{8,64}$`)
 
@@ -243,7 +248,73 @@ func (s *Service) OpenLive(ctx context.Context, t string, force bool) (*Stream, 
 	if rec := s.activeRecordingFor(ctx, it.ID); rec != nil {
 		return s.followRecording(ctx, rec)
 	}
-	streamCtx, release, err := s.acquire(ctx, it.SubscriptionID, tk.viewer, force, false)
+	// The other versions of the channel (another quality, another
+	// subscription) stand in when this one does not open.
+	tries := s.liveVariants(ctx, it)
+	var first error
+	for i, v := range tries {
+		stream, err := s.openLiveItem(ctx, v, tk.viewer, force)
+		if err == nil {
+			if i > 0 {
+				slog.Info("canale aperto con un'altra versione", "canale", it.Title, "versione", v.Title)
+			}
+			return stream, nil
+		}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		// Busy is not broken: another subscription may have a free
+		// connection, but this version stays where it is.
+		var busy ConnectionBusy
+		if !errors.As(err, &busy) {
+			s.live.mu.Lock()
+			if s.live.failed == nil {
+				s.live.failed = map[int64]time.Time{}
+			}
+			s.live.failed[v.ID] = time.Now()
+			s.live.mu.Unlock()
+		}
+		if first == nil {
+			first = err
+		}
+	}
+	return nil, first
+}
+
+// liveVariants is it first, then its other versions, best first; the
+// ones that recently failed to open go last.
+func (s *Service) liveVariants(ctx context.Context, it store.PlaybackItem) []store.PlaybackItem {
+	out := []store.PlaybackItem{it}
+	list, err := s.st.Variants(ctx, it.ID)
+	if err != nil {
+		return out
+	}
+	var later []store.PlaybackItem
+	s.live.mu.Lock()
+	defer s.live.mu.Unlock()
+	for _, v := range list {
+		if v.ID == it.ID || v.Kind != "live" {
+			continue
+		}
+		p, err := s.st.PlaybackItem(ctx, v.ID)
+		if err != nil {
+			continue
+		}
+		if at, ok := s.live.failed[v.ID]; ok && time.Since(at) < failedFor {
+			later = append(later, p)
+		} else {
+			out = append(out, p)
+		}
+	}
+	if at, ok := s.live.failed[it.ID]; ok && time.Since(at) < failedFor && len(out) > 1 {
+		out = append(out[1:], it) // the chosen one failed a moment ago: the others first
+	}
+	return append(out, later...)
+}
+
+// openLiveItem opens one version of a channel from the provider.
+func (s *Service) openLiveItem(ctx context.Context, it store.PlaybackItem, viewer string, force bool) (*Stream, error) {
+	streamCtx, release, err := s.acquire(ctx, it.SubscriptionID, viewer, force, false)
 	if err != nil {
 		return nil, err
 	}

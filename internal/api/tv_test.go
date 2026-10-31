@@ -25,7 +25,9 @@ type tvProvider struct {
 	opened   []string
 	logoHits map[string]int
 	ranges   []string
-	refused  int // live requests refused for exceeding the connection limit
+	refused  int             // live requests refused for exceeding the connection limit
+	broken   map[string]bool // live streams ("101.ts") the provider does not serve
+	extra    string          // more live streams, JSON objects
 }
 
 // fakeFilm is the content served for films and episodes.
@@ -77,6 +79,11 @@ func newTVProvider() *tvProvider {
 			// Like a real provider with max_connections=1: a request
 			// arriving while a stream is still open is refused, not served.
 			p.mu.Lock()
+			if p.broken[r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]] {
+				p.mu.Unlock()
+				http.Error(w, "stream not found", http.StatusNotFound)
+				return
+			}
 			if p.active >= 1 {
 				p.refused++
 				p.mu.Unlock()
@@ -113,7 +120,7 @@ func newTVProvider() *tvProvider {
 				logo := "http://" + r.Host + "/logo/"
 				w.Write([]byte(`[{"name":"Canale 5 HD","stream_id":105,"category_id":"1"},{"name":"Rai 1 HD","stream_id":101,"category_id":"1","epg_channel_id":"Rai1.it","stream_icon":"` + logo + `rai1.png","tv_archive":1,"tv_archive_duration":3},
 					{"name":"Cielo HD","stream_id":126,"category_id":"2","stream_icon":"` + logo + `cielo.svg"},{"name":"Alma Tv","stream_id":300,"category_id":"2"},
-					{"name":"DAZN Calcio 1 HD","stream_id":400,"category_id":"3"}]`))
+					{"name":"DAZN Calcio 1 HD","stream_id":400,"category_id":"3"}` + extraStreams(p.extra) + `]`))
 			case "get_vod_categories":
 				w.Write([]byte(`[{"category_id":"10","category_name":"Horror"},{"category_id":"11","category_name":"Thriller"}]`))
 			case "get_vod_streams":
@@ -161,8 +168,20 @@ type tvChannel struct {
 	} `json:"next"`
 }
 
+func extraStreams(s string) string {
+	if s == "" {
+		return ""
+	}
+	return "," + s
+}
+
 func tvSetup(t *testing.T) (*env, *tvProvider) {
-	p := newTVProvider()
+	return tvSetupWith(t, newTVProvider(), "")
+}
+
+// tvSetupWith is tvSetup with more live streams at the provider.
+func tvSetupWith(t *testing.T, p *tvProvider, extra string) (*env, *tvProvider) {
+	p.extra = extra
 	t.Cleanup(p.Close)
 	e := setup(t, true)
 	e.do(t, "POST", "/api/v1/vpn", map[string]string{"name": "VPN", "config": wgConf(t)}, true)
@@ -459,5 +478,34 @@ func TestOutputToOtherApps(t *testing.T) {
 	kid := addKids(t, e)
 	if code, _ := e.call(t, "GET", "/api/v1/settings/output", nil, kid.device, kid.profile); code != 403 {
 		t.Fatalf("kids see the output: %d", code)
+	}
+}
+
+func TestLiveFailover(t *testing.T) {
+	p := newTVProvider()
+	e, _ := tvSetupWith(t, p, `{"name":"Rai 1 SD","stream_id":103,"category_id":"1","epg_channel_id":"Rai1.it"}`)
+	rai := channels(t, e, "?section=tv")[0]
+	if rai.Name != "Rai 1" {
+		t.Fatalf("first channel: %+v", rai)
+	}
+	p.mu.Lock()
+	p.broken = map[string]bool{"101.ts": true}
+	p.mu.Unlock()
+	// The HD version does not open: the SD one stands in.
+	_, body := e.do(t, "POST", "/api/v1/live/"+strconv.FormatInt(rai.ID, 10)+"/ticket", map[string]string{"viewer": "salotto-tv-01"}, true)
+	var tk struct{ URL string }
+	json.Unmarshal(body, &tk)
+	resp, err := http.Get(e.srv.URL + tk.URL)
+	if err != nil || resp.StatusCode != 200 {
+		t.Fatalf("failover: %v %v", err, resp)
+	}
+	buf := make([]byte, 188)
+	io.ReadFull(resp.Body, buf)
+	resp.Body.Close()
+	p.mu.Lock()
+	opened := strings.Join(p.opened, ",")
+	p.mu.Unlock()
+	if !strings.Contains(opened, "103.ts") {
+		t.Fatalf("opened: %s", opened)
 	}
 }
