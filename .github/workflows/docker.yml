@@ -52,7 +52,7 @@ jobs:
           tags: |
             type=semver,pattern={{version}},value=v${{ steps.v.outputs.version }}
             type=semver,pattern={{major}}.{{minor}},value=v${{ steps.v.outputs.version }}
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ !contains(steps.v.outputs.version, '-') }}
       - uses: docker/build-push-action@v6
         with:
           context: .

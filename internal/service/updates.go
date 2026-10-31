@@ -155,12 +155,13 @@ func (s *Service) updateDue(ctx context.Context, log *slog.Logger, now time.Time
 }
 
 type ghRelease struct {
-	Tag       string    `json:"tag_name"`
-	Draft     bool      `json:"draft"`
-	Body      string    `json:"body"`
-	Page      string    `json:"html_url"`
-	Published time.Time `json:"published_at"`
-	Assets    []struct {
+	Tag        string    `json:"tag_name"`
+	Draft      bool      `json:"draft"`
+	Prerelease bool      `json:"prerelease"`
+	Body       string    `json:"body"`
+	Page       string    `json:"html_url"`
+	Published  time.Time `json:"published_at"`
+	Assets     []struct {
 		Name string `json:"name"`
 		URL  string `json:"browser_download_url"`
 		Size int64  `json:"size"`
@@ -182,10 +183,13 @@ func (s *Service) fetchUpdate(ctx context.Context) (UpdateInfo, error) {
 	if err := s.getJSON(ctx, base+"/repos/"+updateRepo+"/releases?per_page=20", version, &releases); err != nil {
 		return UpdateInfo{}, err
 	}
+	// Betas only for whoever runs one: they choose them by installing one.
+	cur := parseVersion(version)
+	beta := cur != nil && cur[3] < 0
 	var best *ghRelease
 	for i := range releases {
 		r := &releases[i]
-		if r.Draft || parseVersion(r.Tag) == nil {
+		if r.Draft || parseVersion(r.Tag) == nil || (r.Prerelease && !beta) {
 			continue
 		}
 		if best == nil || newerVersion(r.Tag, best.Tag) {
@@ -288,8 +292,9 @@ func (s *Service) fetchSums(ctx context.Context, url, version string) (map[strin
 // parseVersion reads "v1.2.3", "1.2.3", "v1.2.3-4-gabc" (git describe) or
 // "v1.2.3-rc1"; nil for anything else ("dev").
 var (
-	versionRE  = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)(?:-(.+))?$`)
-	describeRE = regexp.MustCompile(`^\d+-g[0-9a-f]+(-dirty)?$`)
+	versionRE   = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)(?:-(.+))?$`)
+	describeRE  = regexp.MustCompile(`^\d+-g[0-9a-f]+(-dirty)?$`)
+	firstNumber = regexp.MustCompile(`\d+`)
 )
 
 func parseVersion(v string) []int {
@@ -301,14 +306,15 @@ func parseVersion(v string) []int {
 	for i := 0; i < 3; i++ {
 		out[i], _ = strconv.Atoi(m[i+1])
 	}
-	// A pre-release ("-rc1") comes before the release; a build after a
-	// tag ("-4-gabc") after it.
+	// A pre-release ("-beta.2", "-rc1") comes before the release, in the
+	// order of its number; a build after a tag ("-4-gabc") after it.
 	switch {
 	case m[4] == "":
 	case describeRE.MatchString(m[4]):
 		out[3] = 1
 	default:
-		out[3] = -1
+		n, _ := strconv.Atoi(firstNumber.FindString(m[4]))
+		out[3] = -1000 + min(n, 999)
 	}
 	return out
 }

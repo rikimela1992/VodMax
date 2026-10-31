@@ -388,11 +388,18 @@ window.VodMax = (() => {
   // ---- Updates of the Android app ----
   // The server knows the newest release (it checks GitHub once a day); the
   // app downloads its APK, checks the checksum and opens the installer.
+  // A beta ("0.6.0-beta.2") comes before its release, in the order of its
+  // number.
   function newerVersion(a, b) {
-    const parse = (v) => (String(v || "").match(/^v?(\d+)\.(\d+)\.(\d+)/) || []).slice(1).map(Number);
+    const parse = (v) => {
+      const m = String(v || "").match(/^v?(\d+)\.(\d+)\.(\d+)(?:-(.+))?$/);
+      if (!m) return [];
+      const pre = m[4] && !/^\d+-g[0-9a-f]+/.test(m[4]) ? -1000 + Math.min(Number((m[4].match(/\d+/) || [0])[0]), 999) : 0;
+      return [Number(m[1]), Number(m[2]), Number(m[3]), pre];
+    };
     const x = parse(a), y = parse(b);
-    if (x.length !== 3 || y.length !== 3) return false;
-    for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i];
+    if (x.length !== 4 || y.length !== 4) return false;
+    for (let i = 0; i < 4; i++) if (x[i] !== y[i]) return x[i] > y[i];
     return false;
   }
   const canUpdateApp = () => Boolean(native && typeof native.update === "function");

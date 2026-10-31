@@ -4,8 +4,9 @@
 # running binary as vodmax-server.old, installs the new one and restarts
 # the service.
 #
-#   sudo vodmax-update            the newest release
+#   sudo vodmax-update            the newest release (betas only after a beta)
 #   sudo vodmax-update v0.3.1     a given release (also to go back)
+#   sudo BETA=1 vodmax-update     the newest release, betas included
 #
 # Going back to the previous binary without downloading:
 #   sudo mv /usr/local/bin/vodmax-server.old /usr/local/bin/vodmax-server
@@ -34,16 +35,18 @@ else
   echo "Serve curl o wget." >&2; exit 1
 fi
 
+current=$("$BIN" -version 2>/dev/null | cut -d' ' -f2 || true)
 tag=${1:-}
 if [ -z "$tag" ]; then
-  # Releases come newest first; drafts are not public.
-  tag=$(get "https://api.github.com/repos/$REPO/releases?per_page=1" - |
-    sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n 1)
+  # The newest stable release; with a beta installed (or BETA=1), the
+  # newest release of all, betas included. Drafts are not public.
+  api="https://api.github.com/repos/$REPO/releases/latest"
+  case $current in *-beta* | *-rc*) api="https://api.github.com/repos/$REPO/releases?per_page=1" ;; esac
+  [ -n "${BETA:-}" ] && api="https://api.github.com/repos/$REPO/releases?per_page=1"
+  tag=$(get "$api" - | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n 1)
   [ -n "$tag" ] || { echo "Nessuna versione trovata su GitHub." >&2; exit 1; }
 fi
 case $tag in v*) ;; *) tag=v$tag ;; esac
-
-current=$("$BIN" -version 2>/dev/null | cut -d' ' -f2 || true)
 if [ "${current#v}" = "${tag#v}" ] && [ -z "${FORCE:-}" ]; then
   echo "VodMax $tag è già installato (FORCE=1 per reinstallarlo)."
   exit 0

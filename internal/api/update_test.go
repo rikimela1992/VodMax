@@ -25,7 +25,8 @@ func TestUpdateCheck(t *testing.T) {
 			   {"name":"vodmax-server_0.4.0_linux_amd64.tar.gz","browser_download_url":"` + gh.URL + `/dl/s-amd64","size":45},
 			   {"name":"vodmax-server_0.4.0_linux_arm64.tar.gz","browser_download_url":"` + gh.URL + `/dl/s-arm64","size":46},
 			   {"name":"SHA256SUMS","browser_download_url":"` + gh.URL + `/dl/SHA256SUMS","size":300}]},
-			 {"tag_name":"v0.5.0","draft":true,"assets":[]}]`))
+			 {"tag_name":"v0.5.0","draft":true,"assets":[]},
+			 {"tag_name":"v0.5.0-beta.1","prerelease":true,"html_url":"https://example.invalid/r/beta","body":"Beta","assets":[]}]`))
 		case "/dl/SHA256SUMS":
 			w.Write([]byte(strings.Repeat("a", 64) + "  VodMax-0.4.0.apk\n" + strings.Repeat("b", 64) + "  vodmax-server_0.4.0_linux_amd64.tar.gz\n" +
 				strings.Repeat("c", 64) + "  vodmax-server_0.4.0_linux_arm64.tar.gz\n"))
@@ -65,6 +66,11 @@ func TestUpdateCheck(t *testing.T) {
 	e.svc.SetVersion("v0.4.0-3-gabcdef0")
 	if _, body := e.do(t, "GET", "/api/v1/update", nil, true); !strings.Contains(string(body), `"available":false`) {
 		t.Fatalf("up to date: %s", body)
+	}
+	// A beta is offered only to whoever runs a beta.
+	e.svc.SetVersion("v0.4.1-beta.1")
+	if _, body := e.do(t, "POST", "/api/v1/update/check", nil, true); !strings.Contains(string(body), `"latest":"v0.5.0-beta.1"`) {
+		t.Fatalf("beta for a beta: %s", body)
 	}
 	// Turned off.
 	if code, body := e.do(t, "PUT", "/api/v1/settings/updates", map[string]bool{"enabled": false}, true); code != 200 || !strings.Contains(string(body), `"enabled":false`) {
