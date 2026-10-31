@@ -150,6 +150,11 @@ func (s *Service) cachedImage(ctx context.Context, src string, fetch func(contex
 	s.images.mu.Lock()
 	call := s.images.inflight[hash]
 	if call == nil {
+		// Another request may have just stored it.
+		if img, ok, err := s.st.CachedImage(ctx, hash); err == nil && ok && img.ContentType != "" {
+			s.images.mu.Unlock()
+			return img, nil
+		}
 		call = &imageCall{done: make(chan struct{})}
 		s.images.inflight[hash] = call
 		s.images.mu.Unlock()

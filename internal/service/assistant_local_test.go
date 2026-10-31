@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -190,15 +191,15 @@ func TestInstallAndRunLocalAssistant(t *testing.T) {
 }
 
 func TestOllamaNextToVodMax(t *testing.T) {
-	pulled := ""
+	var pulled atomic.Bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/pull":
-			pulled = "yes"
+			pulled.Store(true)
 			fmt.Fprintln(w, `{"status":"pulling","total":100,"completed":40}`)
 			fmt.Fprintln(w, `{"status":"success"}`)
 		case "/api/tags":
-			if pulled != "" {
+			if pulled.Load() {
 				fmt.Fprintf(w, `{"models":[{"name":%q}]}`, localModels[1].ollama)
 			} else {
 				fmt.Fprint(w, `{"models":[]}`)
