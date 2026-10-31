@@ -188,6 +188,8 @@ video {
   border-radius: 16px;
   font-size: clamp(0.9rem, 1.2vw, 1.2rem);
 }
+/* Rarely used: only the icon, unless there is room. */
+@media (max-width: 1500px) { .controls button.icon-only .txt { display: none; } }
 /* Pills like the player of films and the small buttons of every page. */
 .controls button {
   display: inline-flex;

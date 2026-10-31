@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VodMax · Multiview</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="ui.css">
+<link rel="stylesheet" href="multiview.css">
+</head>
+<body>
+<main id="mosaic" class="mosaic"></main>
+
+<section id="mv-bar" class="mv-bar">
+  <button type="button" data-action="back" data-icon="arrow-left" data-i18n>Esci</button>
+  <button type="button" data-action="layout" id="mv-layout" data-icon="layout-grid"></button>
+  <span class="hint" data-i18n>Frecce: scegli il riquadro (l'audio lo segue) · OK: cambia canale · Rosso: svuota · Indietro: a schermo intero</span>
+</section>
+
+<section id="mv-pick" class="mv-pick" hidden>
+  <h2 id="mv-pick-title"></h2>
+  <ol id="mv-pick-items"></ol>
+</section>
+
+<div id="status" class="status" hidden></div>
+<script src="vendor/mpegts-1.8.2.min.js"></script>
+<script src="i18n.js"></script>
+<script src="i18n/en-common.js"></script>
+<script src="i18n/en-vod.js"></script>
+<script src="i18n/en-tv.js"></script>
+<script src="i18n/en-guide.js"></script>
+<script src="i18n/en-settings.js"></script>
+<script src="icons.js"></script>
+<script src="common.js"></script>
+<script src="multiview.js"></script>
+</body>
+</html>

@@ -396,6 +396,7 @@
     startOver: () => startOver(),
     fav: () => toggleFavorite(state.current).then(showControls),
     rec: () => record(state.current),
+    multiview: () => { stopPlayer(); location.href = "/multiview.html" + (state.current ? "?channel=" + state.current.id : ""); },
   };
   $("controls").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-action]");

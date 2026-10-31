@@ -62,4 +62,12 @@ VodMaxI18n.add("en", {
   "Registrazione di “{title}” fino alle {time} (Verde → Registrazioni)": "Recording “{title}” until {time} (Green → Recordings)",
   "Canale {n} non presente": "Channel {n} not found",
   "Nessun canale: sincronizza un abbonamento": "No channels: sync a subscription",
+  "Più canali insieme": "Several channels at once",
+  "Esci": "Exit",
+  "Frecce: scegli il riquadro (l'audio lo segue) · OK: cambia canale · Rosso: svuota · Indietro: a schermo intero": "Arrows: choose the box (the audio follows) · OK: change channel · Red: empty · Back: full screen",
+  "2 canali": "2 channels",
+  "4 canali": "4 channels",
+  "Scegli un canale": "Choose a channel",
+  "Nessuna connessione libera: l'abbonamento ne ha già in uso il massimo": "No free connection: the subscription is already using its maximum",
+  "Canale per il riquadro {n}": "Channel for box {n}",
 });
