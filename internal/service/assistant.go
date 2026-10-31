@@ -28,7 +28,7 @@ import (
 const (
 	assistantKey       = "assistant"
 	assistantSecretKey = "assistant_key"
-	assistantTimeout   = 2 * time.Minute
+	assistantTimeout   = 5 * time.Minute // a small model on a processor reads ~50 tokens a second
 	tonightCache       = 20 * time.Minute
 )
 
@@ -126,7 +126,8 @@ func (s *Service) chat(ctx context.Context, a AssistantSettings, messages []chat
 	if client == nil {
 		client = &http.Client{Timeout: assistantTimeout}
 	}
-	body := map[string]any{"model": a.Model, "messages": messages, "temperature": 0.2, "stream": false}
+	// The answers are short: a bound stops a model that rambles.
+	body := map[string]any{"model": a.Model, "messages": messages, "temperature": 0.2, "stream": false, "max_tokens": 700}
 	if asJSON {
 		body["response_format"] = map[string]string{"type": "json_object"}
 	}
@@ -271,7 +272,7 @@ func (s *Service) AssistantRule(ctx context.Context, text string) (RuleProposal,
 	}
 	answer, err := s.chat(ctx, a, []chatMessage{
 		{Role: "system", Content: fmt.Sprintf(rulePrompt, languageName(ctx), strings.Join(names, "; "))},
-		{Role: "user", Content: text},
+		{Role: "user", Content: text + "\n(Explanation in " + languageName(ctx) + ".)"},
 	}, true)
 	if err != nil {
 		return p, err
@@ -394,7 +395,8 @@ func (s *Service) AssistantTonight(ctx context.Context, wish string) (Tonight, e
 	}
 	answer, err := s.chat(ctx, a, []chatMessage{
 		{Role: "system", Content: fmt.Sprintf(tonightPrompt, note, languageName(ctx))},
-		{Role: "user", Content: list.String()},
+		// Small models forget the language asked at the top of a long list.
+		{Role: "user", Content: list.String() + "\nAnswer in " + languageName(ctx) + "."},
 	}, true)
 	if err != nil {
 		return out, err
@@ -410,7 +412,7 @@ func (s *Service) AssistantTonight(ctx context.Context, wish string) (Tonight, e
 		return out, err
 	}
 	out.Intro = truncate(strings.TrimSpace(raw.Intro), 200)
-	seen := map[string]bool{}
+	seen := map[string]bool{} // codes and titles: the same film twice is one pick
 	for _, r := range raw.Picks {
 		code := strings.ToUpper(strings.TrimSpace(r.Code))
 		if seen[code] || len(code) < 2 || len(out.Picks) == 5 {
@@ -429,7 +431,10 @@ func (s *Service) AssistantTonight(ctx context.Context, wish string) (Tonight, e
 		default:
 			continue // a code the model made up
 		}
-		seen[code] = true
+		if seen["title:"+fold(p.Title)] {
+			continue
+		}
+		seen[code], seen["title:"+fold(p.Title)] = true, true
 		p.Why = truncate(strings.TrimSpace(r.Why), 200)
 		out.Picks = append(out.Picks, p)
 	}
@@ -451,8 +456,10 @@ type candidate struct {
 }
 
 // tonightProgrammes: from now to the end of the evening (at least 3
-// hours) on the viewer's channels; at most 150, those on air now and those
-// of prime time first.
+// hours) on the viewer's channels; at most 60, those on air now and those
+// of prime time first. With the library the list stays near 2000 tokens:
+// within what small local models read by default (Ollama cuts the rest
+// without a word), and about 40 seconds of reading on a processor.
 func (s *Service) tonightProgrammes(ctx context.Context, v Viewer) ([]candidate, error) {
 	now := time.Now()
 	from := now
@@ -488,7 +495,7 @@ func (s *Service) tonightProgrammes(ctx context.Context, v Viewer) ([]candidate,
 				continue
 			}
 			extra := p.Category
-			if d := truncate(strings.Join(strings.Fields(p.Description), " "), 140); d != "" {
+			if d := truncate(strings.Join(strings.Fields(p.Description), " "), 40); d != "" {
 				extra = strings.TrimSpace(extra + " " + d)
 			}
 			if p.Airing == "live" {
@@ -508,8 +515,8 @@ func (s *Service) tonightProgrammes(ctx context.Context, v Viewer) ([]candidate,
 		}
 		return out[i].Start < out[j].Start
 	})
-	if len(out) > 150 {
-		out = out[:150]
+	if len(out) > 60 {
+		out = out[:60]
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Start != out[j].Start {
@@ -521,13 +528,13 @@ func (s *Service) tonightProgrammes(ctx context.Context, v Viewer) ([]candidate,
 }
 
 // tonightLibrary: what the viewer started, their list and the week's
-// trending titles, at most 40.
+// trending titles, at most 20.
 func (s *Service) tonightLibrary(ctx context.Context) []candidate {
 	var out []candidate
 	seen := map[int64]bool{}
 	if cont, err := s.Continue(ctx); err == nil {
 		for _, c := range cont {
-			if len(out) >= 12 {
+			if len(out) >= 8 {
 				break
 			}
 			if c.Media == "episode" {
@@ -545,7 +552,7 @@ func (s *Service) tonightLibrary(ctx context.Context) []candidate {
 	}
 	add := func(list []store.CatalogItem, why string) {
 		for _, it := range list {
-			if len(out) >= 40 || seen[it.ID] {
+			if len(out) >= 20 || seen[it.ID] {
 				continue
 			}
 			seen[it.ID] = true

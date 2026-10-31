@@ -637,7 +637,6 @@
   "Hai voglia di… (facoltativo)": "Hai voglia di… (facoltativo)",
   "Hai voglia di…": "Hai voglia di…",
   "Cosa guardo stasera?": "Cosa guardo stasera?",
-  "L'assistente sta scegliendo…": "L'assistente sta scegliendo…",
   "Stasera": "Stasera",
   "In onda ora": "In onda ora",
   "Registrare “{title}” alle {time} su {channel}?": "Registrare “{title}” alle {time} su {channel}?",
@@ -657,5 +656,6 @@
   "Accendi l'assistente per tutti i profili": "Accendi l'assistente per tutti i profili",
   "Assistente salvato": "Assistente salvato",
   "Assistente": "Assistente",
-  "Un modello linguistico scrive le regole di registrazione a partire da una frase e propone cosa guardare stasera. Va bene qualsiasi server con l'API compatibile OpenAI: Ollama, LM Studio o llama.cpp in casa, oppure un servizio su internet. Gli si mandano la guida TV di stasera, i nomi dei canali e i titoli che hai iniziato o messo in lista; mai credenziali né indirizzi del provider. Con un modello in casa non esce nulla dalla tua rete. L'assistente propone soltanto: le regole le controlli e le salvi tu.": "Un modello linguistico scrive le regole di registrazione a partire da una frase e propone cosa guardare stasera. Va bene qualsiasi server con l'API compatibile OpenAI: Ollama, LM Studio o llama.cpp in casa, oppure un servizio su internet. Gli si mandano la guida TV di stasera, i nomi dei canali e i titoli che hai iniziato o messo in lista; mai credenziali né indirizzi del provider. Con un modello in casa non esce nulla dalla tua rete. L'assistente propone soltanto: le regole le controlli e le salvi tu."
+  "Un modello linguistico scrive le regole di registrazione a partire da una frase e propone cosa guardare stasera. Va bene qualsiasi server con l'API compatibile OpenAI: Ollama, LM Studio o llama.cpp in casa, oppure un servizio su internet. Gli si mandano la guida TV di stasera, i nomi dei canali e i titoli che hai iniziato o messo in lista; mai credenziali né indirizzi del provider. Con un modello in casa non esce nulla dalla tua rete. L'assistente propone soltanto: le regole le controlli e le salvi tu.": "Un modello linguistico scrive le regole di registrazione a partire da una frase e propone cosa guardare stasera. Va bene qualsiasi server con l'API compatibile OpenAI: Ollama, LM Studio o llama.cpp in casa, oppure un servizio su internet. Gli si mandano la guida TV di stasera, i nomi dei canali e i titoli che hai iniziato o messo in lista; mai credenziali né indirizzi del provider. Con un modello in casa non esce nulla dalla tua rete. L'assistente propone soltanto: le regole le controlli e le salvi tu.",
+  "L'assistente sta scegliendo… (con un modello sul processore anche un minuto)": "L'assistente sta scegliendo… (con un modello sul processore anche un minuto)"
 }

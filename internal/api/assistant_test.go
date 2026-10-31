@@ -74,7 +74,7 @@ func TestAssistant(t *testing.T) {
 	// A rule from a sentence: the model's channel name becomes the channel.
 	m.noJSON = true
 	m.answer = func(system, user string) string {
-		if !strings.Contains(system, "Cielo") || user != "registra le partite della Juve in diretta su Cielo" {
+		if !strings.Contains(system, "Cielo") || !strings.HasPrefix(user, "registra le partite della Juve in diretta su Cielo") {
 			return "?"
 		}
 		return "Ecco la regola:\n```json\n" + `{"name":"Juventus","all":["juventus"],"any":[],"none":["highlights"],"channel":"cielo","section":"","live_only":true,"keep":0,"explanation":"Registra le partite della Juventus in diretta su Cielo."}` + "\n```"

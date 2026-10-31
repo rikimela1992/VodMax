@@ -637,7 +637,6 @@
   "Hai voglia di… (facoltativo)": "In the mood for… (optional)",
   "Hai voglia di…": "In the mood for…",
   "Cosa guardo stasera?": "What shall I watch tonight?",
-  "L'assistente sta scegliendo…": "The assistant is choosing…",
   "Stasera": "Tonight",
   "In onda ora": "On now",
   "Registrare “{title}” alle {time} su {channel}?": "Record “{title}” at {time} on {channel}?",
@@ -657,5 +656,6 @@
   "Accendi l'assistente per tutti i profili": "Turn the assistant on for every profile",
   "Assistente salvato": "Assistant saved",
   "Assistente": "Assistant",
-  "Un modello linguistico scrive le regole di registrazione a partire da una frase e propone cosa guardare stasera. Va bene qualsiasi server con l'API compatibile OpenAI: Ollama, LM Studio o llama.cpp in casa, oppure un servizio su internet. Gli si mandano la guida TV di stasera, i nomi dei canali e i titoli che hai iniziato o messo in lista; mai credenziali né indirizzi del provider. Con un modello in casa non esce nulla dalla tua rete. L'assistente propone soltanto: le regole le controlli e le salvi tu.": "A language model writes recording rules from a sentence and suggests what to watch tonight. Any server with the OpenAI-compatible API works: Ollama, LM Studio or llama.cpp at home, or a service on the internet. It receives tonight's TV guide, the channel names and the titles you started or added to your list; never credentials or provider addresses. With a model at home nothing leaves your network. The assistant only proposes: you check and save the rules."
+  "Un modello linguistico scrive le regole di registrazione a partire da una frase e propone cosa guardare stasera. Va bene qualsiasi server con l'API compatibile OpenAI: Ollama, LM Studio o llama.cpp in casa, oppure un servizio su internet. Gli si mandano la guida TV di stasera, i nomi dei canali e i titoli che hai iniziato o messo in lista; mai credenziali né indirizzi del provider. Con un modello in casa non esce nulla dalla tua rete. L'assistente propone soltanto: le regole le controlli e le salvi tu.": "A language model writes recording rules from a sentence and suggests what to watch tonight. Any server with the OpenAI-compatible API works: Ollama, LM Studio or llama.cpp at home, or a service on the internet. It receives tonight's TV guide, the channel names and the titles you started or added to your list; never credentials or provider addresses. With a model at home nothing leaves your network. The assistant only proposes: you check and save the rules.",
+  "L'assistente sta scegliendo… (con un modello sul processore anche un minuto)": "The assistant is choosing… (with a model on the processor, up to a minute)"
 }

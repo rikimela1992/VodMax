@@ -16,7 +16,7 @@ Stato: **Approvata** (31 ottobre 2026: "Parti dalle prime due")
   l'anteprima. **Non salva niente**: salva la persona.
 - **Cosa guardo stasera** (Home, se l'assistente è acceso): il modello
   riceve i programmi da adesso a fine serata sui canali del profilo (al
-  massimo 150, prima quelli in onda e di prima serata) e i titoli della
+  massimo 60, righe brevi: circa 2000 token con la libreria, letti in ~40 s da un modello piccolo su CPU; prima quelli in onda e di prima serata) e i titoli della
   libreria (iniziati, in lista, di tendenza), ognuno con un codice. Sceglie
   fino a 5 codici con un motivo: **un codice che VodMax non ha dato viene
   scartato**, quindi non può proporre titoli inventati. Un programma in onda

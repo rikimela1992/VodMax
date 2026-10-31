@@ -240,7 +240,7 @@
     form.onsubmit = async (e) => {
       e.preventDefault();
       ask.disabled = true;
-      result.replaceChildren(el("p", { className: "empty" }, t("L'assistente sta scegliendo…")));
+      result.replaceChildren(el("p", { className: "empty" }, t("L'assistente sta scegliendo… (con un modello sul processore anche un minuto)")));
       try {
         const r = await api("POST", "/api/v1/assistant/tonight", { wish: wish.value });
         result.replaceChildren(r.intro ? el("p", { className: "tonight-intro" }, r.intro) : "", el("div", { className: "row" }, ...r.picks.map(pickCard)));
